@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Astryks",
+    "slug": "astryks",
+    "scheme": "astryks",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0B0C"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.astryks.app"
+    },
+    "android": {
+      "package": "com.astryks.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#E85D5D"
+      }
+    },
+    "plugins": ["expo-router"]
+  }
+}
