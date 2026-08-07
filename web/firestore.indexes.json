@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "lessons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subjectId", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
