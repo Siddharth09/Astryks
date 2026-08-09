@@ -46,7 +46,8 @@ export default function PrizeRulesPage() {
         We want every creative student on Astryks — subscriber or not — to be able to post, get
         discovered, and compete for real cash, which is why entry is completely free. One winner per
         calendar month receives AU$1,000 (Australian dollars), funded from Astryks' subscription
-        revenue.
+        revenue. We're guaranteeing this prize every month through February 2027 (Astryks' first six
+        months) — see Section 8 for how we'd handle any change after that.
       </p>
       <p className="mb-4">
         The prize is paid by bank transfer or PayID/equivalent to details the winner provides. If
@@ -75,9 +76,10 @@ export default function PrizeRulesPage() {
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">8. Changes &amp; cancellation</h2>
       <p className="mb-4">
-        Astryks may modify, suspend, or end the Creative Prize at any time, including changing the prize
-        amount or formula, or these rules, with reasonable notice in-app where practical. These
-        Official Rules are part of our <a href="/terms" className="link-accent">Terms of Service</a>.
+        We're committed to running this prize, as described above, every month through February 2027.
+        After that, Astryks may modify, suspend, or end the Creative Prize, including changing the prize
+        amount or these rules, with reasonable notice in-app where practical. These Official Rules are
+        part of our <a href="/terms" className="link-accent">Terms of Service</a>.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">9. Governing law</h2>

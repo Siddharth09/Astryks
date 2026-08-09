@@ -56,7 +56,7 @@ const FAQS = [
   { q: "How do the locked videos work?", a: "New lessons unlock regularly. Once a lesson unlocks for you, it's yours to rewatch any time — even if you cancel later." },
   { q: "Can I post what I make?", a: "Yes — post your own work and get feedback from other people learning alongside you." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
-  { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month. No minimum like count and no subscription required — anyone with a free Astryks account can post and compete. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue. International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
+  { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month. No minimum like count and no subscription required — anyone with a free Astryks account can post and compete. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue, and we're guaranteeing it every month through our first six months (through February 2027). International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
   { q: "Do I have to subscribe to post or enter the prize?", a: "No — creating an account, posting, liking, and entering the Creative Prize are all free. A subscription is only needed to unlock the pre-recorded lesson library." },
   { q: "What devices does Astryks work on?", a: "Any modern smartphone, tablet, laptop, or desktop — just a browser, or the app." },
 ];
@@ -270,6 +270,9 @@ export default function Home() {
             <p className="font-display text-5xl font-black mb-2">AU$1,000</p>
             <p className="font-display text-2xl font-bold mb-3 leading-snug">
               Every month, for the community's most-loved post
+            </p>
+            <p className="inline-block text-xs font-semibold text-brand bg-white/70 rounded-full px-3 py-1 mb-3">
+              Guaranteed every month through our first 6 months
             </p>
             <p className="text-sm text-ink/60 mb-3">
               We want every creative student — subscriber or not — to be able to post, get discovered, and

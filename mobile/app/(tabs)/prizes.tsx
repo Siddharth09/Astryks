@@ -46,7 +46,8 @@ export default function PrizesScreen() {
       <Text style={{ fontSize: 13, color: colors.ink, opacity: 0.7, marginBottom: 4, lineHeight: 19 }}>
         Free to enter for every Astryks member — no subscription needed. One winner is picked each
         month, across every subject — music, art, or any other creative project. Whoever's post has
-        the most likes at the end of this calendar month wins, no minimum likes required.
+        the most likes at the end of this calendar month wins, no minimum likes required. Guaranteed
+        every month through our first 6 months (through February 2027).
       </Text>
       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand, marginBottom: 20 }}>
         {daysLeft} day{daysLeft === 1 ? "" : "s"} left this month

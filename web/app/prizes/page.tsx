@@ -42,7 +42,8 @@ export default function PrizesPage() {
       <p className="text-sm text-ink/60 mb-1">
         Free to enter for every Astryks member — no subscription needed. One winner is picked each
         month, across every subject — music, art, or any other creative project. Whoever's post has
-        the most likes at the end of this calendar month wins, no minimum likes required.
+        the most likes at the end of this calendar month wins, no minimum likes required. Guaranteed
+        every month through our first 6 months (through February 2027).
       </p>
       <p className="text-sm font-medium text-brand mb-6">
         {daysLeft} day{daysLeft === 1 ? "" : "s"} left this month
