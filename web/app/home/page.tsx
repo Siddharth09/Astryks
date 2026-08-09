@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import PostCard from "@/components/PostCard";
 import ShareComposer from "@/components/ShareComposer";
 import PageBackground from "@/components/PageBackground";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
 import TrailersSection from "@/components/TrailersSection";
+import SuggestionsRow from "@/components/SuggestionsRow";
 import { FeedSkeleton } from "@/components/Skeleton";
+
+const getFeed = httpsCallable(functions, "getFeed");
 
 export default function HomePage() {
   const { user, loading: authLoading } = useRequireAuth();
@@ -19,9 +23,11 @@ export default function HomePage() {
 
   async function load() {
     if (!user) return;
-    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    let all: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // Fetched via a Cloud Function rather than a direct Firestore query: Firestore security
+    // rules can't filter a list query, so a broad "all posts" read has to be done server-side
+    // (with the Admin SDK) to correctly hide other people's private posts.
+    const result = await getFeed();
+    let all: any[] = (result.data as any).posts;
 
     if (scope === "following") {
       const followsSnap = await getDocs(
@@ -77,6 +83,7 @@ export default function HomePage() {
           Following
         </button>
       </div>
+      {scope === "everyone" && <SuggestionsRow currentUserId={user.uid} />}
       {posts === null ? (
         <FeedSkeleton />
       ) : visiblePosts && visiblePosts.length === 0 ? (
@@ -95,7 +102,12 @@ export default function HomePage() {
       ) : (
         <div className="space-y-6">
           {(visiblePosts ?? []).map((post) => (
-            <PostCard key={post.id} post={post} currentUserId={user.uid} />
+            <PostCard
+              key={post.id}
+              post={post}
+              currentUserId={user.uid}
+              onDeleted={(id) => setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev))}
+            />
           ))}
         </div>
       )}

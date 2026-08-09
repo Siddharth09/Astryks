@@ -5,8 +5,8 @@ import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import ReferralCodeEntry from "@/components/ReferralCodeEntry";
 import TrailersSection from "@/components/TrailersSection";
+import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
 
 const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
 
@@ -14,19 +14,21 @@ export default function SubscriptionBanner() {
   const { user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
 
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "users", user.uid)).then((snap) => {
       setStatus(snap.data()?.subscriptionStatus ?? "none");
+      // Prefer the account's saved country (most reliable once someone's subscribed before,
+      // or filled in by the best-effort guess in AuthContext) over a fresh guess.
+      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
     });
   }, [user]);
 
   async function handleSubscribe() {
     setLoading(true);
-    const referralCode = localStorage.getItem("astryks_referral_code") || undefined;
     const result = await createCheckoutSession({
-      referralCode,
       successUrl: `${location.origin}/home`,
       cancelUrl: `${location.origin}/home`,
     });
@@ -44,7 +46,7 @@ export default function SubscriptionBanner() {
           <p className="text-sm font-medium">
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </p>
-          <p className="text-xs text-ink/60">$5/week · cancel anytime</p>
+          <p className="text-xs text-ink/60">{pricing.display} · cancel anytime</p>
         </div>
         <button onClick={handleSubscribe} disabled={loading} className="btn-primary text-xs px-4 py-2">
           {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
@@ -54,7 +56,6 @@ export default function SubscriptionBanner() {
       <p className="text-[11px] text-ink/50 mt-2">
         Free refunds, no questions asked — unless you used a promo code.
       </p>
-      <ReferralCodeEntry />
     </div>
   );
 }

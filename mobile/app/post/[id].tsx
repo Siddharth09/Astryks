@@ -20,11 +20,23 @@ export default function PostDetailScreen() {
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blocked, setBlocked] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const snap = await getDoc(doc(db, "posts", id));
+      let snap;
+      try {
+        snap = await getDoc(doc(db, "posts", id));
+      } catch (err: any) {
+        // A private post that isn't ours surfaces as permission-denied rather than "not found".
+        if (err?.code === "permission-denied") {
+          setBlocked(true);
+          setLoading(false);
+          return;
+        }
+        throw err;
+      }
       if (snap.exists()) {
         setPost({ id: snap.id, ...snap.data() });
         const commentsSnap = await getDocs(query(collection(db, "posts", id, "comments"), orderBy("createdAt", "asc")));
@@ -33,6 +45,21 @@ export default function PostDetailScreen() {
       setLoading(false);
     })();
   }, [id]);
+
+  if (blocked) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56, paddingHorizontal: 16 }}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
+          style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
+        >
+          <Text style={{ fontSize: 20 }}>←</Text>
+          <Text style={{ fontSize: 15, color: colors.ink }}>Back</Text>
+        </TouchableOpacity>
+        <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>This post is private.</Text>
+      </View>
+    );
+  }
 
   if (loading || !post) {
     return (

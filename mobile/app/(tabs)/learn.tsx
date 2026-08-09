@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Image } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { WebView } from "react-native-webview";
 import { httpsCallable } from "firebase/functions";
@@ -11,8 +12,29 @@ import SubscriptionBanner from "@/components/SubscriptionBanner";
 const completeLessonFn = httpsCallable(functions, "completeLesson");
 const ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
+const SUBJECT_CARDS: {
+  id: string;
+  name: string;
+  tagline: string;
+  thumbnail?: any;
+  size: number;
+  comingSoon?: boolean;
+}[] = [
+  { id: "music", name: "Music", tagline: "Create a song from scratch", thumbnail: require("@/assets/music-preview.jpg"), size: 176 },
+  { id: "art", name: "Art", tagline: "Create a self portrait", thumbnail: require("@/assets/art-preview.jpg"), size: 128 },
+  { id: "finance", name: "Finance", tagline: "Create a portfolio of stocks", size: 128, comingSoon: true },
+];
+
+function tierFor(pct: number): { emoji: string; label: string } | null {
+  if (pct >= 100) return { emoji: "🏆", label: "Mastered" };
+  if (pct >= 50) return { emoji: "🥈", label: "Halfway there" };
+  if (pct >= 25) return { emoji: "🥉", label: "Getting started" };
+  return null;
+}
+
 export default function LearnScreen() {
   const { user, loading: authLoading } = useAuth();
+  const { subject: wantedSubjectId } = useLocalSearchParams<{ subject?: string }>();
   const [subjects, setSubjects] = useState<any[] | null>(null);
   const [allLessons, setAllLessons] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,6 +44,7 @@ export default function LearnScreen() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [justMastered, setJustMastered] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -40,6 +63,13 @@ export default function LearnScreen() {
     })();
   }, [user]);
 
+  useEffect(() => {
+    if (wantedSubjectId && subjects && !active) {
+      openSubjectById(wantedSubjectId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects, wantedSubjectId]);
+
   async function openSubject(subject: any) {
     setActive(subject);
     const snap = await getDocs(query(collection(db, "lessons"), where("subjectId", "==", subject.id), orderBy("order", "asc")));
@@ -56,8 +86,13 @@ export default function LearnScreen() {
   );
 
   async function markComplete(lessonId: string) {
-    await completeLessonFn({ lessonId });
+    const result = await completeLessonFn({ lessonId });
     setCompleted((prev) => new Set(prev).add(lessonId));
+    const mastered = (result.data as any)?.masteredSubject;
+    if (mastered && active) {
+      setJustMastered(active.name);
+      setTimeout(() => setJustMastered(null), 5000);
+    }
   }
 
   async function playLesson(lessonId: string) {
@@ -85,28 +120,35 @@ export default function LearnScreen() {
           <Text style={{ color: colors.muted, marginBottom: 16 }}>← Subjects</Text>
         </TouchableOpacity>
         <SubscriptionBanner />
-        <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 6 }}>{active.name}</Text>
-        {lessons.length > 0 && (
-          <View style={{ marginBottom: 20 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-              <Text style={{ fontSize: 11, color: colors.muted }}>
-                {lessons.filter((l) => completed.has(l.id)).length} of {lessons.length} complete
-              </Text>
-              <Text style={{ fontSize: 11, color: colors.muted }}>
-                {Math.round((lessons.filter((l) => completed.has(l.id)).length / lessons.length) * 100)}%
-              </Text>
-            </View>
-            <View style={{ height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
-              <View
-                style={{
-                  height: "100%",
-                  width: `${Math.round((lessons.filter((l) => completed.has(l.id)).length / lessons.length) * 100)}%`,
-                  backgroundColor: "#E85D5D",
-                }}
-              />
-            </View>
+        {justMastered && (
+          <View style={{ backgroundColor: "#E85D5D", borderRadius: 12, padding: 12, marginBottom: 16 }}>
+            <Text style={{ color: "white", fontWeight: "600", fontSize: 13, textAlign: "center" }}>
+              🏆 You&apos;ve mastered {justMastered}! +50 bonus xp
+            </Text>
           </View>
         )}
+        <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 6 }}>{active.name}</Text>
+        {lessons.length > 0 && (() => {
+          const done = lessons.filter((l) => completed.has(l.id)).length;
+          const pct = Math.round((done / lessons.length) * 100);
+          const tier = tierFor(pct);
+          return (
+            <View style={{ marginBottom: 20 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, color: colors.muted }}>{done} of {lessons.length} complete</Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>{pct}%</Text>
+              </View>
+              <View style={{ height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: "#E85D5D" }} />
+              </View>
+              {tier && (
+                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+                  {tier.emoji} {tier.label}
+                </Text>
+              )}
+            </View>
+          );
+        })()}
         {lessons.map((lesson, i) => {
           const done = completed.has(lesson.id);
           const prevDone = i === 0 || completed.has(lessons[i - 1].id);
@@ -163,8 +205,19 @@ export default function LearnScreen() {
     : [];
   const pinnedLessons = allLessons.filter((l) => l.pinned);
 
+  const subjectTier: Record<string, { emoji: string; label: string } | null> = {};
+  for (const s of subjects ?? []) {
+    const subjectLessons = allLessons.filter((l) => l.subjectId === s.id);
+    if (subjectLessons.length === 0) continue;
+    const done = subjectLessons.filter((l) => completed.has(l.id)).length;
+    subjectTier[s.id] = tierFor(Math.round((done / subjectLessons.length) * 100));
+  }
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56, paddingHorizontal: 16 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.paper }}
+      contentContainerStyle={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 32 }}
+    >
       {pinnedLessons.length > 0 && !q && (
         <View style={{ marginBottom: 18 }}>
           <Text style={{ fontSize: 13, fontWeight: "600", marginBottom: 8 }}>📌 Pinned lessons</Text>
@@ -211,22 +264,54 @@ export default function LearnScreen() {
           </ScrollView>
         )
       ) : (
-        <View style={{ flexDirection: "row", gap: 16 }}>
-          {subjects.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              onPress={() => openSubject(s)}
-              style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "#E85D5D", alignItems: "center", justifyContent: "center", gap: 4 }}
-            >
-              <Text style={{ fontSize: 24 }}>{ICONS[s.id] ?? "⭐"}</Text>
-              <Text style={{ color: "white", fontSize: 12 }}>{s.name}</Text>
-            </TouchableOpacity>
-          ))}
-          <View style={{ width: 96, height: 96, borderRadius: 48, borderWidth: 1.5, borderColor: colors.line, borderStyle: "dashed", alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontSize: 20, color: colors.muted }}>+</Text>
-          </View>
+        <View style={{ alignItems: "center", gap: 28 }}>
+          {SUBJECT_CARDS.map((card) => {
+            const subject = subjects.find((s) => s.id === card.id);
+            if (card.comingSoon || !subject) {
+              return (
+                <View key={card.id} style={{ alignItems: "center", gap: 10, opacity: 0.5 }}>
+                  <View
+                    style={{
+                      width: card.size, height: card.size, borderRadius: card.size / 2,
+                      backgroundColor: "rgba(0,0,0,0.06)", borderWidth: 1.5, borderColor: colors.line, borderStyle: "dashed",
+                      alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 30 }}>{ICONS[card.id] ?? "⭐"}</Text>
+                  </View>
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={{ fontWeight: "700", fontSize: 15 }}>{card.name}</Text>
+                    <Text style={{ fontSize: 13, color: colors.muted }}>{card.tagline}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Coming soon</Text>
+                  </View>
+                </View>
+              );
+            }
+            return (
+              <TouchableOpacity key={card.id} onPress={() => openSubject(subject)} style={{ alignItems: "center", gap: 10 }}>
+                <View style={{ width: card.size, height: card.size, borderRadius: card.size / 2, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 }}>
+                  <Image source={card.thumbnail} style={{ width: "100%", height: "100%" }} />
+                  {subjectTier[card.id] && (
+                    <View
+                      style={{
+                        position: "absolute", top: 6, right: 6, width: 28, height: 28, borderRadius: 14,
+                        backgroundColor: "white", alignItems: "center", justifyContent: "center",
+                        shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 3, elevation: 2,
+                      }}
+                    >
+                      <Text style={{ fontSize: 14 }}>{subjectTier[card.id]!.emoji}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontWeight: "700", fontSize: 17 }}>{card.name}</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>{card.tagline}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 }

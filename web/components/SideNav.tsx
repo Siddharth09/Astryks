@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { IconMark, IconHome, IconLearn, IconMessages, IconMe } from "@/components/Icons";
+import { IconMark, IconHome, IconLearn, IconMessages, IconMe, IconPrize } from "@/components/Icons";
 
 const tabs = [
   { href: "/home", label: "Home", Icon: IconHome },
   { href: "/learn", label: "Learn", Icon: IconLearn },
+  { href: "/prizes", label: "Prizes", Icon: IconPrize },
   { href: "/messages", label: "Messages", Icon: IconMessages },
   { href: "/me", label: "Me", Icon: IconMe },
 ];
@@ -21,12 +22,7 @@ export default function SideNav() {
   return (
     <aside className="hidden md:flex flex-col fixed top-0 left-0 bottom-0 w-56 border-r border-line/10 bg-paper/95 backdrop-blur px-4 py-6 z-20">
       <Link href="/home" className="flex items-center gap-2 mb-8 px-2">
-        <div
-          style={{ background: "#E85D5D" }}
-          className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
-        >
-          <IconMark className="w-4 h-4 text-white" />
-        </div>
+        <IconMark className="w-7 h-7 rounded-md flex-shrink-0" />
         <span className="font-display font-semibold text-lg">Astryks</span>
       </Link>
 

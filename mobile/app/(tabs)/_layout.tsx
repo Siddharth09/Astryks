@@ -23,6 +23,10 @@ export default function TabsLayout() {
         options={{ title: "Learn", tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>◈</Text> }}
       />
       <Tabs.Screen
+        name="prizes"
+        options={{ title: "Prizes", tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 16 }}>🏆</Text> }}
+      />
+      <Tabs.Screen
         name="messages"
         options={{ title: "Messages", tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>✉</Text> }}
       />

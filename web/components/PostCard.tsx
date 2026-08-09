@@ -4,14 +4,57 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import LikeButton from "@/components/LikeButton";
 import SaveButton from "@/components/SaveButton";
 import FollowButton from "@/components/FollowButton";
+import ReportModal from "@/components/ReportModal";
+import PrizeInfoModal from "@/components/PrizeInfoModal";
 
-export default function PostCard({ post, currentUserId }: { post: any; currentUserId: string | null }) {
+const deletePostFn = httpsCallable(functions, "deletePost");
+const submitReportFn = httpsCallable(functions, "submitReport");
+const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
+
+export default function PostCard({
+  post,
+  currentUserId,
+  onDeleted,
+}: {
+  post: any;
+  currentUserId: string | null;
+  onDeleted?: (postId: string) => void;
+}) {
   const router = useRouter();
-  const createdDate = post.createdAt?.toDate ? post.createdAt.toDate() : new Date();
+  const { user } = useAuth();
+  const [deleting, setDeleting] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [prizeOpen, setPrizeOpen] = useState(false);
+  const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
+
+  async function handleReport(reason: string, details: string) {
+    await submitReportFn({ targetType: "post", targetId: post.id, reason, details });
+  }
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("Delete this post? This can't be undone.")) return;
+    setDeleting(true);
+    try {
+      await deletePostFn({ postId: post.id });
+      onDeleted?.(post.id);
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't delete this post.");
+      setDeleting(false);
+    }
+  }
+  const createdDate = post.createdAt?.toDate
+    ? post.createdAt.toDate()
+    : typeof post.createdAt === "number"
+    ? new Date(post.createdAt)
+    : new Date();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
 
@@ -108,13 +151,29 @@ export default function PostCard({ post, currentUserId }: { post: any; currentUs
       </Link>
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2 text-sm text-ink/50">
-          <span>{post.ownerName ?? "Member"}</span>
+          <Link href={`/user/${post.ownerId}`} className="hover:text-ink hover:underline">
+            {post.ownerName ?? "Member"}
+          </Link>
           <span>·</span>
           <time>{createdDate.toLocaleDateString()}</time>
           <FollowButton targetUserId={post.ownerId} currentUserId={currentUserId} />
           {currentUserId && currentUserId !== post.ownerId && (
             <button onClick={openConversation} className="text-xs text-ink/40 hover:text-ink">
               Message
+            </button>
+          )}
+          {currentUserId && currentUserId !== post.ownerId && (
+            <button onClick={() => setReportOpen(true)} className="text-xs text-ink/40 hover:text-ink">
+              Report
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="ml-auto text-xs text-red-600 hover:underline flex-shrink-0"
+            >
+              {deleting ? "Deleting…" : "Delete"}
             </button>
           )}
         </div>
@@ -129,8 +188,21 @@ export default function PostCard({ post, currentUserId }: { post: any; currentUs
             💬 {post.commentCount ?? 0}
           </Link>
           <SaveButton postId={post.id} currentUserId={currentUserId} />
+          {(post.type === "photo" || post.type === "video") && (
+            <button onClick={() => setPrizeOpen(true)} className="ml-auto hover:text-ink" title="Creative prize">
+              🏆
+            </button>
+          )}
         </div>
       </div>
+      <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} onSubmit={handleReport} />
+      <PrizeInfoModal
+        open={prizeOpen}
+        onClose={() => setPrizeOpen(false)}
+        likeCount={post.likeCount ?? 0}
+        eligible={post.prizeEligible}
+        optedOut={post.prizeOptOut}
+      />
     </article>
   );
 }

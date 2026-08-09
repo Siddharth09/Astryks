@@ -10,6 +10,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 const SUBJECT_LABEL: Record<string, string> = { music: "Music", art: "Art", finance: "Finance" };
 
 const createBunnyUpload = httpsCallable(functions, "createBunnyUpload");
+const deleteLessonFn = httpsCallable(functions, "deleteLesson");
 
 // Simple allowlist for who can add lessons — update with your own email.
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
@@ -26,6 +27,7 @@ export default function LessonUploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [existingLessons, setExistingLessons] = useState<any[] | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isAdmin = !authLoading && !!user && ADMIN_EMAILS.includes(user.email ?? "");
 
@@ -42,6 +44,19 @@ export default function LessonUploadPage() {
   async function togglePin(lessonId: string, current: boolean) {
     await updateDoc(doc(db, "lessons", lessonId), { pinned: !current });
     setExistingLessons((prev) => (prev ?? []).map((l) => (l.id === lessonId ? { ...l, pinned: !current } : l)));
+  }
+
+  async function handleDeleteLesson(lessonId: string, title: string) {
+    if (!confirm(`Delete "${title}"? This removes its video and everyone's progress on it. This can't be undone.`)) return;
+    setDeletingId(lessonId);
+    try {
+      await deleteLessonFn({ lessonId });
+      setExistingLessons((prev) => (prev ?? []).filter((l) => l.id !== lessonId));
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't delete this lesson.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   if (authLoading || !user) return <p className="text-ink/50 text-center py-16">Loading…</p>;
@@ -159,6 +174,13 @@ export default function LessonUploadPage() {
                   className={l.pinned ? "btn-primary text-xs px-3 py-1.5" : "btn-secondary text-xs px-3 py-1.5"}
                 >
                   {l.pinned ? "📌 Pinned" : "Pin"}
+                </button>
+                <button
+                  onClick={() => handleDeleteLesson(l.id, l.title)}
+                  disabled={deletingId === l.id}
+                  className="text-xs text-red-600 hover:underline px-2"
+                >
+                  {deletingId === l.id ? "Deleting…" : "Delete"}
                 </button>
               </div>
             ))}

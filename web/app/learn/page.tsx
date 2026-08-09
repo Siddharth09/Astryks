@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
@@ -13,8 +14,40 @@ const completeLessonFn = httpsCallable(functions, "completeLesson");
 
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
+const SUBJECT_CARDS: {
+  id: string;
+  name: string;
+  tagline: string;
+  thumbnail?: string;
+  size: number;
+  comingSoon?: boolean;
+}[] = [
+  { id: "music", name: "Music", tagline: "Create a song from scratch", thumbnail: "/music-preview.jpg", size: 208 },
+  { id: "art", name: "Art", tagline: "Create a self portrait", thumbnail: "/art-preview.jpg", size: 144 },
+  { id: "finance", name: "Finance", tagline: "Create a portfolio of stocks", size: 144, comingSoon: true },
+];
+
+function tierFor(pct: number): { emoji: string; label: string } | null {
+  if (pct >= 100) return { emoji: "🏆", label: "Mastered" };
+  if (pct >= 50) return { emoji: "🥈", label: "Halfway there" };
+  if (pct >= 25) return { emoji: "🥉", label: "Getting started" };
+  return null;
+}
+
+// useSearchParams() requires a Suspense boundary during static prerendering (Next.js App
+// Router) — without this wrapper, `next build` fails on Firebase App Hosting/Vercel with
+// "useSearchParams() should be wrapped in a suspense boundary."
 export default function LearnPage() {
+  return (
+    <Suspense fallback={null}>
+      <LearnPageContent />
+    </Suspense>
+  );
+}
+
+function LearnPageContent() {
   const { user, loading: authLoading } = useRequireAuth();
+  const searchParams = useSearchParams();
   const [subjects, setSubjects] = useState<any[] | null>(null);
   const [allLessons, setAllLessons] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -24,6 +57,7 @@ export default function LearnPage() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [justMastered, setJustMastered] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -48,6 +82,14 @@ export default function LearnPage() {
     })();
   }, [user]);
 
+  useEffect(() => {
+    const wantedSubjectId = searchParams.get("subject");
+    if (wantedSubjectId && subjects && !activeSubject) {
+      openSubjectById(wantedSubjectId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects, searchParams]);
+
   async function openSubject(subject: any) {
     setActiveSubject(subject);
     const lessonsSnap = await getDocs(
@@ -66,8 +108,13 @@ export default function LearnPage() {
   );
 
   async function markComplete(lessonId: string) {
-    await completeLessonFn({ lessonId });
+    const result = await completeLessonFn({ lessonId });
     setCompletedIds((prev) => new Set(prev).add(lessonId));
+    const mastered = (result.data as any)?.masteredSubject;
+    if (mastered && activeSubject) {
+      setJustMastered(activeSubject.name);
+      setTimeout(() => setJustMastered(null), 5000);
+    }
   }
 
   async function playLesson(lessonId: string) {
@@ -92,24 +139,36 @@ export default function LearnPage() {
           ← Subjects
         </button>
         <SubscriptionBanner />
-        <h1 className="font-display text-2xl font-semibold mb-2">{activeSubject.name}</h1>
-        {lessons.length > 0 && (
-          <div className="mb-6">
-            <div className="flex justify-between text-xs text-ink/50 mb-1">
-              <span>{lessons.filter((l) => completedIds.has(l.id)).length} of {lessons.length} complete</span>
-              <span>{Math.round((lessons.filter((l) => completedIds.has(l.id)).length / lessons.length) * 100)}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-ink/10 overflow-hidden">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.round((lessons.filter((l) => completedIds.has(l.id)).length / lessons.length) * 100)}%`,
-                  background: "#E85D5D",
-                }}
-              />
-            </div>
+        {justMastered && (
+          <div className="mb-4 rounded-xl p-3 text-sm font-medium text-white text-center" style={{ background: "#E85D5D" }}>
+            🏆 You&apos;ve mastered {justMastered}! +50 bonus xp
           </div>
         )}
+        <h1 className="font-display text-2xl font-semibold mb-2">{activeSubject.name}</h1>
+        {lessons.length > 0 && (() => {
+          const done = lessons.filter((l) => completedIds.has(l.id)).length;
+          const pct = Math.round((done / lessons.length) * 100);
+          const tier = tierFor(pct);
+          return (
+            <div className="mb-6">
+              <div className="flex justify-between text-xs text-ink/50 mb-1">
+                <span>{done} of {lessons.length} complete</span>
+                <span>{pct}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-ink/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${pct}%`, background: "#E85D5D" }}
+                />
+              </div>
+              {tier && (
+                <p className="text-xs text-ink/50 mt-1.5">
+                  {tier.emoji} {tier.label}
+                </p>
+              )}
+            </div>
+          );
+        })()}
         <div className="flex flex-col items-center gap-5">
           {lessons.map((lesson, i) => {
             const done = completedIds.has(lesson.id);
@@ -173,6 +232,14 @@ export default function LearnPage() {
 
   const pinnedLessons = allLessons.filter((l) => l.pinned);
 
+  const subjectTier: Record<string, { emoji: string; label: string } | null> = {};
+  for (const s of subjects ?? []) {
+    const subjectLessons = allLessons.filter((l) => l.subjectId === s.id);
+    if (subjectLessons.length === 0) continue;
+    const done = subjectLessons.filter((l) => completedIds.has(l.id)).length;
+    subjectTier[s.id] = tierFor(Math.round((done / subjectLessons.length) * 100));
+  }
+
   return (
     <div className="pb-16">
       <PageBackground color="#FAE9E9" />
@@ -230,21 +297,47 @@ export default function LearnPage() {
       ) : subjects === null ? (
         <SubjectsSkeleton />
       ) : (
-      <div className="flex gap-4 flex-wrap">
-        {subjects.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => openSubject(s)}
-            className="w-24 h-24 rounded-full flex flex-col items-center justify-center gap-1 text-white"
-            style={{ background: "#E85D5D" }}
-          >
-            <span className="text-2xl">{SUBJECT_ICONS[s.id] ?? "⭐"}</span>
-            <span className="text-xs">{s.name}</span>
-          </button>
-        ))}
-        <button className="w-24 h-24 rounded-full flex items-center justify-center border-2 border-dashed border-line/30 text-ink/40">
-          +
-        </button>
+      <div className="flex flex-col items-center gap-8">
+        {SUBJECT_CARDS.map((card) => {
+          const subject = subjects.find((s) => s.id === card.id);
+          if (card.comingSoon || !subject) {
+            return (
+              <div key={card.id} className="flex flex-col items-center gap-3 opacity-50">
+                <div
+                  className="rounded-full flex items-center justify-center bg-ink/10 border-2 border-dashed border-ink/20"
+                  style={{ width: card.size, height: card.size }}
+                >
+                  <span className="text-3xl">{SUBJECT_ICONS[card.id] ?? "⭐"}</span>
+                </div>
+                <div className="text-center">
+                  <p className="font-display font-semibold">{card.name}</p>
+                  <p className="text-sm text-ink/50">{card.tagline}</p>
+                  <p className="text-xs text-ink/40 mt-0.5">Coming soon</p>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <button key={card.id} onClick={() => openSubject(subject)} className="flex flex-col items-center gap-3">
+              <div className="rounded-full overflow-hidden relative shadow-md" style={{ width: card.size, height: card.size }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={card.thumbnail} alt="" className="w-full h-full object-cover" />
+                {subjectTier[card.id] && (
+                  <span
+                    className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white flex items-center justify-center text-sm shadow"
+                    title={subjectTier[card.id]!.label}
+                  >
+                    {subjectTier[card.id]!.emoji}
+                  </span>
+                )}
+              </div>
+              <div className="text-center">
+                <p className="font-display font-semibold text-lg">{card.name}</p>
+                <p className="text-sm text-ink/50">{card.tagline}</p>
+              </div>
+            </button>
+          );
+        })}
       </div>
       )}
     </div>

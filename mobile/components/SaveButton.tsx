@@ -11,8 +11,13 @@ export default function SaveButton({ postId, currentUserId }: { postId: string; 
   useEffect(() => {
     if (!saveId) return setChecked(true);
     (async () => {
-      const snap = await getDoc(doc(db, "saves", saveId));
-      setSaved(snap.exists());
+      try {
+        const snap = await getDoc(doc(db, "saves", saveId));
+        setSaved(snap.exists());
+      } catch {
+        // Treat any hiccup checking save status the same as "not saved" rather than crashing.
+        setSaved(false);
+      }
       setChecked(true);
     })();
   }, [saveId]);

@@ -2,11 +2,8 @@ import { useEffect, useState } from "react";
 import { TouchableOpacity, Text } from "react-native";
 import { router } from "expo-router";
 import { doc, getDoc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { db, functions } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { colors } from "@/lib/styles";
-
-const bumpStreak = httpsCallable(functions, "bumpStreak");
 
 export default function LikeButton({
   postId,
@@ -51,7 +48,6 @@ export default function LikeButton({
       await batch.commit();
       setLiked(true);
       setCount((c) => c + 1);
-      bumpStreak().catch(() => {});
     }
     setBusy(false);
   }

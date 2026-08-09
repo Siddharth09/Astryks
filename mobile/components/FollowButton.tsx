@@ -3,7 +3,17 @@ import { TouchableOpacity, Text } from "react-native";
 import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export default function FollowButton({ targetUserId, currentUserId }: { targetUserId: string; currentUserId: string | null }) {
+export default function FollowButton({
+  targetUserId,
+  currentUserId,
+  style,
+  textStyle,
+}: {
+  targetUserId: string;
+  currentUserId: string | null;
+  style?: any;
+  textStyle?: any;
+}) {
   const [following, setFollowing] = useState(false);
   const [checked, setChecked] = useState(false);
   const followId = currentUserId ? `${currentUserId}_${targetUserId}` : null;
@@ -35,16 +45,21 @@ export default function FollowButton({ targetUserId, currentUserId }: { targetUs
     <TouchableOpacity
       onPress={toggle}
       disabled={!checked}
-      style={{
-        paddingHorizontal: 10,
-        paddingVertical: 3,
-        borderRadius: 999,
-        backgroundColor: following ? "transparent" : "#E85D5D",
-        borderWidth: following ? 1 : 0,
-        borderColor: "#ccc",
-      }}
+      style={[
+        {
+          paddingHorizontal: 10,
+          paddingVertical: 3,
+          borderRadius: 999,
+          backgroundColor: following ? "transparent" : "#E85D5D",
+          borderWidth: following ? 1 : 0,
+          borderColor: "#ccc",
+        },
+        style,
+      ]}
     >
-      <Text style={{ fontSize: 10, color: following ? "#666" : "white" }}>{following ? "Following" : "Follow"}</Text>
+      <Text style={[{ fontSize: 10, color: following ? "#666" : "white" }, textStyle]}>
+        {following ? "Following" : "Follow"}
+      </Text>
     </TouchableOpacity>
   );
 }

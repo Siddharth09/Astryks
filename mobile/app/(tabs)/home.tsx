@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, TextInput, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { collection, getDocs, orderBy, query, where, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { db, storage, functions } from "@/lib/firebase";
@@ -11,10 +11,13 @@ import PostCard from "@/components/PostCard";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
 import TrailersSection from "@/components/TrailersSection";
 import { FeedSkeleton } from "@/components/Skeleton";
+import BrandMark from "@/components/BrandMark";
+import SuggestionsRow from "@/components/SuggestionsRow";
+import PrizeInfoModal from "@/components/PrizeInfoModal";
 import { colors } from "@/lib/styles";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
-const bumpStreak = httpsCallable(functions, "bumpStreak");
+const getFeed = httpsCallable(functions, "getFeed");
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
@@ -26,6 +29,7 @@ export default function HomeScreen() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [prizeInfoOpen, setPrizeInfoOpen] = useState(false);
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -37,9 +41,11 @@ export default function HomeScreen() {
   }, [user, authLoading]);
 
   async function load() {
-    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    setAllPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    // Fetched via a Cloud Function rather than a direct Firestore query: Firestore security
+    // rules can't filter a list query, so a broad "all posts" read has to be done server-side
+    // (with the Admin SDK) to correctly hide other people's private posts.
+    const result = await getFeed();
+    setAllPosts((result.data as any).posts);
   }
 
   useEffect(() => {
@@ -91,13 +97,13 @@ export default function HomeScreen() {
       title: null,
       mediaUrl,
       mediaPath: path,
+      visibility: "public",
       ownerId: user.uid,
       ownerName: user.displayName ?? "Member",
       createdAt: serverTimestamp(),
       likeCount: 0,
       commentCount: 0,
     });
-    bumpStreak().catch(() => {});
     load();
   }
 
@@ -112,7 +118,6 @@ export default function HomeScreen() {
       likeCount: 0,
       commentCount: 0,
     });
-    bumpStreak().catch(() => {});
     setTextInput(null);
     load();
   }
@@ -134,7 +139,6 @@ export default function HomeScreen() {
       likeCount: 0,
       commentCount: 0,
     });
-    bumpStreak().catch(() => {});
     setLinkInput(null);
     load();
   }
@@ -150,7 +154,8 @@ export default function HomeScreen() {
   if (allPosts === null) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.paper }}>
-        <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+        <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <BrandMark size={24} />
           <Text style={{ fontSize: 18, fontWeight: "700" }}>Astryks</Text>
         </View>
         <View style={{ padding: 16 }}>
@@ -171,7 +176,8 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.paper }}>
-      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <BrandMark size={24} />
         <Text style={{ fontSize: 18, fontWeight: "700" }}>Astryks</Text>
       </View>
 
@@ -224,8 +230,13 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity onPress={shareMedia}><Text style={{ fontSize: 16 }}>📷</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setLinkInput("")}><Text style={{ fontSize: 16 }}>🔗</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setPrizeInfoOpen(true)} accessibilityLabel="About the creative prize">
+            <Text style={{ fontSize: 16 }}>🏆</Text>
+          </TouchableOpacity>
         </View>
       )}
+
+      <PrizeInfoModal visible={prizeInfoOpen} onClose={() => setPrizeInfoOpen(false)} generic />
 
       <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
         <TextInput
@@ -251,11 +262,23 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {scope === "everyone" && <SuggestionsRow currentUserId={user.uid} />}
+
       <FlatList
         data={visiblePosts}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
-        renderItem={({ item }) => <PostCard post={item} currentUserId={user.uid} isActive={item.id === activeId} />}
+        renderItem={({ item }) => (
+          <PostCard
+            post={item}
+            currentUserId={user.uid}
+            isActive={item.id === activeId}
+            onDeleted={(id) => {
+              setAllPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+              setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+            }}
+          />
+        )}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ink} />}

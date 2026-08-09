@@ -20,11 +20,24 @@ export default function PostPage() {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const snap = await getDoc(doc(db, "posts", params.id));
+      let snap;
+      try {
+        snap = await getDoc(doc(db, "posts", params.id));
+      } catch (err: any) {
+        // A private post that isn't ours (or Firestore rejecting an unauthenticated
+        // read) surfaces as permission-denied rather than "not found".
+        if (err?.code === "permission-denied") {
+          setBlocked(true);
+          setLoading(false);
+          return;
+        }
+        throw err;
+      }
       if (!snap.exists()) {
         setMissing(true);
         setLoading(false);
@@ -42,6 +55,9 @@ export default function PostPage() {
   }, [params.id]);
 
   if (missing) notFound();
+  if (blocked) {
+    return <p className="text-ink/50 text-center py-16">This post is private.</p>;
+  }
   if (loading || !post) return <p className="text-ink/50 text-center py-16">Loading…</p>;
 
   const createdDate = post.createdAt?.toDate ? post.createdAt.toDate() : new Date();

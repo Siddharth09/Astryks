@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
 
 const SUBJECT_DETAILS = [
   {
@@ -38,7 +39,7 @@ const SUBJECT_DETAILS = [
 
 const STEPS = [
   { n: "01", title: "Sign up", blurb: "Create your account in under a minute — no waitlist." },
-  { n: "02", title: "Unlock videos", blurb: "New expert-led videos unlock every week — watch anytime, on any device." },
+  { n: "02", title: "Unlock videos", blurb: "New expert-led videos unlock regularly — watch anytime, on any device." },
   { n: "03", title: "Keep learning", blurb: "Your full back-catalogue stays unlocked — revisit any lesson, any time." },
 ];
 
@@ -47,16 +48,16 @@ const PRICING_FEATURES = [
   "Access to all 3 subjects — Music, Art & Finance",
   "Full back-catalogue once unlocked",
   "Works on any phone, tablet or computer",
-  "Earn $50 for every friend you refer",
   "Cancel anytime, no questions asked",
 ];
 
 const FAQS = [
   { q: "Who are the experts teaching on Astryks?", a: "Professional practitioners in their field — people who do this for a living, not just talk about it." },
-  { q: "How do the locked videos work?", a: "New lessons unlock weekly. Once a lesson unlocks for you, it's yours to rewatch any time — even if you cancel later." },
+  { q: "How do the locked videos work?", a: "New lessons unlock regularly. Once a lesson unlocks for you, it's yours to rewatch any time — even if you cancel later." },
   { q: "Can I post what I make?", a: "Yes — post your own work and get feedback from other people learning alongside you." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
-  { q: "How does the $50 referral reward work?", a: "Share your code — your friend gets 20% off for their first 3 months, and once they've stayed subscribed that long, you earn $50. No limit on referrals." },
+  { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month. No minimum like count and no subscription required — anyone with a free Astryks account can post and compete. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue. International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
+  { q: "Do I have to subscribe to post or enter the prize?", a: "No — creating an account, posting, liking, and entering the Creative Prize are all free. A subscription is only needed to unlock the pre-recorded lesson library." },
   { q: "What devices does Astryks work on?", a: "Any modern smartphone, tablet, laptop, or desktop — just a browser, or the app." },
 ];
 
@@ -64,12 +65,19 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  // Illustrative only — see lib/geo.ts. Starts at the USD default and updates once we can
+  // read the browser's locale/timezone client-side, so there's no server/client mismatch.
+  const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
 
   useEffect(() => {
     if (!loading && user) {
       router.push("/home");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    setPricing(getLocalizedPricing(detectCountryCode()));
+  }, []);
 
   return (
     <div className="pb-16 -mx-4">
@@ -80,7 +88,7 @@ export default function Home() {
           <span className="bg-highlight px-1.5 box-decoration-clone">experts in their field</span>
         </h1>
         <p className="text-ink/60 max-w-md mx-auto mb-8">
-          Music. Art. Finance. Unlock a new masterclass video every week and
+          Music. Art. Finance. Learn from real working professionals and
           build skills that last a lifetime.
         </p>
         <div className="flex items-center justify-center gap-3 mb-3">
@@ -92,7 +100,7 @@ export default function Home() {
           </a>
         </div>
         <p className="text-ink/40 text-xs">
-          $5/week · new lessons every week · cancel anytime
+          Free to join and post · {pricing.display} to unlock lessons · cancel anytime
         </p>
       </div>
 
@@ -125,7 +133,7 @@ export default function Home() {
             </div>
           </Link>
           <Link href="/signup" className="btn-primary mt-4 inline-flex">
-            Start learning for $5/week
+            Start learning for {pricing.display}
           </Link>
         </div>
       </div>
@@ -199,6 +207,13 @@ export default function Home() {
             </div>
           ))}
         </div>
+        <div className="mt-5 rounded-2xl bg-white shadow-sm border-t-4 border-highlight p-5 max-w-2xl">
+          <p className="text-sm text-ink/70">
+            💛 We're just getting started — we'll keep adding to Music and Art, and we're bringing new subjects
+            beyond these three in the coming months. Very soon, there'll be even more ways to learn and create
+            on Astryks.
+          </p>
+        </div>
       </div>
 
       {/* How it works */}
@@ -206,7 +221,7 @@ export default function Home() {
         <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-3">How it works</p>
         <h2 className="font-display text-3xl font-bold mb-2">Simple as 1, 2, 3</h2>
         <p className="text-ink/60 text-sm mb-8 max-w-md">
-          Get started in minutes. A new lesson unlocked every week.
+          Get started in minutes, and keep building new skills over time.
         </p>
         <div className="grid gap-6 sm:grid-cols-3">
           {STEPS.map((step) => (
@@ -221,14 +236,18 @@ export default function Home() {
 
       {/* Pricing */}
       <div className="bg-sectionLavender px-4 md:px-10 py-14 text-left">
-        <h2 className="font-display text-3xl font-bold mb-6">One simple plan</h2>
+        <h2 className="font-display text-3xl font-bold mb-2">Unlock the full lesson library</h2>
+        <p className="text-sm text-ink/60 mb-6 max-w-sm">
+          Signing up, posting, and entering the Creative Prize are always free. Subscribe whenever
+          you're ready to unlock every lesson.
+        </p>
         <div
           className="max-w-sm rounded-2xl bg-white shadow-sm p-6"
           style={{ borderTop: "4px solid transparent", borderImage: "linear-gradient(90deg,#E85D5D,#EFC13B,#8B7FE8,#3FC1B0) 1" }}
         >
           <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-2">Weekly subscription</p>
           <p className="font-display text-4xl font-black mb-5">
-            $5 <span className="text-base font-normal text-ink/50 font-body">per week</span>
+            {pricing.symbol}{pricing.amount} <span className="text-base font-normal text-ink/50 font-body">per week</span>
           </p>
           <ul className="space-y-2.5 mb-6">
             {PRICING_FEATURES.map((f) => (
@@ -243,26 +262,35 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Referral */}
+      {/* Creative prize */}
       <div className="bg-sectionMint px-4 md:px-10 py-14 text-left">
         <div className="grid gap-8 sm:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-3">Referral program</p>
-            <p className="font-display text-5xl font-black mb-2">$50</p>
+            <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-3">Creative prize</p>
+            <p className="font-display text-5xl font-black mb-2">AU$1,000</p>
             <p className="font-display text-2xl font-bold mb-3 leading-snug">
-              Earn $50 for every friend you refer
+              Every month, for the community's most-loved post
             </p>
-            <p className="text-sm text-ink/60">
-              Once your friend subscribes and stays for 3 months, $50 lands in your
-              account. No cap — refer as many people as you like.
+            <p className="text-sm text-ink/60 mb-3">
+              We want every creative student — subscriber or not — to be able to post, get discovered, and
+              compete for real cash, so entering is completely free for anyone with an Astryks account. At
+              the end of each calendar month, whoever's single creative post — across music, art, or any
+              other creative project — has the most likes wins. No minimum likes, no subscription required.
+              We started Astryks because real creative work deserves real recognition, and we genuinely
+              can't wait to see what you make.
+            </p>
+            <p className="text-xs text-ink/40">
+              AU$1,000 (Australian dollars), funded from Astryks subscription revenue. International
+              transfers from Australia may be subject to market foreign exchange rates and other
+              overseas transfer considerations.
             </p>
           </div>
           <div className="space-y-4">
             {[
-              { n: "1", t: "Get your link", d: "Find your unique referral link in your dashboard." },
-              { n: "2", t: "Share it", d: "Send it to anyone who wants to learn real skills." },
-              { n: "3", t: "They subscribe", d: "Your friend signs up and starts learning." },
-              { n: "4", t: "You earn $50", d: "After their 3rd month, $50 is yours. No limit on referrals." },
+              { n: "1", t: "Share your work", d: "Post whatever you're proud of — a song, a painting, a portfolio piece. Free account, no subscription needed." },
+              { n: "2", t: "Get likes from the community", d: "The more people who love it, the better your chances." },
+              { n: "3", t: "Every post counts", d: "No minimum likes needed — you're entered the moment you post." },
+              { n: "4", t: "Win AU$1,000", d: "One winner, chosen across every subject, at the end of each calendar month." },
             ].map((step) => (
               <div key={step.n} className="flex items-start gap-3">
                 <span className="w-6 h-6 rounded-full bg-ink text-white text-xs flex items-center justify-center flex-shrink-0 font-medium">
@@ -275,7 +303,7 @@ export default function Home() {
               </div>
             ))}
             <Link href="/signup" className="btn-primary mt-2 inline-flex">
-              Get my referral link
+              Get started
             </Link>
           </div>
         </div>
@@ -303,7 +331,15 @@ export default function Home() {
       {/* Footer */}
       <div className="px-4 md:px-10 text-center text-xs text-ink/40 pt-6 border-t border-ink/10">
         <p className="mb-1">© 2026 Astryks. All rights reserved.</p>
-        <p>Privacy · Terms · Contact</p>
+        <p>
+          <Link href="/privacy" className="hover:text-ink/70 hover:underline">Privacy</Link>
+          {" · "}
+          <Link href="/terms" className="hover:text-ink/70 hover:underline">Terms</Link>
+          {" · "}
+          <Link href="/prize-rules" className="hover:text-ink/70 hover:underline">Prize Rules</Link>
+          {" · "}
+          <Link href="/support" className="hover:text-ink/70 hover:underline">Support</Link>
+        </p>
       </div>
     </div>
   );

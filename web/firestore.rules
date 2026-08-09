@@ -19,7 +19,16 @@ service cloud.firestore {
 
     // Home feed + Me tab posts: photos, user videos, and shared links
     match /posts/{postId} {
-      allow read: if true;
+      // Private posts are only readable by their owner or an admin — everything else stays public.
+      // "resource == null ||" first: a get() on a post ID that doesn't exist (deleted, or a
+      // typo'd link) must resolve to "not found", not a permission error — without this guard,
+      // referencing resource.data on a null resource fails the whole rule instead.
+      allow read: if resource == null
+        || resource.data.visibility != 'private'
+        || (request.auth != null && (
+          request.auth.uid == resource.data.ownerId ||
+          request.auth.token.email in ['mehta.siddharth09@gmail.com']
+        ));
 
       allow create: if request.auth != null
         && request.resource.data.ownerId == request.auth.uid
@@ -85,15 +94,19 @@ service cloud.firestore {
     }
 
     // Saved / bookmarked posts — private to the saver
+    // "resource == null ||" lets the app check "have I saved this?" for a post it's never
+    // saved before (the common case) and get a clean exists:false instead of a permission error.
     match /saves/{saveId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read: if resource == null || (request.auth != null && request.auth.uid == resource.data.uid);
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
     // Direct messages — only the two participants can read/write
+    // "resource == null ||" lets the app check "does this conversation exist yet?" before
+    // creating the first one between two people and get exists:false instead of an error.
     match /conversations/{conversationId} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.participants;
+      allow read: if resource == null || (request.auth != null && request.auth.uid in resource.data.participants);
       allow create: if request.auth != null && request.auth.uid in request.resource.data.participants;
       allow update: if request.auth != null && request.auth.uid in resource.data.participants;
 
@@ -104,6 +117,28 @@ service cloud.firestore {
           && request.resource.data.senderId == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
       }
+    }
+
+    // Abuse reports — reporters shouldn't be able to read each other's reports, and admins
+    // need to list "all pending reports", which client-side rules can't safely filter. All
+    // access goes through the submitReport/getReports/resolveReport Cloud Functions instead
+    // (Admin SDK bypasses these rules), so client access is denied entirely.
+    match /reports/{reportId} {
+      allow read, write: if false;
+    }
+
+    // Monthly creative-prize winners (name/likes/paid status) and members' payout details
+    // (bank/PayID) — same reasoning as `reports`: the leaderboard and winner banner are served
+    // through the getPrizeLeaderboard/getLatestPrizeWinner callables (public fields only), the
+    // admin dashboard through getPrizeWinners/markPrizeWinnerPaid, and payout details are only
+    // ever written by their owner via the submitPrizePayoutDetails callable — never by a
+    // direct client read/write, since prizePayouts holds sensitive bank/PayID info.
+    match /prizeWinners/{month} {
+      allow read, write: if false;
+    }
+
+    match /prizePayouts/{postId} {
+      allow read, write: if false;
     }
   }
 }

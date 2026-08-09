@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { IconHome, IconLearn, IconMessages, IconMe } from "@/components/Icons";
+import { IconHome, IconLearn, IconMessages, IconMe, IconPrize } from "@/components/Icons";
 
 const tabs = [
   { href: "/home", label: "Home", Icon: IconHome },
   { href: "/learn", label: "Learn", Icon: IconLearn },
+  { href: "/prizes", label: "Prizes", Icon: IconPrize },
   { href: "/messages", label: "Messages", Icon: IconMessages },
   { href: "/me", label: "Me", Icon: IconMe },
 ];

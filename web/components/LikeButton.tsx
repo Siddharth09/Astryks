@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
-import { db, functions } from "@/lib/firebase";
-import { httpsCallable } from "firebase/functions";
-
-const bumpStreak = httpsCallable(functions, "bumpStreak");
+import { db } from "@/lib/firebase";
 
 export default function LikeButton({
   postId,
@@ -59,7 +56,6 @@ export default function LikeButton({
       await batch.commit();
       setLiked(true);
       setCount((c) => c + 1);
-      bumpStreak().catch(() => {});
     }
     setBusy(false);
   }

@@ -18,6 +18,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +31,10 @@ export default function SignupPage() {
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
+    if (!agreed) {
+      setError("Please agree to the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -46,6 +51,10 @@ export default function SignupPage() {
   }
 
   async function handleGoogle() {
+    if (!agreed) {
+      setError("Please agree to the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
     setError(null);
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider());
@@ -96,6 +105,19 @@ export default function SignupPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        <label className="flex items-start gap-2 text-xs text-ink/60">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            I agree to Astryks's{" "}
+            <Link href="/terms" target="_blank" className="link-accent">Terms of Service</Link> and{" "}
+            <Link href="/privacy" target="_blank" className="link-accent">Privacy Policy</Link>.
+          </span>
+        </label>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? "Creating account…" : "Sign up"}

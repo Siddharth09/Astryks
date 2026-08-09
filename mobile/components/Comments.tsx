@@ -5,15 +5,22 @@ import { doc, collection, writeBatch, increment, serverTimestamp } from "firebas
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import ReportModal from "@/components/ReportModal";
 import { colors } from "@/lib/styles";
 
-const bumpStreak = httpsCallable(functions, "bumpStreak");
+const submitReportFn = httpsCallable(functions, "submitReport");
 
 export default function Comments({ postId, initialComments }: { postId: string; initialComments: any[] }) {
   const { user } = useAuth();
   const [comments, setComments] = useState(initialComments);
   const [body, setBody] = useState("");
   const [posting, setPosting] = useState(false);
+  const [reportingComment, setReportingComment] = useState<{ id: string; userId: string } | null>(null);
+
+  async function handleReportComment(reason: string, details: string) {
+    if (!reportingComment) return;
+    await submitReportFn({ targetType: "comment", targetId: reportingComment.id, postId, reason, details });
+  }
 
   async function handleSubmit() {
     if (!body.trim()) return;
@@ -34,10 +41,9 @@ export default function Comments({ postId, initialComments }: { postId: string; 
     batch.update(postRef, { commentCount: increment(1) });
     await batch.commit();
 
-    setComments((prev) => [...prev, { id: newCommentRef.id, body, userName: user.displayName ?? "Member" }]);
+    setComments((prev) => [...prev, { id: newCommentRef.id, body, userId: user.uid, userName: user.displayName ?? "Member" }]);
     setBody("");
     setPosting(false);
-    bumpStreak().catch(() => {});
   }
 
   return (
@@ -45,9 +51,16 @@ export default function Comments({ postId, initialComments }: { postId: string; 
       <Text style={{ fontWeight: "600", marginBottom: 10 }}>Comments</Text>
       {comments.length === 0 && <Text style={{ color: colors.muted, fontSize: 13 }}>No comments yet.</Text>}
       {comments.map((c) => (
-        <Text key={c.id} style={{ marginBottom: 6, fontSize: 13 }}>
-          <Text style={{ fontWeight: "600" }}>{c.userName}</Text> <Text>{c.body}</Text>
-        </Text>
+        <View key={c.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+          <Text style={{ fontSize: 13, flex: 1 }}>
+            <Text style={{ fontWeight: "600" }}>{c.userName}</Text> <Text>{c.body}</Text>
+          </Text>
+          {user && user.uid !== c.userId && (
+            <TouchableOpacity onPress={() => setReportingComment({ id: c.id, userId: c.userId })}>
+              <Text style={{ fontSize: 11, color: colors.muted }}>Report</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ))}
       {user ? (
         <View style={s.row}>
@@ -59,6 +72,11 @@ export default function Comments({ postId, initialComments }: { postId: string; 
       ) : (
         <Text style={{ color: colors.muted, fontSize: 13 }}>Log in to comment.</Text>
       )}
+      <ReportModal
+        visible={reportingComment !== null}
+        onClose={() => setReportingComment(null)}
+        onSubmit={handleReportComment}
+      />
     </View>
   );
 }

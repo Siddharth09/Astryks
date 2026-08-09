@@ -14,6 +14,12 @@ export const colors = {
   artLight: "#EDEAFB",
   finance: "#3FC1B0",
   financeLight: "#DFF5F1",
+  highlight: "#EFC13B",
+  // astryks.com section background tints
+  sectionRose: "#F7DEDB",
+  sectionSky: "#DCE6F2",
+  sectionLavender: "#E4DEF3",
+  sectionMint: "#DEF0E3",
 };
 
 export const styles = StyleSheet.create({

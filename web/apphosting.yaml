@@ -1,0 +1,49 @@
+# Firebase App Hosting config for astryks-app.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+#
+# These are conservative defaults for a small/early-stage app — minInstances: 0 means you pay
+# ~$0 when nobody's visiting (Cloud Run spins up on request, with a brief cold start), rather
+# than paying for an always-on instance. Raise minInstances later if cold starts become
+# noticeable once you have steady traffic.
+runConfig:
+  minInstances: 0
+  maxInstances: 3
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+# NEXT_PUBLIC_* values are Firebase's public web-app config (safe to expose to the browser —
+# this is how the Firebase client SDK is designed to work, the same values already sitting in
+# .env.local). Pulled from the existing astryks-5f31c Firebase project so App Hosting builds
+# with the same config as local dev.
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyDAz9Qvc3GQhQJYXowohmO7e68im0b5E3I
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: astryks-5f31c.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: astryks-5f31c
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: astryks-5f31c.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "501557403940"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:501557403940:web:f2b9102db97b46d0c4d3b1"
+    availability:
+      - BUILD
+      - RUNTIME

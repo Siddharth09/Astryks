@@ -1,25 +1,86 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator, TextInput, Linking } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { collection, getDocs, query, where, orderBy, doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  doc,
+  getDoc,
+  setDoc,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { httpsCallable } from "firebase/functions";
 import { signOut, updateProfile } from "firebase/auth";
-import { db, auth, storage } from "@/lib/firebase";
+import { db, auth, storage, functions } from "@/lib/firebase";
 import ReferralAndBilling from "@/components/ReferralAndBilling";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 
+const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
+const deleteMyAccount = httpsCallable(functions, "deleteMyAccount");
+
+const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
+
+function tierFor(pct: number): { emoji: string; label: string } | null {
+  if (pct >= 100) return { emoji: "🏆", label: "Mastered" };
+  if (pct >= 50) return { emoji: "🥈", label: "Halfway there" };
+  if (pct >= 25) return { emoji: "🥉", label: "Getting started" };
+  return null;
+}
+
 export default function MeScreen() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"posts" | "links" | "notes" | "saved">("posts");
+  const [tab, setTab] = useState<"posts" | "links" | "saved">("posts");
   const [posts, setPosts] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
-  const [notes, setNotes] = useState<any[]>([]);
   const [saved, setSaved] = useState<any[]>([]);
-  const [profile, setProfile] = useState<{ streakCount?: number; xp?: number }>({});
+  const [profile, setProfile] = useState<{ streakCount?: number; xp?: number; masteredSubjects?: string[] }>({});
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const [nameOverride, setNameOverride] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const [showAddMedia, setShowAddMedia] = useState(false);
+  const [mediaAsset, setMediaAsset] = useState<{ uri: string; type: "photo" | "video" } | null>(null);
+  const [mediaTitle, setMediaTitle] = useState("");
+  const [mediaPublic, setMediaPublic] = useState(true);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
+  const [linkSaving, setLinkSaving] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteMyAccount();
+      await signOut(auth);
+      // Root layout's auth check redirects to /login once user is null.
+    } catch (err: any) {
+      setDeleteError(err.message ?? "Couldn't delete your account. Please try again or contact support.");
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     if (user) setAvatarUrl(user.photoURL ?? null);
@@ -57,37 +118,150 @@ export default function MeScreen() {
     }
   }
 
-  useEffect(() => {
+  async function handleSaveName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed || !user) return;
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      await updateProfile(user, { displayName: trimmed });
+      await setDoc(doc(db, "users", user.uid), { displayName: trimmed }, { merge: true });
+      setNameOverride(trimmed);
+      setEditingName(false);
+    } catch (err: any) {
+      setNameError(err.message ?? "Couldn't update your name.");
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
+  async function loadProfileData() {
     if (!user) return;
-    (async () => {
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      setProfile(userSnap.data() ?? {});
+    const userSnap = await getDoc(doc(db, "users", user.uid));
+    setProfile(userSnap.data() ?? {});
 
-      const mediaSnap = await getDocs(
-        query(collection(db, "posts"), where("ownerId", "==", user.uid), where("type", "in", ["photo", "video"]), orderBy("createdAt", "desc"))
-      );
-      setPosts(mediaSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const subjSnap = await getDocs(query(collection(db, "subjects"), orderBy("order", "asc")));
+    setSubjects(subjSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const lessonsSnap = await getDocs(collection(db, "lessons"));
+    setLessons(lessonsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const progressSnap = await getDocs(
+      query(collection(db, "lessonProgress"), where("uid", "==", user.uid))
+    );
+    setCompletedLessonIds(new Set(progressSnap.docs.map((d) => d.data().lessonId)));
 
-      const linkSnap = await getDocs(
-        query(collection(db, "posts"), where("ownerId", "==", user.uid), where("type", "==", "link"), orderBy("createdAt", "desc"))
-      );
-      setLinks(linkSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const mediaSnap = await getDocs(
+      query(collection(db, "posts"), where("ownerId", "==", user.uid), where("type", "in", ["photo", "video"]), orderBy("createdAt", "desc"))
+    );
+    setPosts(mediaSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
-      const notesSnap = await getDocs(
-        query(collection(db, "posts"), where("ownerId", "==", user.uid), where("type", "==", "text"), orderBy("createdAt", "desc"))
-      );
-      setNotes(notesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const linkSnap = await getDocs(
+      query(collection(db, "posts"), where("ownerId", "==", user.uid), where("type", "==", "link"), orderBy("createdAt", "desc"))
+    );
+    setLinks(linkSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
-      const savesSnap = await getDocs(query(collection(db, "saves"), where("uid", "==", user.uid)));
-      const savedPosts = await Promise.all(
-        savesSnap.docs.map(async (s) => {
+    const savesSnap = await getDocs(query(collection(db, "saves"), where("uid", "==", user.uid)));
+    const savedPosts = await Promise.all(
+      savesSnap.docs.map(async (s) => {
+        // A saved post can become unreadable (e.g. deleted, or made private by someone
+        // else) after it was saved — treat that as "no longer available" rather than
+        // letting one bad post fail the whole saved list.
+        try {
           const postSnap = await getDoc(doc(db, "posts", s.data().postId));
           return postSnap.exists() ? { id: postSnap.id, ...postSnap.data() } : null;
-        })
-      );
-      setSaved(savedPosts.filter(Boolean));
-    })();
+        } catch {
+          return null;
+        }
+      })
+    );
+    setSaved(savedPosts.filter(Boolean));
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    loadProfileData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  async function pickMedia() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setMediaAsset({ uri: asset.uri, type: asset.type === "video" ? "video" : "photo" });
+  }
+
+  async function handleAddMedia() {
+    if (!mediaAsset || !user) return;
+    setMediaUploading(true);
+    setMediaError(null);
+    try {
+      const response = await fetch(mediaAsset.uri);
+      const blob = await response.blob();
+      const path = `posts/${user.uid}/${Date.now()}`;
+      const storageRef = ref(storage, path);
+      await new Promise<void>((resolve, reject) => {
+        const task = uploadBytesResumable(storageRef, blob);
+        task.on("state_changed", undefined, reject, () => resolve());
+      });
+      const mediaUrl = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, "posts"), {
+        type: mediaAsset.type,
+        title: mediaTitle || null,
+        mediaUrl,
+        mediaPath: path,
+        visibility: mediaPublic ? "public" : "private",
+        ownerId: user.uid,
+        ownerName: nameOverride ?? user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+        likeCount: 0,
+        commentCount: 0,
+      });
+
+      setShowAddMedia(false);
+      setMediaAsset(null);
+      setMediaTitle("");
+      setMediaPublic(true);
+      await loadProfileData();
+    } catch (err: any) {
+      setMediaError(err.message ?? "Upload failed.");
+    } finally {
+      setMediaUploading(false);
+    }
+  }
+
+  async function handleAddLink() {
+    if (!linkInput.trim() || !user) return;
+    setLinkSaving(true);
+    setLinkError(null);
+    try {
+      const result = await fetchLinkPreview({ url: linkInput.trim() });
+      const preview = result.data as { title: string; image: string | null; domain: string };
+
+      await addDoc(collection(db, "posts"), {
+        type: "link",
+        linkUrl: linkInput.trim(),
+        linkTitle: preview.title,
+        linkImage: preview.image,
+        linkDomain: preview.domain,
+        ownerId: user.uid,
+        ownerName: nameOverride ?? user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+        likeCount: 0,
+        commentCount: 0,
+      });
+
+      setShowAddLink(false);
+      setLinkInput("");
+      await loadProfileData();
+    } catch (err: any) {
+      setLinkError(err.message ?? "Couldn't fetch that link.");
+    } finally {
+      setLinkSaving(false);
+    }
+  }
 
   if (!user) return null;
 
@@ -110,11 +284,39 @@ export default function MeScreen() {
             )}
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={{ flex: 1 }} onPress={handleChangeAvatar} disabled={avatarUploading}>
-          <Text style={{ fontWeight: "600" }}>{user.displayName ?? "Member"}</Text>
+        <View style={{ flex: 1 }}>
+          {editingName ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <TextInput
+                autoFocus
+                value={nameInput}
+                onChangeText={setNameInput}
+                maxLength={40}
+                style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 14 }}
+              />
+              <TouchableOpacity onPress={handleSaveName} disabled={nameSaving}>
+                <Text style={{ color: "#E85D5D", fontWeight: "600", fontSize: 13 }}>{nameSaving ? "…" : "Save"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setEditingName(false)}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => {
+                setNameInput(nameOverride ?? user.displayName ?? "");
+                setEditingName(true);
+              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Text style={{ fontWeight: "600" }}>{nameOverride ?? user.displayName ?? "Member"}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>✎</Text>
+            </TouchableOpacity>
+          )}
+          {nameError && <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 2 }}>{nameError}</Text>}
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {posts.length + links.length + notes.length} posts
+              {posts.length + links.length} posts
             </Text>
             <View style={{ backgroundColor: "#FBF0D9", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.ink }}>⭐ {profile.xp ?? 0} xp</Text>
@@ -127,11 +329,82 @@ export default function MeScreen() {
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </View>
         <TouchableOpacity onPress={() => signOut(auth)}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>Log out</Text>
         </TouchableOpacity>
       </View>
+
+      {showDeleteConfirm ? (
+        <View style={{ borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <Text style={{ fontSize: 13, fontWeight: "600", color: "#7F1D1D", marginBottom: 4 }}>
+            Permanently delete your account?
+          </Text>
+          <Text style={{ fontSize: 12, color: "#7F1D1D", marginBottom: 10 }}>
+            This deletes your posts, saved items, lesson progress, and login — it can't be undone. If
+            you have an active subscription, cancel it separately first (this doesn't stop billing on
+            its own).
+          </Text>
+          {deleteError && <Text style={{ fontSize: 12, color: "#B91C1C", marginBottom: 8 }}>{deleteError}</Text>}
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+              style={{ backgroundColor: "#DC2626", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+            >
+              <Text style={{ color: "white", fontSize: 12, fontWeight: "600" }}>
+                {deleting ? "Deleting…" : "Yes, permanently delete"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+            >
+              <Text style={{ fontSize: 12 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity onPress={() => setShowDeleteConfirm(true)} style={{ marginBottom: 16 }}>
+          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
+        </TouchableOpacity>
+      )}
+
+      {lessons.length > 0 && (
+        <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600" }}>🎓 Learning</Text>
+            <Text style={{ fontSize: 11, color: colors.muted }}>
+              {lessons.filter((l) => completedLessonIds.has(l.id)).length} of {lessons.length} complete
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {subjects.map((s) => {
+              const subjectLessons = lessons.filter((l) => l.subjectId === s.id);
+              if (subjectLessons.length === 0) return null;
+              const done = subjectLessons.filter((l) => completedLessonIds.has(l.id)).length;
+              const pct = Math.round((done / subjectLessons.length) * 100);
+              const tier = tierFor(pct);
+              return (
+                <TouchableOpacity
+                  key={s.id}
+                  onPress={() => router.push({ pathname: "/learn", params: { subject: s.id } })}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}
+                >
+                  <Text style={{ fontSize: 16 }}>{SUBJECT_ICONS[s.id] ?? "⭐"}</Text>
+                  <View>
+                    <Text style={{ fontSize: 12, fontWeight: "600" }}>{s.name}</Text>
+                    <Text style={{ fontSize: 10, color: colors.muted }}>
+                      {tier ? `${tier.emoji} ${tier.label}` : `${done}/${subjectLessons.length}`}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <ReferralAndBilling />
 
@@ -149,12 +422,6 @@ export default function MeScreen() {
           <Text style={{ color: tab === "links" ? "white" : colors.ink, fontSize: 12 }}>Shared links</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setTab("notes")}
-          style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: tab === "notes" ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
-        >
-          <Text style={{ color: tab === "notes" ? "white" : colors.ink, fontSize: 12 }}>Notes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           onPress={() => setTab("saved")}
           style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: tab === "saved" ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
         >
@@ -163,56 +430,179 @@ export default function MeScreen() {
       </View>
 
       {tab === "posts" ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-          {posts.map((p) => (
-            <View key={p.id} style={{ width: "31.5%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.ink }}>
-              {p.type === "photo" ? (
-                <Image source={{ uri: p.mediaUrl }} style={{ width: "100%", height: "100%" }} />
-              ) : (
-                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ color: "white" }}>▶</Text>
-                </View>
+        <View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{posts.length} photos &amp; videos</Text>
+            {showAddMedia ? (
+              <TouchableOpacity onPress={() => setShowAddMedia(false)}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Cancel</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowAddMedia(true)}
+                style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "white", fontSize: 15 }}>+</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {showAddMedia && (
+            <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12, marginBottom: 14, gap: 10 }}>
+              <TouchableOpacity
+                onPress={pickMedia}
+                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingVertical: 10, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 13 }}>{mediaAsset ? "Change photo/video" : "Choose a photo or video"}</Text>
+              </TouchableOpacity>
+              {mediaAsset?.type === "photo" && (
+                <Image source={{ uri: mediaAsset.uri }} style={{ width: "100%", height: 140, borderRadius: 8 }} />
               )}
+              <TextInput
+                placeholder="Title (optional)"
+                value={mediaTitle}
+                onChangeText={setMediaTitle}
+                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 }}
+              />
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setMediaPublic(true)}
+                  style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: mediaPublic ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
+                >
+                  <Text style={{ color: mediaPublic ? "white" : colors.ink, fontSize: 12 }}>🌍 Public</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setMediaPublic(false)}
+                  style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: !mediaPublic ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
+                >
+                  <Text style={{ color: !mediaPublic ? "white" : colors.ink, fontSize: 12 }}>🔒 Private</Text>
+                </TouchableOpacity>
+              </View>
+              {mediaError && <Text style={{ color: "#DC2626", fontSize: 12 }}>{mediaError}</Text>}
+              <TouchableOpacity
+                onPress={handleAddMedia}
+                disabled={mediaUploading || !mediaAsset}
+                style={{ backgroundColor: "#E85D5D", borderRadius: 8, paddingVertical: 10, alignItems: "center", opacity: mediaUploading || !mediaAsset ? 0.5 : 1 }}
+              >
+                <Text style={{ color: "white", fontWeight: "600", fontSize: 13 }}>{mediaUploading ? "Posting…" : "Post"}</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-          {posts.length === 0 && <Text style={{ color: colors.muted }}>No posts yet.</Text>}
+          )}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            {posts.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => router.push(`/post/${p.id}`)}
+                style={{ width: "31.5%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.ink }}
+              >
+                {p.type === "photo" ? (
+                  <Image source={{ uri: p.mediaUrl }} style={{ width: "100%", height: "100%" }} />
+                ) : (
+                  <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "white" }}>▶</Text>
+                  </View>
+                )}
+                {p.visibility === "private" && (
+                  <View style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 9 }}>🔒</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            {posts.length === 0 && !showAddMedia && <Text style={{ color: colors.muted }}>No posts yet.</Text>}
+          </View>
         </View>
       ) : tab === "links" ? (
-        <View style={{ gap: 8 }}>
-          {links.map((l) => (
-            <View key={l.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 10 }}>
-              <Text style={{ fontSize: 18 }}>🔗</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>{l.linkDomain}</Text>
-                <Text style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{l.linkTitle}</Text>
-              </View>
+        <View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{links.length} shared links</Text>
+            {showAddLink ? (
+              <TouchableOpacity onPress={() => setShowAddLink(false)}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Cancel</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowAddLink(true)}
+                style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "white", fontSize: 15 }}>+</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {showAddLink && (
+            <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12, marginBottom: 14, gap: 10 }}>
+              <TextInput
+                autoFocus
+                placeholder="Paste a YouTube or other link"
+                value={linkInput}
+                onChangeText={setLinkInput}
+                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 }}
+              />
+              {linkError && <Text style={{ color: "#DC2626", fontSize: 12 }}>{linkError}</Text>}
+              <TouchableOpacity
+                onPress={handleAddLink}
+                disabled={linkSaving || !linkInput.trim()}
+                style={{ backgroundColor: "#E85D5D", borderRadius: 8, paddingVertical: 10, alignItems: "center", opacity: linkSaving || !linkInput.trim() ? 0.5 : 1 }}
+              >
+                <Text style={{ color: "white", fontWeight: "600", fontSize: 13 }}>{linkSaving ? "Sharing…" : "Share"}</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-          {links.length === 0 && <Text style={{ color: colors.muted }}>No shared links yet.</Text>}
-        </View>
-      ) : tab === "notes" ? (
-        <View style={{ gap: 8 }}>
-          {notes.map((n) => (
-            <TouchableOpacity key={n.id} onPress={() => router.push(`/post/${n.id}`)} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12 }}>
-              <Text numberOfLines={3} style={{ fontSize: 14 }}>{n.body}</Text>
-            </TouchableOpacity>
-          ))}
-          {notes.length === 0 && <Text style={{ color: colors.muted }}>No notes yet.</Text>}
+          )}
+          <View style={{ gap: 8 }}>
+            {links.map((l) => (
+              <TouchableOpacity
+                key={l.id}
+                onPress={() => router.push(`/post/${l.id}`)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 10 }}
+              >
+                <Text style={{ fontSize: 18 }}>🔗</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>{l.linkDomain}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{l.linkTitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            {links.length === 0 && !showAddLink && <Text style={{ color: colors.muted }}>No shared links yet.</Text>}
+          </View>
         </View>
       ) : (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {saved.map((p) => (
-            <View key={p.id} style={{ width: "31.5%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity
+              key={p.id}
+              onPress={() => router.push(`/post/${p.id}`)}
+              style={{ width: "31.5%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
+            >
               {p.type === "photo" ? (
                 <Image source={{ uri: p.mediaUrl }} style={{ width: "100%", height: "100%" }} />
               ) : (
                 <Text style={{ color: "white" }}>{p.type === "link" ? "🔗" : "▶"}</Text>
               )}
-            </View>
+            </TouchableOpacity>
           ))}
           {saved.length === 0 && <Text style={{ color: colors.muted }}>Nothing saved yet.</Text>}
         </View>
       )}
+
+      <View style={{ marginTop: 32, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center" }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
+          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/privacy")}>
+            Privacy
+          </Text>
+          <Text style={{ fontSize: 11, color: colors.muted }}> · </Text>
+          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/terms")}>
+            Terms
+          </Text>
+          <Text style={{ fontSize: 11, color: colors.muted }}> · </Text>
+          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/prize-rules")}>
+            Prize Rules
+          </Text>
+          <Text style={{ fontSize: 11, color: colors.muted }}> · </Text>
+          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/support")}>
+            Support
+          </Text>
+        </View>
+        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>© 2026 Astryks. All rights reserved.</Text>
+      </View>
     </ScrollView>
   );
 }

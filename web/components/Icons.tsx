@@ -5,19 +5,9 @@
 // Plain currentColor SVGs render identically everywhere.
 
 export function IconMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path
-        d="M12 2.5c.7 3.1 1.9 4.9 4.8 5.7-2.9.8-4.1 2.6-4.8 5.8-.7-3.2-1.9-5-4.8-5.8 2.9-.8 4.1-2.6 4.8-5.7Z"
-        fill="currentColor"
-      />
-      <path
-        d="M18.3 13.2c.4 1.7 1 2.6 2.7 3.1-1.7.5-2.3 1.4-2.7 3.1-.4-1.7-1-2.6-2.7-3.1 1.7-.5 2.3-1.4 2.7-3.1Z"
-        fill="currentColor"
-        opacity="0.85"
-      />
-    </svg>
-  );
+  // The actual Astryks logo mark (white burst on black).
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logo-mark.png" alt="" className={className} />;
 }
 
 export function IconHome({ className }: { className?: string }) {
@@ -74,6 +64,27 @@ export function IconMe({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+export function IconPrize({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M7 4h10v5a5 5 0 0 1-10 0V4Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 5.5H4.5a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3H7M17 5.5h2.5a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3H17"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 14v3.5M9 20.5h6M9.5 20.5c0-1.8.6-3 2.5-3s2.5 1.2 2.5 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

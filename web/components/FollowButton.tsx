@@ -7,9 +7,11 @@ import { db } from "@/lib/firebase";
 export default function FollowButton({
   targetUserId,
   currentUserId,
+  className,
 }: {
   targetUserId: string;
   currentUserId: string | null;
+  className?: string;
 }) {
   const [following, setFollowing] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -46,7 +48,7 @@ export default function FollowButton({
     <button
       onClick={toggle}
       disabled={!checked}
-      className={following ? "btn-secondary text-xs px-3 py-1" : "btn-primary text-xs px-3 py-1"}
+      className={(following ? "btn-secondary" : "btn-primary") + " " + (className ?? "text-xs px-3 py-1")}
     >
       {following ? "Following" : "Follow"}
     </button>
