@@ -23,9 +23,9 @@ export default function SubscriptionBanner() {
     });
   }, [user]);
 
-  // Mobile subscriptions go through Apple/Google in-app purchases (via RevenueCat), not
+  // Mobile subscriptions go through Apple/Google in-app purchases (via Qonversion), not
   // Stripe — App Store/Play Store rules require digital subscriptions to use their own
-  // billing. The `revenueCatWebhook` Cloud Function flips subscriptionStatus to "active" once
+  // billing. The `qonversionWebhook` Cloud Function flips subscriptionStatus to "active" once
   // the purchase completes; we also optimistically set it here so the banner updates instantly.
   async function handleSubscribe() {
     if (!user) return;

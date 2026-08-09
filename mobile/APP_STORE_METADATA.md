@@ -81,7 +81,7 @@ built today (user-generated photo/video posts, direct messages, no gambling, no 
 - **Violence, sexual content, profanity:** No, not intentionally designed into the app — but
   because it's UGC, both stores expect you to describe your moderation/reporting process (you
   have post reporting — confirm this in the questionnaire's content-moderation section).
-- **Unrestricted web access / in-app browser:** Yes (Stripe/RevenueCat checkout, external
+- **Unrestricted web access / in-app browser:** Yes (Stripe/Qonversion checkout, external
   links).
 - **Age requirement to use the app:** Terms of Service already states 18+. Set the minimum age
   in each store's age-rating tool to reflect that if the tool allows a hard minimum; otherwise
@@ -128,6 +128,6 @@ since this determines whether you need to file a US export-compliance document.
 - `/terms`, `/privacy`, and `/prize-rules` need to be live at astryks.com (see the deployment
   notes I sent separately) before store review, since both stores check that the privacy
   policy URL actually resolves.
-- The RevenueCat/IAP integration (see `MOBILE_IAP_SETUP.md`) needs to be fully wired — with
+- The Qonversion/IAP integration (see `MOBILE_IAP_SETUP.md`) needs to be fully wired — with
   real subscription products approved in App Store Connect/Play Console — before submitting,
   since Apple in particular will reject a submission where the subscribe flow doesn't work.

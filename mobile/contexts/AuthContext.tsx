@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           { merge: true }
         ).catch(() => {});
 
-        // Link this device's RevenueCat identity to the Firebase uid so App Store/Play Store
+        // Link this device's Qonversion identity to the Firebase uid so App Store/Play Store
         // purchase events can be mapped back to the right users/{uid} doc server-side.
         initPurchases(u.uid);
 

@@ -29,7 +29,7 @@ export default function PrivacyPage() {
       <p className="mb-2">We share limited data with the service providers that make Astryks work, and nobody else:</p>
       <p className="mb-1"><strong>Google Firebase / Google Cloud</strong> — hosts our database, authentication, and backend functions.</p>
       <p className="mb-1"><strong>Stripe</strong> — processes web subscription payments.</p>
-      <p className="mb-1"><strong>Apple / Google</strong> — process iOS/Android subscription payments (via their in-app purchase systems), managed on our behalf by RevenueCat.</p>
+      <p className="mb-1"><strong>Apple / Google</strong> — process iOS/Android subscription payments (via their in-app purchase systems), managed on our behalf by Qonversion.</p>
       <p className="mb-1"><strong>Bunny.net</strong> — stores and streams lesson and post videos.</p>
       <p className="mb-4">
         We may also disclose information if required by law, or to protect the safety of our members

@@ -7,7 +7,7 @@ import { colors } from "@/lib/styles";
 import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
 import { purchaseSubscription } from "@/lib/purchases";
 
-// Mobile subscriptions are Apple/Google in-app purchases (via RevenueCat) rather than Stripe —
+// Mobile subscriptions are Apple/Google in-app purchases (via Qonversion) rather than Stripe —
 // so "managing" a subscription (cancel, change plan, see receipts) happens in the native store
 // subscription-management screen, not our Stripe billing portal.
 const MANAGE_SUBSCRIPTION_URL =

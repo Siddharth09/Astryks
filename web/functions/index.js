@@ -81,8 +81,8 @@ async function sendSupportEmail(subject, text) {
 }
 
 // Count of users with an active subscription right now (web via Stripe or mobile via
-// RevenueCat — both write subscriptionStatus: "active" to the same field, see
-// stripeWebhook/revenueCatWebhook below). This is a headcount only, not a dollar figure —
+// Qonversion — both write subscriptionStatus: "active" to the same field, see
+// stripeWebhook/qonversionWebhook below). This is a headcount only, not a dollar figure —
 // we don't have a reliable single "net revenue" number in Firestore (prices vary by
 // currency/tier, and mobile revenue is further reduced by Apple/Google's cut before it
 // reaches you), so the prize report includes this count and leaves the actual affordability
@@ -1108,10 +1108,12 @@ const stripeSecret = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 const stripePriceId = defineSecret("STRIPE_PRICE_ID");
 
-// Shared secret you set in the RevenueCat dashboard (Project Settings > Integrations >
-// Webhooks > Authorization header value) so we can confirm a webhook call really came from
-// RevenueCat and not just anyone who found this URL.
-const revenueCatWebhookAuth = defineSecret("REVENUECAT_WEBHOOK_AUTH");
+// Shared secret you set in the Qonversion dashboard (Project Settings > Integrations >
+// Webhooks > "Header Authorization-Token Value") so we can confirm a webhook call really came
+// from Qonversion and not just anyone who found this URL. Qonversion sends this back verbatim
+// in an `Authorization: Basic <token>` header — note it's NOT base64-encoded the way real HTTP
+// Basic auth normally is, it's just their chosen header format for a plain shared secret.
+const qonversionWebhookAuth = defineSecret("QONVERSION_WEBHOOK_AUTH");
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1281,49 +1283,63 @@ exports.stripeWebhook = onRequest(
   }
 );
 
-// ---------- Webhook: RevenueCat -> Firestore (mobile in-app-purchase subscriptions) ----------
+// ---------- Webhook: Qonversion -> Firestore (mobile in-app-purchase subscriptions) ----------
 //
 // Web subscriptions go through Stripe (stripeWebhook above). Mobile subscriptions go through
-// Apple/Google in-app purchases, brokered by RevenueCat, which is configured with the
-// Firebase uid as its appUserID (see astryks-mobile/lib/purchases.ts) — so `event.app_user_id`
-// here IS the Firestore users/{uid} doc id, no separate mapping table needed.
+// Apple/Google in-app purchases, brokered by Qonversion, which is told the Firebase uid via
+// Qonversion.getSharedInstance().identify(uid) (see astryks-mobile/lib/purchases.ts) — so
+// `event.custom_user_id` here IS the Firestore users/{uid} doc id, no separate mapping table
+// needed.
 //
-// Set this URL as the webhook in the RevenueCat dashboard (Project Settings > Integrations >
-// Webhooks), and put the same value you choose for the "Authorization header value" field
-// there into the REVENUECAT_WEBHOOK_AUTH secret via `firebase functions:secrets:set`.
-exports.revenueCatWebhook = onRequest({ secrets: [revenueCatWebhookAuth] }, async (req, res) => {
+// Set this URL as the webhook in the Qonversion dashboard (Settings > Integrations > Webhooks),
+// and put the same value you choose for the "Header Authorization-Token Value" field there into
+// the QONVERSION_WEBHOOK_AUTH secret via `firebase functions:secrets:set`.
+exports.qonversionWebhook = onRequest({ secrets: [qonversionWebhookAuth] }, async (req, res) => {
   const authHeader = req.headers["authorization"] || "";
-  if (authHeader !== `Bearer ${revenueCatWebhookAuth.value()}`) {
+  if (authHeader !== `Basic ${qonversionWebhookAuth.value()}`) {
     res.status(401).send("Unauthorized");
     return;
   }
 
-  const event = req.body?.event;
-  if (!event?.app_user_id) {
-    res.status(400).send("Missing event.app_user_id");
+  const event = req.body || {};
+  const uid = event.custom_user_id || event.user_id;
+  if (!uid) {
+    res.status(400).send("Missing custom_user_id/user_id");
     return;
   }
 
-  const uid = event.app_user_id;
-  const activeTypes = ["INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "PRODUCT_CHANGE"];
-  const inactiveTypes = ["CANCELLATION", "EXPIRATION", "BILLING_ISSUE"];
+  // Qonversion's webhook payload includes the current state of every entitlement directly, so
+  // unlike RevenueCat's event-type-based approach, we don't need to interpret event_name values
+  // (trial_converted, subscription_renewed, subscription_canceled, etc.) ourselves — just read
+  // whether the entitlement we care about is currently active. `entitlements` comes through as
+  // an object keyed by numeric string index, not an array.
+  // Must match ENTITLEMENT_ID in astryks-mobile/lib/purchases.ts.
+  const ENTITLEMENT_ID = "premium";
+  const entitlements = Object.values(event.entitlements || {});
+  const premium = entitlements.find((e) => e && e.id === ENTITLEMENT_ID);
 
-  if (activeTypes.includes(event.type)) {
+  if (!premium) {
+    // Event not related to our entitlement (e.g. a different product/entitlement in the same
+    // project) — nothing to do.
+    res.json({ received: true });
+    return;
+  }
+
+  if (premium.active) {
     await db.doc(`users/${uid}`).set(
       {
         subscriptionStatus: "active",
-        subscriptionPlatform: event.store ? event.store.toLowerCase() : "revenuecat",
-        ...(event.country_code ? { countryCode: event.country_code } : {}),
+        subscriptionPlatform: event.platform ? event.platform.toLowerCase() : "qonversion",
+        ...(event.country ? { countryCode: event.country } : {}),
       },
       { merge: true }
     );
-  } else if (inactiveTypes.includes(event.type)) {
-    // CANCELLATION fires when the user cancels auto-renew — they usually keep access until
-    // the period ends, so we don't revoke on CANCELLATION itself, only on the actual EXPIRATION
-    // (or a failed-payment BILLING_ISSUE) once RevenueCat confirms the entitlement lapsed.
-    if (event.type !== "CANCELLATION") {
-      await db.doc(`users/${uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
-    }
+  } else {
+    // `active: false` already accounts for the "keep access until the paid period ends" grace
+    // period the same way RevenueCat's CANCELLATION-vs-EXPIRATION distinction did — Qonversion
+    // keeps `active: true` until the period actually lapses even after the user cancels
+    // auto-renew, so we don't need separate cancellation-vs-expiration handling here.
+    await db.doc(`users/${uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
   }
 
   res.json({ received: true });
