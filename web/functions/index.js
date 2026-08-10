@@ -44,7 +44,7 @@ const PRIZE_LIKE_THRESHOLD = 30;
 // per-jurisdiction legal sign-off — but manual review before any real money moves is still
 // good practice regardless. Flip to `true` once you've done a final check of the current
 // Official Rules (app/prize-rules) against local law and are ready to announce/pay winners.
-const PRIZE_PAYOUTS_ENABLED = false;
+const PRIZE_PAYOUTS_ENABLED = true;
 
 // "YYYY-MM" for a given date — used as the prizeWinners doc ID so a plain
 // orderBy("month") sorts chronologically without needing a separate timestamp field.
@@ -885,10 +885,13 @@ exports.getPrizeLeaderboard = onCall(async (request) => {
 
 exports.getLatestPrizeWinner = onCall(async () => {
   // Skip any winner whose payout is on hold (see PRIZE_PAYOUTS_ENABLED) — don't publicly
-  // announce a cash prize we haven't actually confirmed we can legally pay out yet. Look back
-  // a few months in case the most recent one (or several) are held.
+  // announce a cash prize we haven't actually confirmed we can legally pay out yet. Also skip
+  // anything not yet `announced` — that flag only flips once the admin explicitly approves it
+  // via approvePrizeWinnerAnnouncement, so a candidate winner never shows up here before the
+  // admin has actually reviewed and signed off on it. Look back a few months in case the most
+  // recent one (or several) are held/unapproved.
   const snap = await db.collection("prizeWinners").orderBy("month", "desc").limit(6).get();
-  const winnerDoc = snap.docs.find((d) => !d.data().payoutHeld);
+  const winnerDoc = snap.docs.find((d) => !d.data().payoutHeld && d.data().announced);
   if (!winnerDoc) return { winner: null };
   const w = winnerDoc.data();
 
@@ -1007,6 +1010,91 @@ exports.markPrizeWinnerPaid = onCall(async (request) => {
   );
   return { ok: true };
 });
+
+// ---------- Callable: admin-only — the actual "approve before anyone is told" gate ----------
+// This is the only path by which a winner ever finds out they won, or the public site ever
+// shows a winner. sendMonthlyPrizeReport only ever records a *candidate* and emails you — this
+// is the explicit, deliberate action that (a) sends the winner their congratulations email +
+// an in-app message, and (b) flips `announced: true`, which is what both getLatestPrizeWinner
+// (public banner) and this page's "already notified" badge key off. One-way on purpose — once
+// someone's been congratulated, there's no un-sending that email.
+exports.approvePrizeWinnerAnnouncement = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    const { month } = request.data ?? {};
+    if (!month) {
+      throw new HttpsError("invalid-argument", "month is required.");
+    }
+
+    const winnerRef = db.doc(`prizeWinners/${month}`);
+    const winnerSnap = await winnerRef.get();
+    if (!winnerSnap.exists) {
+      throw new HttpsError("not-found", "No winner recorded for that month.");
+    }
+    const winner = winnerSnap.data();
+    if (winner.announced) {
+      throw new HttpsError("failed-precondition", "This winner has already been notified.");
+    }
+    if (winner.payoutHeld) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This month's payout is on hold (PRIZE_PAYOUTS_ENABLED is false) — flip that on first."
+      );
+    }
+
+    let email = null;
+    try {
+      const userRecord = await admin.auth().getUser(winner.ownerId);
+      email = userRecord.email;
+    } catch (err) {
+      console.error("approvePrizeWinnerAnnouncement: couldn't look up winner's auth user", winner.ownerId, err);
+    }
+
+    if (email) {
+      try {
+        const { subject, text, html } = buildWinnerCongratsEmail(winner.ownerName, winner.monthLabel, winner.postId);
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: { user: SUPPORT_EMAIL_USER.value(), pass: SUPPORT_EMAIL_PASS.value() },
+        });
+        await transporter.sendMail({
+          from: `Astryks <${SUPPORT_EMAIL_USER.value()}>`,
+          to: email,
+          subject,
+          text,
+          html,
+        });
+      } catch (err) {
+        console.error("approvePrizeWinnerAnnouncement: failed to email winner", email, err);
+      }
+    }
+
+    try {
+      await sendPrizeBotMessage(
+        winner.ownerId,
+        winner.ownerName,
+        `🎉 Huge congratulations, ${winner.ownerName || "there"} — your post won ${winner.monthLabel}'s Astryks ` +
+          `Creative Prize! Out of everything posted this month, yours is the one the community rallied around the ` +
+          `most — that's AU$${PRIZE_AUD} coming your way. Thank you for sharing it with all of us. We'll follow up ` +
+          `right here about sending your prize — if you haven't already shared your payout details (bank transfer ` +
+          `or PayID), just reply whenever suits. Congratulations again — you earned this.`,
+        { type: "prizeWin", postId: winner.postId }
+      );
+    } catch (err) {
+      console.error("approvePrizeWinnerAnnouncement: failed to send in-app message", winner.ownerId, err);
+    }
+
+    await winnerRef.set(
+      { announced: true, announcedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    return { ok: true, notifiedEmail: email };
+  }
+);
 
 // ---------- Shared: permanently delete a uid's posts, edges, and account ----------
 //
@@ -1400,6 +1488,95 @@ The Astryks team`;
               <td style="padding:20px 32px 32px;text-align:center;">
                 <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
                   Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+// ---------- Creative Prize winner: branded congratulations email + in-app message ----------
+// Deliberately NEVER called automatically — see approvePrizeWinnerAnnouncement below. The
+// monthly job (sendMonthlyPrizeReport) only ever records a *candidate* winner and emails you
+// for review; nothing reaches the actual winner until you explicitly approve it from
+// astryks.com/admin/prizes. That's the "seeking your approval first" gate you asked for.
+function buildWinnerCongratsEmail(displayName, monthLabel, postId) {
+  const name = displayName || "there";
+  const subject = `🎉 You won this month's Astryks Creative Prize!`;
+  const postUrl = `https://astryks.com/post/${postId}`;
+
+  const text = `Hi ${name},
+
+I'm genuinely delighted to tell you — your post won ${monthLabel}'s Astryks Creative Prize! That's AU$${PRIZE_AUD}, and it's all yours.
+
+Out of everything posted this month, yours is the one the community rallied around and lifted up the most. That takes real work, and it shows — thank you for sharing it with all of us.
+
+Here's what happens next: we'll be in touch shortly via Messages to sort out sending your AU$${PRIZE_AUD} (if you've already shared your payout details, we've got them — if not, just reply there and let us know bank transfer or PayID).
+
+Take a moment to enjoy this one — you earned it.
+
+Your winning post: ${postUrl}
+
+Warmly,
+Sid — Astryks`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="background-color:#FFF6F1;padding:40px 32px 30px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 16px;border-radius:14px;" />
+                <p style="margin:0 0 6px;font-size:34px;line-height:1;">🎉</p>
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.35;color:#17130F;font-weight:600;">
+                  You won ${monthLabel}'s<br />Creative Prize
+                </p>
+                <p style="margin:10px 0 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:28px;font-weight:700;color:#E85D5D;">
+                  AU$${PRIZE_AUD}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  I'm genuinely delighted to tell you — your post won ${monthLabel}'s Astryks Creative Prize.
+                  Out of everything posted this month, yours is the one the community rallied around and lifted
+                  up the most. That takes real work, and it shows — thank you for sharing it with all of us.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Here's what happens next: we'll be in touch shortly over Messages to sort out sending your
+                  AU$${PRIZE_AUD}. If you've already shared your payout details, we've got them — if not, just
+                  reply there with bank transfer or PayID details whenever suits.
+                </p>
+                <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Take a moment to enjoy this one — you earned it.
+                </p>
+                <div style="text-align:center;margin:24px 0 8px;">
+                  <a href="${postUrl}" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    View your winning post
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />Sid — Astryks
                 </p>
               </td>
             </tr>
@@ -1997,6 +2174,12 @@ exports.sendMonthlyPrizeReport = onSchedule(
         paid: false,
         paidAt: null,
         payoutHeld: !PRIZE_PAYOUTS_ENABLED,
+        // Nothing is ever sent to the actual winner just from this job running — that only
+        // happens once you explicitly click "Approve & notify winner" on astryks.com/admin/prizes
+        // (see approvePrizeWinnerAnnouncement below). This flag, not payoutHeld, is what the
+        // public-facing getLatestPrizeWinner checks before announcing anyone.
+        announced: false,
+        announcedAt: null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -2036,13 +2219,16 @@ exports.sendMonthlyPrizeReport = onSchedule(
       `your manual hold if a given month can't comfortably cover it.`;
 
     const payoutStatusLine = PRIZE_PAYOUTS_ENABLED
-      ? `#1 is this month's winner — send them AU$${PRIZE_AUD}. It's now tracked on astryks.com/admin/prizes so ` +
-        `you can mark it paid.\nReminder if they're overseas: transfers from Australia may be subject to market ` +
-        `FX rates and international transfer fees — check with your bank/provider before sending.`
+      ? `#1 is this month's winner — AU$${PRIZE_AUD}. Nothing has been sent to them yet and no public announcement ` +
+        `has gone out: review the details below, then go to astryks.com/admin/prizes and click "Approve & notify ` +
+        `winner" when you're ready. That's what actually emails/messages them the congratulations and lets the ` +
+        `public banner show them as the winner — until then, only you know.\nOnce you've sent the AU$${PRIZE_AUD} ` +
+        `yourself, mark it paid on that same page. Reminder if they're overseas: transfers from Australia may be ` +
+        `subject to market FX rates and international transfer fees — check with your bank/provider before sending.`
       : `⚠️ PAYOUT ON HOLD: PRIZE_PAYOUTS_ENABLED is set to false in functions/index.js, so this winner has been ` +
         `recorded (astryks.com/admin/prizes) but NOT paid and NOT publicly announced yet. This is a manual, ` +
         `deliberate hold — review the winner and the current Official Rules (astryks.com/prize-rules), then flip ` +
-        `PRIZE_PAYOUTS_ENABLED to true and announce/pay #1 when you're ready.`;
+        `PRIZE_PAYOUTS_ENABLED to true and approve #1 from astryks.com/admin/prizes when you're ready.`;
 
     await sendSupportEmail(
       `Astryks creative prize — ${monthLabel}: ${candidates.length} nominee${candidates.length === 1 ? "" : "s"}`,

@@ -10,6 +10,7 @@ import { flagEmoji } from "@/lib/geo";
 const getPrizeWinnersFn = httpsCallable(functions, "getPrizeWinners");
 const markPrizeWinnerPaidFn = httpsCallable(functions, "markPrizeWinnerPaid");
 const runPrizeReportNowFn = httpsCallable(functions, "runPrizeReportNow");
+const approvePrizeWinnerAnnouncementFn = httpsCallable(functions, "approvePrizeWinnerAnnouncement");
 
 // Simple allowlist for who can review this — same as the other admin pages.
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
@@ -23,6 +24,8 @@ export default function AdminPrizesPage() {
   const [error, setError] = useState<string | null>(null);
   const [runningReport, setRunningReport] = useState(false);
   const [reportResult, setReportResult] = useState<string | null>(null);
+  const [approvingMonth, setApprovingMonth] = useState<string | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   async function load() {
     const result = await getPrizeWinnersFn();
@@ -56,6 +59,32 @@ export default function AdminPrizesPage() {
       setError(err.message ?? "Couldn't run the report.");
     } finally {
       setRunningReport(false);
+    }
+  }
+
+  // The actual "seeking your approval first" gate — nothing reaches the winner (no email, no
+  // in-app message) and the public site never shows them as the winner until you click this.
+  // One-way: once sent, there's no un-sending the congratulations email.
+  async function approveAndNotify(month: string, ownerName: string) {
+    if (
+      !confirm(
+        `Send ${ownerName} their congratulations email + in-app message now, and show them publicly as this ` +
+          `month's winner? This can't be undone.`
+      )
+    ) {
+      return;
+    }
+    setApprovingMonth(month);
+    setApproveError(null);
+    try {
+      await approvePrizeWinnerAnnouncementFn({ month });
+      setWinners((prev) =>
+        prev ? prev.map((w) => (w.month === month ? { ...w, announced: true } : w)) : prev
+      );
+    } catch (err: any) {
+      setApproveError(err.message ?? "Couldn't notify the winner.");
+    } finally {
+      setApprovingMonth(null);
     }
   }
 
@@ -98,6 +127,7 @@ export default function AdminPrizesPage() {
       </div>
 
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+      {approveError && <p className="text-sm text-red-600 mb-4">{approveError}</p>}
 
       {winners === null ? (
         <p className="text-ink/50 text-sm">Loading…</p>
@@ -111,10 +141,20 @@ export default function AdminPrizesPage() {
                 <span className="font-medium text-ink/70">{w.monthLabel}</span>
                 <span>·</span>
                 <span>{w.likeCount} likes</span>
-                {w.paid && (
-                  <span className="ml-auto text-xs font-medium text-brand">✓ Paid</span>
-                )}
+                <span className="ml-auto flex items-center gap-2">
+                  {w.announced && (
+                    <span className="text-xs font-medium text-ink/50">✓ Winner notified</span>
+                  )}
+                  {w.paid && <span className="text-xs font-medium text-brand">✓ Paid</span>}
+                </span>
               </div>
+
+              {!w.announced && !w.payoutHeld && (
+                <div className="rounded-lg bg-highlight/15 border border-highlight/40 p-3 mb-3 text-xs text-ink/80">
+                  <strong>Waiting on your approval.</strong> Nobody has been told about this yet — not the winner,
+                  not the public site. Review everything below, then click "Approve & notify winner" when ready.
+                </div>
+              )}
 
               {w.payoutHeld && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 mb-3 text-xs text-red-900">
@@ -166,17 +206,28 @@ export default function AdminPrizesPage() {
                 </details>
               )}
 
-              <button
-                onClick={() => togglePaid(w.month, !!w.paid)}
-                disabled={updatingMonth === w.month}
-                className={
-                  w.paid
-                    ? "btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
-                    : "text-xs rounded-lg bg-ink text-white font-medium px-3 py-1.5 disabled:opacity-50"
-                }
-              >
-                {updatingMonth === w.month ? "Updating…" : w.paid ? "Mark as unpaid" : "Mark as paid"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {!w.announced && !w.payoutHeld && (
+                  <button
+                    onClick={() => approveAndNotify(w.month, w.ownerName)}
+                    disabled={approvingMonth === w.month}
+                    className="text-xs rounded-lg bg-brand text-white font-medium px-3 py-1.5 disabled:opacity-50"
+                  >
+                    {approvingMonth === w.month ? "Sending…" : "Approve & notify winner"}
+                  </button>
+                )}
+                <button
+                  onClick={() => togglePaid(w.month, !!w.paid)}
+                  disabled={updatingMonth === w.month}
+                  className={
+                    w.paid
+                      ? "btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+                      : "text-xs rounded-lg bg-ink text-white font-medium px-3 py-1.5 disabled:opacity-50"
+                  }
+                >
+                  {updatingMonth === w.month ? "Updating…" : w.paid ? "Mark as unpaid" : "Mark as paid"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
