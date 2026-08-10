@@ -9,6 +9,7 @@ import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import LikeButton from "@/components/LikeButton";
 import Comments from "@/components/Comments";
+import ShareMenu from "@/components/ShareMenu";
 import { colors } from "@/lib/styles";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
@@ -140,7 +141,12 @@ export default function PostDetailScreen() {
         )}
       </View>
       {post.title ? <Text style={{ fontSize: 20, fontWeight: "700", marginTop: 6, marginBottom: 6 }}>{post.title}</Text> : null}
-      <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} />
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} />
+        <View style={{ marginLeft: "auto" }}>
+          <ShareMenu postId={post.id} title={post.title} />
+        </View>
+      </View>
 
       <Comments postId={post.id} initialComments={comments} />
     </ScrollView>

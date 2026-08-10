@@ -12,6 +12,7 @@ import SaveButton from "@/components/SaveButton";
 import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
 import PrizeInfoModal from "@/components/PrizeInfoModal";
+import ShareMenu from "@/components/ShareMenu";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const submitReportFn = httpsCallable(functions, "submitReport");
@@ -188,11 +189,14 @@ export default function PostCard({
             💬 {post.commentCount ?? 0}
           </Link>
           <SaveButton postId={post.id} currentUserId={currentUserId} />
-          {(post.type === "photo" || post.type === "video") && (
-            <button onClick={() => setPrizeOpen(true)} className="ml-auto hover:text-ink" title="Creative prize">
-              🏆
-            </button>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            {(post.type === "photo" || post.type === "video") && (
+              <button onClick={() => setPrizeOpen(true)} className="hover:text-ink" title="Creative prize">
+                🏆
+              </button>
+            )}
+            <ShareMenu postId={post.id} title={post.title} />
+          </div>
         </div>
       </div>
       <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} onSubmit={handleReport} />

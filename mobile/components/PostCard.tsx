@@ -12,6 +12,7 @@ import SaveButton from "@/components/SaveButton";
 import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
 import PrizeInfoModal from "@/components/PrizeInfoModal";
+import ShareMenu from "@/components/ShareMenu";
 import { colors } from "@/lib/styles";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
@@ -184,6 +185,7 @@ export default function PostCard({
               <Text style={{ fontSize: 15 }}>🏆</Text>
             </TouchableOpacity>
           )}
+          <ShareMenu postId={post.id} title={post.title} />
         </View>
       </View>
       <ReportModal visible={reportOpen} onClose={() => setReportOpen(false)} onSubmit={handleReport} />

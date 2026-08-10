@@ -8,6 +8,7 @@ import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import LikeButton from "@/components/LikeButton";
 import Comments from "@/components/Comments";
+import ShareMenu from "@/components/ShareMenu";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
@@ -126,7 +127,12 @@ export default function PostPage() {
           )}
         </div>
         {post.title && <h1 className="font-display text-2xl font-semibold mb-2">{post.title}</h1>}
-        <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} />
+        <div className="flex items-center gap-4">
+          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} />
+          <div className="ml-auto">
+            <ShareMenu postId={post.id} title={post.title} />
+          </div>
+        </div>
       </div>
 
       <Comments postId={post.id} initialComments={comments} />
