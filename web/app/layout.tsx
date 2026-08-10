@@ -5,7 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import BottomNav from "@/components/BottomNav";
 import SideNav from "@/components/SideNav";
 import SplashIntro from "@/components/SplashIntro";
-import { IconMark } from "@/components/Icons";
+import TopHeader from "@/components/TopHeader";
 
 export const metadata: Metadata = {
   title: "Astryks",
@@ -36,12 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <SplashIntro>
-            <header className="md:hidden border-b border-line/10 sticky top-0 z-10 bg-paper/90 backdrop-blur">
-              <div className="max-w-3xl mx-auto flex items-center gap-2 px-4 py-3">
-                <IconMark className="w-6 h-6 rounded-md flex-shrink-0" />
-                <span className="font-display font-semibold">Astryks</span>
-              </div>
-            </header>
+            <TopHeader />
             <SideNav />
             <main className="md:pl-56">
               <div className="max-w-3xl mx-auto px-4 py-6 md:py-10">{children}</div>
