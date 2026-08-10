@@ -44,6 +44,10 @@ export default function PrizeInfoModal({
             </Text>
           )}
           <Text style={{ fontSize: 13, color: colors.ink, opacity: 0.75, lineHeight: 19, marginBottom: 8 }}>
+            In a small attempt to incentivise the arts, we give away AU$1,000 in cash every month
+            to the community's most-loved creative post.
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.ink, opacity: 0.75, lineHeight: 19, marginBottom: 8 }}>
             {generic ? "Share a photo or video and you could be in the running. " : "Every month, "}
             we award AU$1,000 (Australian dollars) in cash to whoever's single creative post —
             across music, art, or any other creative project — has the most likes that month. The

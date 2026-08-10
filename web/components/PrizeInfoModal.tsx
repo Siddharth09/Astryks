@@ -43,6 +43,10 @@ export default function PrizeInfoModal({
           </p>
         )}
         <p className="text-sm text-ink/70 mb-2 leading-relaxed">
+          In a small attempt to incentivise the arts, we give away AU$1,000 in cash every month to
+          the community's most-loved creative post.
+        </p>
+        <p className="text-sm text-ink/70 mb-2 leading-relaxed">
           {generic
             ? "Share a photo or video and you could be in the running. "
             : "Every month, "}

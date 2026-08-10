@@ -275,7 +275,9 @@ export default function Home() {
               Running every month through our first 6 months
             </p>
             <p className="text-sm text-ink/60 mb-3">
-              We want every creative student — subscriber or not — to be able to post, get discovered, and
+              In a small attempt to incentivise the arts, we give away AU$1,000 in cash every month to
+              whoever's post the community loves most. We want every creative student — subscriber or
+              not — to be able to post, get discovered, and
               compete for real cash, so entering is completely free for anyone with an Astryks account. At
               the end of each calendar month, whoever's single creative post — across music, art, or any
               other creative project — has the most likes wins, as long as it's reached at least 30 likes.

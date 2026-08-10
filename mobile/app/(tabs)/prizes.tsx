@@ -44,7 +44,9 @@ export default function PrizesScreen() {
       </Text>
       <Text style={{ fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>AU$1,000 a month</Text>
       <Text style={{ fontSize: 13, color: colors.ink, opacity: 0.7, marginBottom: 4, lineHeight: 19 }}>
-        Free to enter for every Astryks member — no subscription needed. One winner is picked each
+        In a small attempt to incentivise the arts, we give away AU$1,000 in cash every month to
+        whoever's post the community loves most. Free to enter for every Astryks member — no
+        subscription needed. One winner is picked each
         month, across every subject — music, art, or any other creative project. Whoever's post has
         the most likes at the end of this calendar month wins — the only requirement is reaching at
         least 30 likes, because we want our community cheering each other on. If nothing reaches 30

@@ -40,7 +40,9 @@ export default function PrizesPage() {
       <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-2">Creative prize</p>
       <h1 className="font-display text-3xl font-bold mb-2">AU$1,000 a month</h1>
       <p className="text-sm text-ink/60 mb-1">
-        Free to enter for every Astryks member — no subscription needed. One winner is picked each
+        In a small attempt to incentivise the arts, we give away AU$1,000 in cash every month to
+        whoever's post the community loves most. Free to enter for every Astryks member — no
+        subscription needed. One winner is picked each
         month, across every subject — music, art, or any other creative project. Whoever's post has
         the most likes at the end of this calendar month wins — the only requirement is reaching at
         least 30 likes, because we want our community cheering each other on. If nothing reaches 30
