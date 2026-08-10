@@ -98,6 +98,29 @@ async function getActiveSubscriberCount() {
   return snap.data().count;
 }
 
+// Alerts YOU, the admin — both by email and by push notification to your own account (if you
+// have the Astryks app installed and a pushToken saved, same mechanism as any member's push).
+// Used only for "something needs your review before money moves" moments — right now, that's
+// exclusively "a winner's payout method just became ready, come approve sending it." This never
+// sends money itself and never can — payWinnerViaStripe/markPrizeWinnerPaid still require you to
+// open astryks.com/admin/prizes and click through a confirmation dialog yourself, every time.
+async function notifyAdmin(subject, body) {
+  try {
+    await sendSupportEmail(subject, body);
+  } catch (err) {
+    console.error("notifyAdmin: failed to email admin", err);
+  }
+  try {
+    const adminUser = await admin.auth().getUserByEmail(ADMIN_EMAILS[0]);
+    await sendPush(adminUser.uid, subject, body.slice(0, 160));
+  } catch (err) {
+    // Most likely cause: you don't have a pushToken saved on your own account yet (open the
+    // Astryks app and allow notifications while logged in as the admin). Email above still went
+    // out regardless, so this failure is silent to you on purpose — nothing to action.
+    console.error("notifyAdmin: failed to push admin", err);
+  }
+}
+
 // Sends an automated "Astryks Prizes" message into (or creating, if needed) the
 // 1:1 conversation between a post's owner and the prize bot pseudo-account —
 // reuses the existing conversations/messages schema the same way support does.
@@ -922,44 +945,72 @@ exports.getLatestPrizeWinner = onCall(async () => {
 // Kept in its own locked-down collection (see the `prizePayouts` rule) rather than on the post
 // itself, since posts are publicly readable and bank/PayID details must not be.
 
-exports.submitPrizePayoutDetails = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "You must be logged in.");
-  }
-  const { postId, method, details } = request.data ?? {};
-  if (!postId || !["bank", "payid"].includes(method) || !details || typeof details !== "string") {
-    throw new HttpsError("invalid-argument", "postId, a method of 'bank' or 'payid', and details are required.");
-  }
+exports.submitPrizePayoutDetails = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const { postId, method, details } = request.data ?? {};
+    if (!postId || !["bank", "payid"].includes(method) || !details || typeof details !== "string") {
+      throw new HttpsError("invalid-argument", "postId, a method of 'bank' or 'payid', and details are required.");
+    }
 
-  const postSnap = await db.doc(`posts/${postId}`).get();
-  if (!postSnap.exists) {
-    throw new HttpsError("not-found", "This post no longer exists.");
-  }
-  const post = postSnap.data();
-  if (post.ownerId !== request.auth.uid) {
-    throw new HttpsError("permission-denied", "Only the post's owner can submit payout details for it.");
-  }
+    const postSnap = await db.doc(`posts/${postId}`).get();
+    if (!postSnap.exists) {
+      throw new HttpsError("not-found", "This post no longer exists.");
+    }
+    const post = postSnap.data();
+    if (post.ownerId !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "Only the post's owner can submit payout details for it.");
+    }
 
-  await db.doc(`prizePayouts/${postId}`).set(
-    {
-      postId,
-      ownerId: post.ownerId,
-      ownerName: post.ownerName || "Member",
-      method,
-      details: details.slice(0, 500),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+    await db.doc(`prizePayouts/${postId}`).set(
+      {
+        postId,
+        ownerId: post.ownerId,
+        ownerName: post.ownerName || "Member",
+        method,
+        details: details.slice(0, 500),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
-  await sendPrizeBotMessage(
-    post.ownerId,
-    post.ownerName,
-    "Thanks — we've saved your payout details for this post. If it wins, we'll use these to send the AU$1,000 " +
-      "straight away. You can update them anytime by sending new details the same way."
-  );
-  return { ok: true };
-});
+    await sendPrizeBotMessage(
+      post.ownerId,
+      post.ownerName,
+      "Thanks — we've saved your payout details for this post. If it wins, we'll use these to send the AU$1,000 " +
+        "straight away. You can update them anytime by sending new details the same way."
+    );
+
+    // Same "come take a look" alert as the Stripe path above — only fires if this post is
+    // actually this month's unpaid, un-held winner (not just anyone pre-emptively saving
+    // details on a post that hasn't won anything).
+    try {
+      const winnersSnap = await db
+        .collection("prizeWinners")
+        .where("postId", "==", postId)
+        .where("paid", "==", false)
+        .get();
+      for (const winnerDoc of winnersSnap.docs) {
+        const winner = winnerDoc.data();
+        if (winner.payoutHeld) continue;
+        await notifyAdmin(
+          `💰 Ready to pay: ${winner.ownerName || post.ownerName || "this month's winner"} added bank/PayID details`,
+          `${winner.ownerName || post.ownerName || "This month's winner"} just added manual ${method === "bank" ? "bank transfer" : "PayID"} ` +
+            `details for the ${winner.monthLabel} Creative Prize (AU$${PRIZE_AUD}).\n\n` +
+            `Nothing has been sent — go to https://astryks.com/admin/prizes to review the details and send it ` +
+            `yourself when you're ready (or nudge them toward the faster Stripe direct-deposit option instead).`
+        );
+      }
+    } catch (err) {
+      console.error("submitPrizePayoutDetails: failed to check for a ready-to-pay winner", postId, err);
+    }
+
+    return { ok: true };
+  }
+);
 
 // ---------- Callable: admin-only — every month's creative-prize winner + payout/paid status ----------
 
@@ -2086,7 +2137,7 @@ exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request)
 // ---------- Webhook: Stripe tells us about subscription changes ----------
 
 exports.stripeWebhook = onRequest(
-  { secrets: [stripeSecret, stripeWebhookSecret] },
+  { secrets: [stripeSecret, stripeWebhookSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async (req, res) => {
     const stripe = Stripe(stripeSecret.value());
     let event;
@@ -2105,14 +2156,48 @@ exports.stripeWebhook = onRequest(
       const account = event.data.object;
       const uid = account.metadata?.uid;
       if (uid) {
-        await db.doc(`payoutAccounts/${uid}`).set(
+        const payoutsEnabled = !!account.payouts_enabled;
+        const acctRef = db.doc(`payoutAccounts/${uid}`);
+        const prevSnap = await acctRef.get();
+        const wasEnabled = !!prevSnap.data()?.payoutsEnabled;
+
+        await acctRef.set(
           {
-            payoutsEnabled: !!account.payouts_enabled,
+            payoutsEnabled,
             detailsSubmitted: !!account.details_submitted,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }
         );
+
+        // Only alert the moment this account NEWLY becomes payable — Stripe fires
+        // account.updated repeatedly throughout onboarding, most of which don't flip
+        // payouts_enabled at all. And only if this person is an actual unpaid, un-held prize
+        // winner right now — someone can complete Stripe onboarding for reasons unrelated to
+        // ever having won anything.
+        if (payoutsEnabled && !wasEnabled) {
+          try {
+            const winnersSnap = await db
+              .collection("prizeWinners")
+              .where("ownerId", "==", uid)
+              .where("paid", "==", false)
+              .get();
+            for (const winnerDoc of winnersSnap.docs) {
+              const winner = winnerDoc.data();
+              if (winner.payoutHeld) continue;
+              await notifyAdmin(
+                `💰 Ready to pay: ${winner.ownerName || "this month's winner"} finished direct deposit setup`,
+                `${winner.ownerName || "This month's winner"} just finished verifying their bank details with ` +
+                  `Stripe for the ${winner.monthLabel} Creative Prize (AU$${PRIZE_AUD}).\n\n` +
+                  `Nothing has been sent — go to https://astryks.com/admin/prizes and click "Pay AU$${PRIZE_AUD} via ` +
+                  `Stripe" next to their name when you're ready. That button, and the confirmation dialog after it, ` +
+                  `is the only thing that actually moves the money.`
+              );
+            }
+          } catch (err) {
+            console.error("stripeWebhook: failed to check for a ready-to-pay winner", uid, err);
+          }
+        }
       }
       res.json({ received: true });
       return;
