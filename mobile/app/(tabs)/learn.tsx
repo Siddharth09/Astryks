@@ -145,7 +145,12 @@ export default function LearnScreen() {
             </Text>
           </View>
         )}
-        <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 6 }}>{active.name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <Text style={{ fontSize: 22, fontWeight: "700" }}>{active.name}</Text>
+          {lessons.length > 0 && (
+            <Text style={{ fontSize: 11, color: colors.muted }}>{lessons.length} lesson{lessons.length === 1 ? "" : "s"}</Text>
+          )}
+        </View>
         {lessons.length > 0 && (() => {
           const done = lessons.filter((l) => completed.has(l.id)).length;
           const pct = Math.round((done / lessons.length) * 100);
@@ -167,12 +172,26 @@ export default function LearnScreen() {
             </View>
           );
         })()}
+        {/* Course path: each lesson is a stop on a vertical timeline. The connector between two
+            stops turns yellow once the stop above it is done — so the yellow line's length IS
+            your progress through the course, not just a decorative divider. The single "current"
+            stop (first not-done lesson) gets a yellow ring + "Up next" badge so it's obvious
+            where to pick up. */}
         {lessons.map((lesson, i) => {
           const done = completed.has(lesson.id);
           const prevDone = i === 0 || completed.has(lessons[i - 1].id);
           const locked = !done && !prevDone;
+          const isCurrent = !done && !locked;
           return (
             <View key={lesson.id} style={{ marginBottom: 18 }}>
+              {i > 0 && (
+                <View
+                  style={{
+                    width: 4, height: 22, borderRadius: 2, marginLeft: 20, marginBottom: 4,
+                    backgroundColor: completed.has(lessons[i - 1].id) ? "#EFC13B" : "rgba(0,0,0,0.08)",
+                  }}
+                />
+              )}
               <TouchableOpacity
                 onPress={() => !locked && playLesson(lesson.id)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
@@ -181,23 +200,36 @@ export default function LearnScreen() {
                 <View
                   style={{
                     width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-                    backgroundColor: done ? "#E85D5D" : "transparent",
-                    borderWidth: done ? 0 : 2, borderColor: "#E85D5D",
+                    backgroundColor: done ? "#E85D5D" : isCurrent ? "#EFC13B" : "transparent",
+                    borderWidth: done || isCurrent ? 0 : 2, borderColor: "#E85D5D",
+                    shadowColor: isCurrent ? "#EFC13B" : undefined,
+                    shadowOpacity: isCurrent ? 0.5 : 0,
+                    shadowRadius: isCurrent ? 6 : 0,
+                    elevation: isCurrent ? 4 : 0,
                   }}
                 >
-                  <Text style={{ color: done ? "white" : locked ? colors.muted : "#E85D5D" }}>
+                  <Text style={{ color: done || isCurrent ? "white" : locked ? colors.muted : "#E85D5D" }}>
                     {done ? "✓" : locked ? "🔒" : "▶"}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: locked ? colors.muted : colors.ink }}>
-                    {lesson.pinned ? "📌 " : ""}{lesson.title}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: colors.muted }}>{lesson.viewCount ?? 0} views</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ color: locked ? colors.muted : colors.ink }}>
+                      {lesson.pinned ? "📌 " : ""}{lesson.title}
+                    </Text>
+                    {isCurrent && (
+                      <View style={{ backgroundColor: "#FFF6F1", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#C94A4A", textTransform: "uppercase" }}>Up next</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>Lesson {i + 1} · {lesson.viewCount ?? 0} views</Text>
                 </View>
                 {!locked && !done && (
                   <TouchableOpacity onPress={() => markComplete(lesson.id)}>
-                    <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>Mark done</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>
+                      Mark done <Text style={{ color: "rgba(0,0,0,0.3)" }}>+10xp</Text>
+                    </Text>
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>

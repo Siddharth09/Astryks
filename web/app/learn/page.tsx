@@ -164,7 +164,12 @@ function LearnPageContent() {
             🏆 You&apos;ve mastered {justMastered}! +50 bonus xp
           </div>
         )}
-        <h1 className="font-display text-2xl font-semibold mb-2">{activeSubject.name}</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="font-display text-2xl font-semibold">{activeSubject.name}</h1>
+          {lessons.length > 0 && (
+            <span className="text-xs text-ink/40 flex-shrink-0">{lessons.length} lesson{lessons.length === 1 ? "" : "s"}</span>
+          )}
+        </div>
         {lessons.length > 0 && (() => {
           const done = lessons.filter((l) => completedIds.has(l.id)).length;
           const pct = Math.round((done / lessons.length) * 100);
@@ -189,34 +194,64 @@ function LearnPageContent() {
             </div>
           );
         })()}
-        <div className="flex flex-col items-center gap-5">
+        {/* Course path: each lesson is a stop on a vertical timeline. The connector between two
+            stops turns yellow once the stop above it is done — so the yellow line's length IS
+            your progress through the course, not just a decorative divider. The single "current"
+            stop (first not-done lesson) gets a glowing ring so it's obvious where to pick up. */}
+        <div className="flex flex-col items-center">
           {lessons.map((lesson, i) => {
             const done = completedIds.has(lesson.id);
             const prevDone = i === 0 || completedIds.has(lessons[i - 1].id);
             const locked = !done && !prevDone;
+            const isCurrent = !done && !locked;
             return (
               <div key={lesson.id} className="w-full max-w-sm">
+                {i > 0 && (
+                  <div className="flex justify-start" style={{ paddingLeft: "20px" }}>
+                    <div
+                      className="w-1 rounded-full transition-colors duration-500"
+                      style={{
+                        height: 22,
+                        background: completedIds.has(lessons[i - 1].id) ? "#EFC13B" : "rgba(23,19,15,0.12)",
+                      }}
+                    />
+                  </div>
+                )}
                 <div
                   className="flex items-center gap-3"
                   onClick={() => !locked && playLesson(lesson.id)}
                   style={{ cursor: locked ? "default" : "pointer" }}
                 >
                   <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg"
+                    className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg flex-shrink-0"
                     style={{
-                      background: done ? "#E85D5D" : "transparent",
-                      color: done ? "white" : locked ? "#B4B2A9" : "#E85D5D",
-                      border: done ? "none" : "2px solid #E85D5D",
+                      background: done ? "#E85D5D" : isCurrent ? "#EFC13B" : "transparent",
+                      color: done || isCurrent ? "white" : locked ? "#B4B2A9" : "#E85D5D",
+                      border: done || isCurrent ? "none" : "2px solid #E85D5D",
+                      boxShadow: isCurrent ? "0 0 0 5px rgba(239,193,59,0.25)" : "none",
+                      animation: isCurrent ? "astryks-pulse 2s ease-in-out infinite" : "none",
                     }}
                   >
                     {done ? "✓" : locked ? "🔒" : "▶"}
                   </div>
                   <div className="flex-1">
-                    <p className={locked ? "text-ink/40" : "text-ink"}>
-                      {lesson.pinned && <span className="mr-1">📌</span>}
-                      {lesson.title}
+                    <div className="flex items-center gap-1.5">
+                      <p className={locked ? "text-ink/40" : "text-ink"}>
+                        {lesson.pinned && <span className="mr-1">📌</span>}
+                        {lesson.title}
+                      </p>
+                      {isCurrent && (
+                        <span
+                          className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide rounded-full px-1.5 py-0.5"
+                          style={{ background: "#FFF6F1", color: "#C94A4A" }}
+                        >
+                          Up next
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-ink/40">
+                      Lesson {i + 1} · {lesson.viewCount ?? 0} views
                     </p>
-                    <p className="text-xs text-ink/40">{lesson.viewCount ?? 0} views</p>
                   </div>
                   {!locked && !done && (
                     <button
@@ -224,9 +259,9 @@ function LearnPageContent() {
                         e.stopPropagation();
                         markComplete(lesson.id);
                       }}
-                      className="text-xs text-ink/50 underline"
+                      className="text-xs text-ink/50 underline flex-shrink-0"
                     >
-                      Mark done
+                      Mark done <span className="text-ink/30">+10xp</span>
                     </button>
                   )}
                 </div>

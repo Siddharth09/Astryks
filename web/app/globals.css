@@ -33,3 +33,14 @@ body {
 .link-accent {
   @apply text-brand font-medium hover:text-brandDark;
 }
+
+/* Gentle glow pulse for the "up next" stop on a course timeline (app/learn) — draws the eye to
+   where to pick up without being distracting or looping fast enough to feel like an error state. */
+@keyframes astryks-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 5px rgba(239, 193, 59, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(239, 193, 59, 0.12);
+  }
+}
