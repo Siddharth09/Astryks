@@ -991,6 +991,36 @@ exports.getPrizeWinners = onCall(async (request) => {
   return { winners };
 });
 
+// ---------- Callable: admin-only — nudge a winner who hasn't shared payout details yet ----------
+// Winners are invited to share bank/PayID details the moment they post (see nominateForPrize),
+// but that can be weeks before they actually win, easy to miss or ignore. This sends the exact
+// same in-app form again (rendered wherever a `prizeWin`/`prizeNomination` message shows up,
+// see app/messages/[conversationId]/page.tsx) so there's a clear, low-friction way for them to
+// add their details even if they skipped it the first time.
+exports.sendPayoutReminder = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const { postId } = request.data ?? {};
+  if (!postId) {
+    throw new HttpsError("invalid-argument", "postId is required.");
+  }
+  const postSnap = await db.doc(`posts/${postId}`).get();
+  if (!postSnap.exists) {
+    throw new HttpsError("not-found", "That post no longer exists.");
+  }
+  const post = postSnap.data();
+  await sendPrizeBotMessage(
+    post.ownerId,
+    post.ownerName,
+    `Quick one — we still don't have your payout details on file for your AU$${PRIZE_AUD} prize. Tap "Share ` +
+      `payout details" below whenever you get a chance (bank transfer or PayID both work) and we'll get it sent ` +
+      `your way.`,
+    { type: "prizeWin", postId }
+  );
+  return { ok: true };
+});
+
 // ---------- Callable: admin-only — mark a month's prize as paid (or undo that) ----------
 
 exports.markPrizeWinnerPaid = onCall(async (request) => {
@@ -1527,7 +1557,7 @@ Take a moment to enjoy this one — you earned it.
 Your winning post: ${postUrl}
 
 Warmly,
-Sid — Astryks`;
+Astryks`;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -1576,7 +1606,7 @@ Sid — Astryks`;
             <tr>
               <td style="padding:20px 32px 32px;text-align:center;">
                 <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
-                  Warmly,<br />Sid — Astryks
+                  Warmly,<br />Astryks
                 </p>
               </td>
             </tr>

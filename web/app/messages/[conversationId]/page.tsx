@@ -116,25 +116,31 @@ export default function ChatThreadPage() {
             }`}
           >
             {m.text}
-            {m.type === "prizeNomination" && m.senderId !== user?.uid && m.postId && (
+            {(m.type === "prizeNomination" || m.type === "prizeWin") && m.senderId !== user?.uid && m.postId && (
               <div className="mt-2 pt-2 border-t border-line/15 space-y-2">
-                {optOutState[m.id] === "done" || m.prizeOptOutHandled ? (
+                {m.type === "prizeNomination" && (optOutState[m.id] === "done" || m.prizeOptOutHandled) ? (
                   <p className="text-xs text-ink/50">You've opted this post out.</p>
                 ) : (
                   <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => handleOptOut(m.id, m.postId)}
-                      disabled={optOutState[m.id] === "loading"}
-                      className="text-xs underline text-ink/70 hover:text-ink disabled:opacity-50"
-                    >
-                      {optOutState[m.id] === "loading" ? "Opting out…" : "Opt out of this nomination"}
-                    </button>
+                    {m.type === "prizeNomination" && (
+                      <button
+                        onClick={() => handleOptOut(m.id, m.postId)}
+                        disabled={optOutState[m.id] === "loading"}
+                        className="text-xs underline text-ink/70 hover:text-ink disabled:opacity-50"
+                      >
+                        {optOutState[m.id] === "loading" ? "Opting out…" : "Opt out of this nomination"}
+                      </button>
+                    )}
                     {payoutState[m.id] !== "done" && (
                       <button
                         onClick={() => setPayoutOpen((prev) => ({ ...prev, [m.id]: !prev[m.id] }))}
                         className="text-xs underline text-ink/70 hover:text-ink"
                       >
-                        {payoutOpen[m.id] ? "Cancel" : "Share payout details"}
+                        {payoutOpen[m.id]
+                          ? "Cancel"
+                          : m.type === "prizeWin"
+                          ? "Add payout details"
+                          : "Share payout details"}
                       </button>
                     )}
                   </div>

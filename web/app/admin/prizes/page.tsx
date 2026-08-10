@@ -11,11 +11,46 @@ const getPrizeWinnersFn = httpsCallable(functions, "getPrizeWinners");
 const markPrizeWinnerPaidFn = httpsCallable(functions, "markPrizeWinnerPaid");
 const runPrizeReportNowFn = httpsCallable(functions, "runPrizeReportNow");
 const approvePrizeWinnerAnnouncementFn = httpsCallable(functions, "approvePrizeWinnerAnnouncement");
+const sendPayoutReminderFn = httpsCallable(functions, "sendPayoutReminder");
 
 // Simple allowlist for who can review this — same as the other admin pages.
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 const METHOD_LABELS: Record<string, string> = { bank: "Bank transfer", payid: "PayID" };
+
+// Matches PRIZE_AUD in functions/index.js — kept as a plain constant here too since this is a
+// display-only value (the backend never round-trips it back to the client), not something to
+// fetch just to show "AU$1,000".
+const PRIZE_AMOUNT = 1000;
+
+function PayField({
+  label,
+  value,
+  fieldKey,
+  copiedField,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  fieldKey: string;
+  copiedField: string | null;
+  onCopy: (key: string, value: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 bg-white rounded-md border border-line/10 px-2.5 py-1.5">
+      <div className="min-w-0">
+        <p className="text-[11px] text-ink/40 leading-none mb-0.5">{label}</p>
+        <p className="text-sm font-medium truncate">{value}</p>
+      </div>
+      <button
+        onClick={() => onCopy(fieldKey, value)}
+        className="text-xs rounded-md bg-ink/5 hover:bg-ink/10 text-ink/70 font-medium px-2 py-1 flex-shrink-0"
+      >
+        {copiedField === fieldKey ? "Copied ✓" : "Copy"}
+      </button>
+    </div>
+  );
+}
 
 export default function AdminPrizesPage() {
   const { user, loading: authLoading } = useRequireAuth();
@@ -26,6 +61,9 @@ export default function AdminPrizesPage() {
   const [reportResult, setReportResult] = useState<string | null>(null);
   const [approvingMonth, setApprovingMonth] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [remindingPostId, setRemindingPostId] = useState<string | null>(null);
+  const [reminderSentFor, setReminderSentFor] = useState<Record<string, boolean>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   async function load() {
     const result = await getPrizeWinnersFn();
@@ -85,6 +123,32 @@ export default function AdminPrizesPage() {
       setApproveError(err.message ?? "Couldn't notify the winner.");
     } finally {
       setApprovingMonth(null);
+    }
+  }
+
+  // Copies straight from the payout doc the winner themselves submitted (see
+  // submitPrizePayoutDetails / app/messages/[conversationId]/page.tsx) — never retyped by hand
+  // anywhere along the way, so there's no transcription step where a digit could get fat-
+  // fingered before it ends up in your bank's transfer form.
+  async function copyField(key: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(key);
+      setTimeout(() => setCopiedField((prev) => (prev === key ? null : prev)), 2000);
+    } catch {
+      alert("Couldn't copy — your browser may be blocking clipboard access. Value:\n\n" + value);
+    }
+  }
+
+  async function sendReminder(postId: string) {
+    setRemindingPostId(postId);
+    try {
+      await sendPayoutReminderFn({ postId });
+      setReminderSentFor((prev) => ({ ...prev, [postId]: true }));
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't send the reminder.");
+    } finally {
+      setRemindingPostId(null);
     }
   }
 
@@ -182,13 +246,56 @@ export default function AdminPrizesPage() {
 
               {w.payout ? (
                 <div className="bg-paper/60 rounded-lg p-3 mb-3 text-sm">
-                  <p className="text-xs text-ink/50 mb-0.5">{METHOD_LABELS[w.payout.method] ?? w.payout.method}</p>
-                  <p className="font-medium">{w.payout.details}</p>
+                  <p className="text-xs text-ink/50 mb-2">
+                    Ready to pay — copy each field straight into your bank's transfer form rather than retyping
+                    them, so nothing gets mistyped along the way.
+                  </p>
+                  <div className="space-y-1.5">
+                    <PayField
+                      label="Amount"
+                      value={`AU$${PRIZE_AMOUNT}`}
+                      fieldKey={`${w.month}-amount`}
+                      copiedField={copiedField}
+                      onCopy={copyField}
+                    />
+                    <PayField
+                      label={METHOD_LABELS[w.payout.method] ?? w.payout.method}
+                      value={w.payout.details}
+                      fieldKey={`${w.month}-details`}
+                      copiedField={copiedField}
+                      onCopy={copyField}
+                    />
+                    <PayField
+                      label="Reference"
+                      value={`Astryks Prize ${w.monthLabel}`}
+                      fieldKey={`${w.month}-reference`}
+                      copiedField={copiedField}
+                      onCopy={copyField}
+                    />
+                  </div>
+                  <p className="text-xs text-ink/40 mt-2">
+                    Overseas? Transfers from Australia may be subject to market FX rates and international
+                    transfer fees — check with your bank before sending.
+                  </p>
                 </div>
               ) : (
-                <p className="text-xs text-ink/40 mb-3">
-                  No payout details on file yet — ask {w.ownerName} for them via Messages.
-                </p>
+                <div className="rounded-lg bg-paper/60 p-3 mb-3">
+                  <p className="text-xs text-ink/50 mb-2">
+                    No payout details on file yet — {w.ownerName} hasn't shared a bank account or PayID. Nothing
+                    to pay until they do.
+                  </p>
+                  <button
+                    onClick={() => sendReminder(w.postId)}
+                    disabled={remindingPostId === w.postId || reminderSentFor[w.postId]}
+                    className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+                  >
+                    {remindingPostId === w.postId
+                      ? "Sending…"
+                      : reminderSentFor[w.postId]
+                      ? "Reminder sent"
+                      : "Send reminder"}
+                  </button>
+                </div>
               )}
 
               {w.nominees?.length > 1 && (
