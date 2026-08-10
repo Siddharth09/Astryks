@@ -973,6 +973,7 @@ exports.getPrizeWinners = onCall(async (request) => {
       const w = { id: d.id, ...d.data() };
       let payout = null;
       let countryCode = null;
+      let payoutAccount = null;
       try {
         const payoutSnap = await db.doc(`prizePayouts/${w.postId}`).get();
         if (payoutSnap.exists) payout = payoutSnap.data();
@@ -985,7 +986,15 @@ exports.getPrizeWinners = onCall(async (request) => {
       } catch {
         countryCode = null;
       }
-      return { ...w, payout, countryCode };
+      try {
+        const payoutAcctSnap = await db.doc(`payoutAccounts/${w.ownerId}`).get();
+        if (payoutAcctSnap.exists) {
+          payoutAccount = { payoutsEnabled: !!payoutAcctSnap.data().payoutsEnabled };
+        }
+      } catch {
+        payoutAccount = null;
+      }
+      return { ...w, payout, countryCode, payoutAccount };
     })
   );
   return { winners };
@@ -1943,6 +1952,137 @@ exports.createBillingPortalSession = onCall(
   }
 );
 
+// ---------- Creative Prize payouts via Stripe Connect ----------
+// The manual "copy these details into your own bank" flow (see admin/prizes) still works and
+// stays as a fallback — this adds a real automated rail on top of it. Each winner (or anyone,
+// really — same as the existing manual bank/PayID form, available any time, not just after
+// winning) can complete a short Stripe-hosted onboarding form. Their actual bank details go
+// straight to Stripe and are never seen by Astryks at all — payoutAccounts/{uid} only ever
+// stores the resulting Stripe account ID and whether it's ready to receive money, nothing
+// sensitive. Once ready, paying them is one click (payWinnerViaStripe) instead of a manual
+// transfer. Requires Stripe Connect to be enabled on the account first (Stripe Dashboard →
+// Connect → get started, choose "Platform or marketplace") — that's a one-time setup step only
+// possible from inside your own Stripe account, not something settable via the API.
+
+// ---------- Callable: get-or-create a Stripe Connect onboarding link for the caller ----------
+exports.createPayoutOnboardingLink = onCall({ secrets: [stripeSecret] }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+  const uid = request.auth.uid;
+  const stripe = Stripe(stripeSecret.value());
+
+  const acctDocRef = db.doc(`payoutAccounts/${uid}`);
+  const acctDoc = await acctDocRef.get();
+  let stripeAccountId = acctDoc.data()?.stripeAccountId;
+
+  if (!stripeAccountId) {
+    // Best-effort country guess — countryCode is only reliably set once someone has actually
+    // subscribed via Stripe or mobile IAP (see stripeWebhook/qonversionWebhook), and prize
+    // entry deliberately doesn't require a subscription (see nominateForPrize), so plenty of
+    // winners won't have one on file. Defaulting to AU is a reasonable bet for an Australian
+    // prize in AUD; if a winner's real country isn't one Stripe Express supports, account
+    // creation below will throw a clear Stripe error and the manual bank/PayID flow remains
+    // the fallback for that case.
+    let countryCode = "AU";
+    try {
+      const userSnap = await db.doc(`users/${uid}`).get();
+      countryCode = userSnap.data()?.countryCode || "AU";
+    } catch {
+      countryCode = "AU";
+    }
+
+    const account = await stripe.accounts.create({
+      type: "express",
+      country: countryCode,
+      email: request.auth.token.email || undefined,
+      capabilities: { transfers: { requested: true } },
+      metadata: { uid },
+    });
+    stripeAccountId = account.id;
+    await acctDocRef.set(
+      {
+        stripeAccountId,
+        payoutsEnabled: false,
+        detailsSubmitted: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+
+  const accountLink = await stripe.accountLinks.create({
+    account: stripeAccountId,
+    type: "account_onboarding",
+    refresh_url: "https://astryks.com/prize-payout-setup?status=refresh",
+    return_url: "https://astryks.com/prize-payout-setup?status=done",
+  });
+
+  return { url: accountLink.url };
+});
+
+// ---------- Callable: has the caller finished Stripe onboarding? ----------
+exports.getPayoutAccountStatus = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+  const snap = await db.doc(`payoutAccounts/${request.auth.uid}`).get();
+  if (!snap.exists) return { hasAccount: false, payoutsEnabled: false };
+  const data = snap.data();
+  return { hasAccount: true, payoutsEnabled: !!data.payoutsEnabled };
+});
+
+// ---------- Callable: admin-only — actually send the AU$1,000 via Stripe Connect ----------
+// One click, no manually keying anything into a bank form. Requires the winner to have already
+// completed Stripe onboarding (payoutsEnabled on their payoutAccounts doc) — the admin prizes
+// page only shows this button once that's true; the manual copy-fields panel is always there
+// as a fallback regardless.
+exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const { month } = request.data ?? {};
+  if (!month) throw new HttpsError("invalid-argument", "month is required.");
+
+  const winnerRef = db.doc(`prizeWinners/${month}`);
+  const winnerSnap = await winnerRef.get();
+  if (!winnerSnap.exists) throw new HttpsError("not-found", "No winner recorded for that month.");
+  const winner = winnerSnap.data();
+  if (winner.paid) {
+    throw new HttpsError("failed-precondition", "This month is already marked as paid — unmark it first if you really want to send another transfer.");
+  }
+
+  const payoutAcctSnap = await db.doc(`payoutAccounts/${winner.ownerId}`).get();
+  const payoutAcct = payoutAcctSnap.data();
+  if (!payoutAcct?.stripeAccountId || !payoutAcct.payoutsEnabled) {
+    throw new HttpsError(
+      "failed-precondition",
+      "This winner hasn't finished setting up direct deposit yet — use the manual bank/PayID details instead, or send them a reminder."
+    );
+  }
+
+  const stripe = Stripe(stripeSecret.value());
+  let transfer;
+  try {
+    transfer = await stripe.transfers.create({
+      amount: PRIZE_AUD * 100,
+      currency: "aud",
+      destination: payoutAcct.stripeAccountId,
+      description: `Astryks Creative Prize — ${winner.monthLabel}`,
+    });
+  } catch (err) {
+    throw new HttpsError("internal", `Stripe declined this transfer: ${err.message}`);
+  }
+
+  await winnerRef.set(
+    {
+      paid: true,
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      paidVia: "stripe",
+      stripeTransferId: transfer.id,
+    },
+    { merge: true }
+  );
+
+  return { ok: true, transferId: transfer.id };
+});
+
 // ---------- Webhook: Stripe tells us about subscription changes ----------
 
 exports.stripeWebhook = onRequest(
@@ -1954,6 +2094,27 @@ exports.stripeWebhook = onRequest(
       event = stripe.webhooks.constructEvent(req.rawBody, req.headers["stripe-signature"], stripeWebhookSecret.value());
     } catch (err) {
       res.status(400).send(`Webhook signature error: ${err.message}`);
+      return;
+    }
+
+    // Fires whenever a Connect Express account's status changes — including right after
+    // someone finishes the onboarding form triggered by createPayoutOnboardingLink above. Make
+    // sure "account.updated" is ticked in this webhook's event list in the Stripe Dashboard
+    // (Developers → Webhooks → this endpoint → update events), or this branch never runs.
+    if (event.type === "account.updated") {
+      const account = event.data.object;
+      const uid = account.metadata?.uid;
+      if (uid) {
+        await db.doc(`payoutAccounts/${uid}`).set(
+          {
+            payoutsEnabled: !!account.payouts_enabled,
+            detailsSubmitted: !!account.details_submitted,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+      res.json({ received: true });
       return;
     }
 

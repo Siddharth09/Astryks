@@ -19,6 +19,7 @@ import PageBackground from "@/components/PageBackground";
 
 const optOutOfPrizeFn = httpsCallable(functions, "optOutOfPrize");
 const submitPrizePayoutDetailsFn = httpsCallable(functions, "submitPrizePayoutDetails");
+const createPayoutOnboardingLinkFn = httpsCallable(functions, "createPayoutOnboardingLink");
 
 export default function ChatThreadPage() {
   const params = useParams<{ conversationId: string }>();
@@ -30,7 +31,23 @@ export default function ChatThreadPage() {
   const [payoutMethod, setPayoutMethod] = useState<Record<string, "bank" | "payid">>({});
   const [payoutDetails, setPayoutDetails] = useState<Record<string, string>>({});
   const [payoutState, setPayoutState] = useState<Record<string, "loading" | "done">>({});
+  const [stripeSetupLoading, setStripeSetupLoading] = useState<Record<string, boolean>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Redirects to Stripe's own hosted onboarding form — their bank details go straight to
+  // Stripe, never through Astryks at all. Same "share payout details" moment as the manual
+  // form below, just the faster/more secure option. Not tied to any specific post, so it works
+  // the same whether this is a fresh nomination or an actual win.
+  async function handleStripeSetup(messageId: string) {
+    setStripeSetupLoading((prev) => ({ ...prev, [messageId]: true }));
+    try {
+      const result = await createPayoutOnboardingLinkFn();
+      window.location.href = (result.data as any).url;
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't start Stripe setup — try again, or use the manual option below.");
+      setStripeSetupLoading((prev) => ({ ...prev, [messageId]: false }));
+    }
+  }
 
   async function handleOptOut(messageId: string, postId: string) {
     setOptOutState((prev) => ({ ...prev, [messageId]: "loading" }));
@@ -152,6 +169,14 @@ export default function ChatThreadPage() {
 
                 {payoutOpen[m.id] && payoutState[m.id] !== "done" && (
                   <div className="bg-paper/60 rounded-lg p-2.5 space-y-2">
+                    <button
+                      onClick={() => handleStripeSetup(m.id)}
+                      disabled={stripeSetupLoading[m.id]}
+                      className="w-full text-xs rounded-md bg-brand text-white font-medium px-2.5 py-1.5 disabled:opacity-50"
+                    >
+                      {stripeSetupLoading[m.id] ? "Starting…" : "Set up direct deposit (fastest, most secure)"}
+                    </button>
+                    <p className="text-[11px] text-ink/40 text-center">— or enter it manually —</p>
                     <select
                       value={payoutMethod[m.id] ?? "bank"}
                       onChange={(e) =>

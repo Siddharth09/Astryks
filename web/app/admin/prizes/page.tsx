@@ -12,6 +12,7 @@ const markPrizeWinnerPaidFn = httpsCallable(functions, "markPrizeWinnerPaid");
 const runPrizeReportNowFn = httpsCallable(functions, "runPrizeReportNow");
 const approvePrizeWinnerAnnouncementFn = httpsCallable(functions, "approvePrizeWinnerAnnouncement");
 const sendPayoutReminderFn = httpsCallable(functions, "sendPayoutReminder");
+const payWinnerViaStripeFn = httpsCallable(functions, "payWinnerViaStripe");
 
 // Simple allowlist for who can review this — same as the other admin pages.
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
@@ -64,6 +65,8 @@ export default function AdminPrizesPage() {
   const [remindingPostId, setRemindingPostId] = useState<string | null>(null);
   const [reminderSentFor, setReminderSentFor] = useState<Record<string, boolean>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [payingMonth, setPayingMonth] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
 
   async function load() {
     const result = await getPrizeWinnersFn();
@@ -152,6 +155,25 @@ export default function AdminPrizesPage() {
     }
   }
 
+  // The actual money-moving action — one click, no manual bank form. Only ever shown once the
+  // winner has finished Stripe's own onboarding (payoutAccount.payoutsEnabled), so there's
+  // nothing to accidentally send to an account that isn't ready to receive it.
+  async function payViaStripe(month: string, ownerName: string) {
+    if (!confirm(`Send AU$${PRIZE_AMOUNT} to ${ownerName} via Stripe right now? This actually moves money.`)) {
+      return;
+    }
+    setPayingMonth(month);
+    setPayError(null);
+    try {
+      await payWinnerViaStripeFn({ month });
+      setWinners((prev) => (prev ? prev.map((w) => (w.month === month ? { ...w, paid: true, paidVia: "stripe" } : w)) : prev));
+    } catch (err: any) {
+      setPayError(err.message ?? "Couldn't send that payment.");
+    } finally {
+      setPayingMonth(null);
+    }
+  }
+
   async function togglePaid(month: string, currentlyPaid: boolean) {
     setUpdatingMonth(month);
     setError(null);
@@ -192,6 +214,7 @@ export default function AdminPrizesPage() {
 
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
       {approveError && <p className="text-sm text-red-600 mb-4">{approveError}</p>}
+      {payError && <p className="text-sm text-red-600 mb-4">{payError}</p>}
 
       {winners === null ? (
         <p className="text-ink/50 text-sm">Loading…</p>
@@ -244,11 +267,33 @@ export default function AdminPrizesPage() {
                 </div>
               </div>
 
+              {w.payoutAccount?.payoutsEnabled && !w.paid && (
+                <div className="rounded-lg bg-brandLight border border-brand/30 p-3 mb-3">
+                  <p className="text-xs text-ink/70 mb-2">
+                    {w.ownerName} has direct deposit set up via Stripe — this actually sends the money, no manual
+                    bank form needed.
+                  </p>
+                  <button
+                    onClick={() => payViaStripe(w.month, w.ownerName)}
+                    disabled={payingMonth === w.month}
+                    className="text-xs rounded-lg bg-brand text-white font-medium px-3 py-1.5 disabled:opacity-50"
+                  >
+                    {payingMonth === w.month ? "Sending…" : `Pay AU$${PRIZE_AMOUNT} via Stripe`}
+                  </button>
+                </div>
+              )}
+
+              {w.paidVia === "stripe" && (
+                <p className="text-xs text-ink/40 mb-3">Sent via Stripe{w.stripeTransferId ? ` (${w.stripeTransferId})` : ""}.</p>
+              )}
+
               {w.payout ? (
                 <div className="bg-paper/60 rounded-lg p-3 mb-3 text-sm">
                   <p className="text-xs text-ink/50 mb-2">
-                    Ready to pay — copy each field straight into your bank's transfer form rather than retyping
-                    them, so nothing gets mistyped along the way.
+                    {w.payoutAccount?.payoutsEnabled
+                      ? "Manual fallback, if you'd rather not use Stripe for this one:"
+                      : "Ready to pay — copy each field straight into your bank's transfer form rather than retyping " +
+                        "them, so nothing gets mistyped along the way."}
                   </p>
                   <div className="space-y-1.5">
                     <PayField

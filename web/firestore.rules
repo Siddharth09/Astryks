@@ -169,5 +169,14 @@ service cloud.firestore {
     match /prizePayouts/{postId} {
       allow read, write: if false;
     }
+
+    // Stripe Connect account IDs + payout-readiness for the automated prize-payout rail. Only
+    // ever written by createPayoutOnboardingLink / the stripeWebhook's account.updated handler
+    // (Admin SDK, bypasses these rules), and only ever read by getPayoutAccountStatus /
+    // getPrizeWinners / payWinnerViaStripe — never directly by a client, same reasoning as
+    // prizePayouts above.
+    match /payoutAccounts/{uid} {
+      allow read, write: if false;
+    }
   }
 }
