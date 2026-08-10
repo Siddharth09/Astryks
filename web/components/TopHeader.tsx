@@ -17,7 +17,7 @@ export default function TopHeader() {
     <header
       className={`${hideOnDesktop ? "md:hidden" : ""} border-b border-line/10 sticky top-0 z-10 bg-paper/90 backdrop-blur`}
     >
-      <div className="max-w-3xl mx-auto flex items-center gap-2 px-4 py-3">
+      <div className="max-w-5xl mx-auto flex items-center gap-2 px-4 md:px-10 py-3">
         <IconMark className="w-6 h-6 rounded-md flex-shrink-0" />
         <span className="font-display font-semibold">Astryks</span>
       </div>

@@ -6,6 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import SideNav from "@/components/SideNav";
 import SplashIntro from "@/components/SplashIntro";
 import TopHeader from "@/components/TopHeader";
+import AppShell from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "Astryks",
@@ -38,9 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SplashIntro>
             <TopHeader />
             <SideNav />
-            <main className="md:pl-56">
-              <div className="max-w-3xl mx-auto px-4 py-6 md:py-10">{children}</div>
-            </main>
+            <AppShell>{children}</AppShell>
             <BottomNav />
           </SplashIntro>
         </AuthProvider>
