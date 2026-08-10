@@ -23,7 +23,7 @@ const SUBJECT_CARDS: {
 }[] = [
   { id: "music", name: "Music", tagline: "Create a song from scratch", thumbnail: require("@/assets/music-preview.jpg"), size: 176 },
   { id: "art", name: "Art", tagline: "Create a self portrait", thumbnail: require("@/assets/art-preview.jpg"), size: 128 },
-  { id: "finance", name: "Finance", tagline: "Create a portfolio of stocks", size: 128, comingSoon: true },
+  // Investing (share market) is next up — add its card here once the first lessons are uploaded.
 ];
 
 function tierFor(pct: number): { emoji: string; label: string } | null {
@@ -293,7 +293,7 @@ export default function LearnScreen() {
       <TextInput
         value={searchQuery}
         onChangeText={setSearchQuery}
-        placeholder="Search lessons — try “music”, “art”, “finance”…"
+        placeholder="Search lessons — try “music” or “art”…"
         style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "white", marginBottom: 14, fontSize: 14 }}
       />
       {q ? (
