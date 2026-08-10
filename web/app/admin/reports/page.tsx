@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 const getReportsFn = httpsCallable(functions, "getReports");
 const resolveReportFn = httpsCallable(functions, "resolveReport");
 const backfillLessonPlaybackFn = httpsCallable(functions, "backfillLessonPlayback");
+const sendTestWelcomeEmailFn = httpsCallable(functions, "sendTestWelcomeEmail");
 
 // Simple allowlist for who can review reports — same as the other admin pages.
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
@@ -22,6 +23,24 @@ export default function AdminReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState<string | null>(null);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
+
+  // Sends the real welcome-email template to your own inbox, so you can see exactly how it
+  // renders in an actual mail client (Gmail/Apple Mail/etc. all render HTML email slightly
+  // differently — a browser preview isn't a substitute for the real thing).
+  async function handleSendTestEmail() {
+    setSendingTestEmail(true);
+    setTestEmailResult(null);
+    try {
+      const result = await sendTestWelcomeEmailFn();
+      setTestEmailResult(`Sent to ${(result.data as any)?.sentTo ?? "your inbox"} — check your email.`);
+    } catch (err: any) {
+      setTestEmailResult(`Error: ${err.message ?? "Something went wrong."}`);
+    } finally {
+      setSendingTestEmail(false);
+    }
+  }
 
   // One-time maintenance action — moves any lesson's Bunny playback credentials that are
   // still sitting on the old public lessons doc into the gated lessonPlayback doc instead.
@@ -93,6 +112,23 @@ export default function AdminReportsPage() {
           {migrating ? "Running…" : "Run migration"}
         </button>
         {migrateResult && <p className="text-xs text-ink/60 mt-2">{migrateResult}</p>}
+      </div>
+
+      <div className="card p-4 mb-6 bg-paper/60">
+        <p className="text-sm font-medium mb-1">Preview the welcome email</p>
+        <p className="text-xs text-ink/50 mb-3">
+          Sends the exact email a new member gets, straight to your own inbox — the fastest way
+          to check how it actually renders (fonts/colors/logo can render slightly differently
+          across Gmail, Apple Mail, etc.).
+        </p>
+        <button
+          onClick={handleSendTestEmail}
+          disabled={sendingTestEmail}
+          className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+        >
+          {sendingTestEmail ? "Sending…" : "Send me a test copy"}
+        </button>
+        {testEmailResult && <p className="text-xs text-ink/60 mt-2">{testEmailResult}</p>}
       </div>
 
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}

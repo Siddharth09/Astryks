@@ -1219,6 +1219,40 @@ exports.backfillPostVisibility = onCall(async (request) => {
   return { updated: missing.length };
 });
 
+// ---------- Callable: list every signed-up account (admin dashboard) ----------
+// Firebase Authentication is the actual source of truth for email/signup-date/last-login —
+// there's no Firestore doc that reliably has all of that (see the note on sendWelcomeEmailTo
+// above). This merges Auth's list with each account's users/{uid} doc (for subscriptionStatus)
+// so you can see everyone in one place instead of cross-referencing the Firebase console by
+// hand. Capped at 1000 accounts for now — fine at today's scale, worth paging if it grows past
+// that.
+exports.listAllUsers = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const [authList, usersSnap] = await Promise.all([
+    admin.auth().listUsers(1000),
+    db.collection("users").get(),
+  ]);
+  const subsByUid = {};
+  usersSnap.docs.forEach((d) => {
+    subsByUid[d.id] = d.data().subscriptionStatus ?? null;
+  });
+
+  const users = authList.users
+    .map((u) => ({
+      uid: u.uid,
+      email: u.email ?? null,
+      displayName: u.displayName ?? null,
+      createdAt: u.metadata.creationTime,
+      lastSignInAt: u.metadata.lastSignInTime,
+      subscriptionStatus: subsByUid[u.uid] ?? null,
+    }))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return { users, total: users.length };
+});
+
 // ---------- Callable: suggest people to message, based on shared lesson interests ----------
 //
 // lessonProgress is private per-user by rule (a client can only ever read its OWN progress
@@ -1286,6 +1320,117 @@ exports.getMessageSuggestions = onCall(async (request) => {
   return { suggestions };
 });
 
+// ---------- Welcome email: branded HTML template + sender ----------
+// Brand colours pulled straight from tailwind.config.ts so this actually matches the rest of
+// the site (paper background, ink text, the coral "brand" accent, and the soft brandLight
+// pink used behind the header) rather than drifting from it over time. The logo is a hosted
+// <img> pointing at the live site rather than a base64/attached image — inline images get
+// stripped by a lot of mail clients (Gmail included, in some views), a hosted URL doesn't.
+function buildWelcomeEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "Welcome to Astryks 🎉";
+
+  const text = `Hi ${name},
+
+Welcome to Astryks — we're really glad you're here.
+
+A few things to get you started:
+- Head to the Learn tab and dive into a lesson on whatever you're curious about.
+- Post something creative to the feed. Every post is automatically and freely entered into
+  that month's AU$1,000 Creative Prize — no subscription needed to enter, just 30+ likes to
+  qualify for the win (see astryks.com/prize-rules for the full details).
+- Got a question or something feels off? Just reply to this email — a real person reads it.
+
+We're excited to see what you make.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Welcome to Astryks</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  We're really glad you're here — welcome to the community.
+                </p>
+                <p style="margin:0 0 10px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#17130F;">
+                  A few things to get you started
+                </p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      📚 Head to <strong>Learn</strong> and dive into a lesson on whatever you're curious about.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      🎨 Post something creative — every post is automatically and freely entered into that
+                      month's <strong>AU$1,000 Creative Prize</strong> (30+ likes to qualify, no subscription
+                      needed to enter).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      💬 Questions, or something feels off? Just reply to this email — a real person reads it.
+                    </td>
+                  </tr>
+                </table>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="https://astryks.com/home" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Open Astryks
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+async function sendWelcomeEmailTo(email, displayName) {
+  const { subject, text, html } = buildWelcomeEmail(displayName);
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: SUPPORT_EMAIL_USER.value(), pass: SUPPORT_EMAIL_PASS.value() },
+  });
+  await transporter.sendMail({
+    from: `Astryks <${SUPPORT_EMAIL_USER.value()}>`,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+}
+
 // ---------- Trigger: welcome email on signup ----------
 // Fires off the `profiles/{uid}` doc rather than an auth-onCreate trigger, because both signup
 // paths (email/password AND Google) already write this doc via createProfile() in
@@ -1313,33 +1458,26 @@ exports.onProfileCreated = onDocumentCreated(
     if (!email) return;
 
     try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: SUPPORT_EMAIL_USER.value(), pass: SUPPORT_EMAIL_PASS.value() },
-      });
-      await transporter.sendMail({
-        from: `Astryks <${SUPPORT_EMAIL_USER.value()}>`,
-        to: email,
-        subject: "Welcome to Astryks 🎉",
-        text: `Hi ${displayName},
-
-Welcome to Astryks — we're really glad you're here.
-
-A few things to get you started:
-- Head to the Learn tab and dive into a lesson on whatever you're curious about.
-- Post something creative to the feed. Every post is automatically and freely entered into
-  that month's AU$1,000 Creative Prize — no subscription needed to enter, just 30+ likes to
-  qualify for the win (see astryks.com/prize-rules for the full details).
-- Got a question or something feels off? Just reply to this email — a real person reads it.
-
-We're excited to see what you make.
-
-Warmly,
-The Astryks team`,
-      });
+      await sendWelcomeEmailTo(email, displayName);
     } catch (err) {
       console.error("onProfileCreated: failed to send welcome email to", email, err);
     }
+  }
+);
+
+// ---------- Callable: send yourself a test copy of the welcome email ----------
+// Admin-only. Lets you see exactly what a new member receives — including how it actually
+// renders in a real inbox — without creating a throwaway signup. Always sends to your own
+// admin email, never to an address you pass in.
+exports.sendTestWelcomeEmail = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    const displayName = request.auth.token.name || "there";
+    await sendWelcomeEmailTo(request.auth.token.email, displayName);
+    return { sentTo: request.auth.token.email };
   }
 );
 
