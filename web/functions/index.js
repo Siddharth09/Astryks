@@ -1286,6 +1286,63 @@ exports.getMessageSuggestions = onCall(async (request) => {
   return { suggestions };
 });
 
+// ---------- Trigger: welcome email on signup ----------
+// Fires off the `profiles/{uid}` doc rather than an auth-onCreate trigger, because both signup
+// paths (email/password AND Google) already write this doc via createProfile() in
+// app/signup/page.tsx — so this fires exactly once per real signup, whichever way someone joined,
+// with no separate auth trigger to maintain. The email address itself isn't duplicated into
+// Firestore anywhere — it's looked up straight from Firebase Auth (the single source of truth
+// for it), via the Admin SDK, which bypasses firestore.rules entirely.
+// Reuses the same Gmail SMTP credentials as the support-report email (SUPPORT_EMAIL_USER/PASS) —
+// no new secret needed. Swap the `from`/transport to a support@astryks.com address once Zoho
+// Mail is set up, if you'd rather send from that instead of the Gmail account.
+exports.onProfileCreated = onDocumentCreated(
+  { document: "profiles/{userId}", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (event) => {
+    const userId = event.params.userId;
+    const displayName = event.data?.data()?.displayName || "there";
+
+    let email;
+    try {
+      const userRecord = await admin.auth().getUser(userId);
+      email = userRecord.email;
+    } catch (err) {
+      console.error("onProfileCreated: couldn't look up auth user", userId, err);
+      return;
+    }
+    if (!email) return;
+
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: SUPPORT_EMAIL_USER.value(), pass: SUPPORT_EMAIL_PASS.value() },
+      });
+      await transporter.sendMail({
+        from: `Astryks <${SUPPORT_EMAIL_USER.value()}>`,
+        to: email,
+        subject: "Welcome to Astryks 🎉",
+        text: `Hi ${displayName},
+
+Welcome to Astryks — we're really glad you're here.
+
+A few things to get you started:
+- Head to the Learn tab and dive into a lesson on whatever you're curious about.
+- Post something creative to the feed. Every post is automatically and freely entered into
+  that month's AU$1,000 Creative Prize — no subscription needed to enter, just 30+ likes to
+  qualify for the win (see astryks.com/prize-rules for the full details).
+- Got a question or something feels off? Just reply to this email — a real person reads it.
+
+We're excited to see what you make.
+
+Warmly,
+The Astryks team`,
+      });
+    } catch (err) {
+      console.error("onProfileCreated: failed to send welcome email to", email, err);
+    }
+  }
+);
+
 // ---------- Trigger: enter every new creative post into that month's prize ----------
 // Fires immediately on post creation (not on reaching any like count — see nominateForPrize's
 // comment for why there's no minimum). Scoped to actual creative uploads (photo/video) — plain
