@@ -8,6 +8,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 
 const getReportsFn = httpsCallable(functions, "getReports");
 const resolveReportFn = httpsCallable(functions, "resolveReport");
+const backfillLessonPlaybackFn = httpsCallable(functions, "backfillLessonPlayback");
 
 // Simple allowlist for who can review reports — same as the other admin pages.
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
@@ -19,6 +20,29 @@ export default function AdminReportsPage() {
   const [reports, setReports] = useState<any[] | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<string | null>(null);
+
+  // One-time maintenance action — moves any lesson's Bunny playback credentials that are
+  // still sitting on the old public lessons doc into the gated lessonPlayback doc instead.
+  // Safe to click more than once (a no-op once everything's already migrated).
+  async function handleBackfill() {
+    setMigrating(true);
+    setMigrateResult(null);
+    try {
+      const result = await backfillLessonPlaybackFn();
+      const migrated = (result.data as any)?.migrated ?? 0;
+      setMigrateResult(
+        migrated > 0
+          ? `Done — moved ${migrated} lesson${migrated === 1 ? "" : "s"} to the gated location.`
+          : "Done — nothing needed migrating (already up to date)."
+      );
+    } catch (err: any) {
+      setMigrateResult(`Error: ${err.message ?? "Something went wrong."}`);
+    } finally {
+      setMigrating(false);
+    }
+  }
 
   async function load() {
     const result = await getReportsFn();
@@ -56,6 +80,21 @@ export default function AdminReportsPage() {
         Admin-only. Pending reports from members, most recent first. Deleting removes the content immediately;
         dismissing clears the report without touching anything.
       </p>
+
+      <div className="card p-4 mb-6 bg-paper/60">
+        <p className="text-sm font-medium mb-1">One-time maintenance: lesson playback migration</p>
+        <p className="text-xs text-ink/50 mb-3">
+          Moves any lesson's video credentials off the public lessons doc and into the locked-down
+          location, so only subscribers can actually load them. New lessons handle this
+          automatically — this button is just for lessons created before this fix. Safe to click
+          more than once.
+        </p>
+        <button onClick={handleBackfill} disabled={migrating} className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50">
+          {migrating ? "Running…" : "Run migration"}
+        </button>
+        {migrateResult && <p className="text-xs text-ink/60 mt-2">{migrateResult}</p>}
+      </div>
+
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       {reports === null ? (
