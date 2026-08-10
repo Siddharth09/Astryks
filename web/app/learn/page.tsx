@@ -11,6 +11,7 @@ import SubscriptionBanner from "@/components/SubscriptionBanner";
 import { SubjectsSkeleton } from "@/components/Skeleton";
 
 const completeLessonFn = httpsCallable(functions, "completeLesson");
+const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
 
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
@@ -55,6 +56,8 @@ function LearnPageContent() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string } | null>>({});
+  const [playbackLoading, setPlaybackLoading] = useState<string | null>(null);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [justMastered, setJustMastered] = useState<string | null>(null);
@@ -119,8 +122,25 @@ function LearnPageContent() {
 
   async function playLesson(lessonId: string) {
     if (!subscribed) return;
+    const opening = playingId !== lessonId;
     setPlayingId((prev) => (prev === lessonId ? null : lessonId));
-    if (!viewedIds.has(lessonId)) {
+
+    // The actual video credentials aren't in the lesson doc anymore (see functions/index.js —
+    // moving them out of the publicly-readable lessons collection is what makes this
+    // subscription check actually mean something, instead of the paywall being purely
+    // cosmetic). Fetch them from the gated callable each time a lesson is opened.
+    if (opening && !playback[lessonId]) {
+      setPlaybackLoading(lessonId);
+      try {
+        const result = await getLessonPlaybackFn({ lessonId });
+        setPlayback((prev) => ({ ...prev, [lessonId]: result.data as { bunnyVideoId: string; bunnyLibraryId: string } }));
+      } catch {
+        setPlayback((prev) => ({ ...prev, [lessonId]: null }));
+      }
+      setPlaybackLoading(null);
+    }
+
+    if (opening && !viewedIds.has(lessonId)) {
       setViewedIds((prev) => new Set(prev).add(lessonId));
       await updateDoc(doc(db, "lessons", lessonId), { viewCount: increment(1) });
       setLessons((prev) => prev.map((l) => (l.id === lessonId ? { ...l, viewCount: (l.viewCount ?? 0) + 1 } : l)));
@@ -210,9 +230,12 @@ function LearnPageContent() {
                     </button>
                   )}
                 </div>
-                {playingId === lesson.id && lesson.bunnyVideoId && (
+                {playingId === lesson.id && playbackLoading === lesson.id && (
+                  <p className="text-sm text-ink/50 mt-3">Loading video…</p>
+                )}
+                {playingId === lesson.id && playback[lesson.id]?.bunnyVideoId && (
                   <iframe
-                    src={`https://iframe.mediadelivery.net/embed/${lesson.bunnyLibraryId}/${lesson.bunnyVideoId}`}
+                    src={`https://iframe.mediadelivery.net/embed/${playback[lesson.id]!.bunnyLibraryId}/${playback[lesson.id]!.bunnyVideoId}`}
                     className="w-full aspect-video bg-ink rounded-xl mt-3"
                     style={{ border: "none" }}
                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"

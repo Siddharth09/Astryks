@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { router } from "expo-router";
-import { doc, collection, writeBatch, increment, serverTimestamp } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,19 +27,17 @@ export default function Comments({ postId, initialComments }: { postId: string; 
     if (!user) return router.push("/login");
     setPosting(true);
 
-    const postRef = doc(db, "posts", postId);
+    // commentCount itself is maintained server-side (onCommentCreated in functions/index.js) —
+    // the client only ever creates the comment doc now.
     const commentsRef = collection(db, "posts", postId, "comments");
     const newCommentRef = doc(commentsRef);
 
-    const batch = writeBatch(db);
-    batch.set(newCommentRef, {
+    await setDoc(newCommentRef, {
       body,
       userId: user.uid,
       userName: user.displayName ?? "Member",
       createdAt: serverTimestamp(),
     });
-    batch.update(postRef, { commentCount: increment(1) });
-    await batch.commit();
 
     setComments((prev) => [...prev, { id: newCommentRef.id, body, userId: user.uid, userName: user.displayName ?? "Member" }]);
     setBody("");

@@ -46,8 +46,10 @@ export default function PrizesScreen() {
       <Text style={{ fontSize: 13, color: colors.ink, opacity: 0.7, marginBottom: 4, lineHeight: 19 }}>
         Free to enter for every Astryks member — no subscription needed. One winner is picked each
         month, across every subject — music, art, or any other creative project. Whoever's post has
-        the most likes at the end of this calendar month wins, no minimum likes required. Guaranteed
-        every month through our first 6 months (through February 2027).
+        the most likes at the end of this calendar month wins — the only requirement is reaching at
+        least 30 likes, because we want our community cheering each other on. If nothing reaches 30
+        likes in a given month, no winner is picked that month. We're running this every month through
+        our first 6 months (through February 2027).
       </Text>
       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand, marginBottom: 20 }}>
         {daysLeft} day{daysLeft === 1 ? "" : "s"} left this month
@@ -121,8 +123,11 @@ export default function PrizesScreen() {
                       <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.brand, borderRadius: 3 }} />
                     </View>
                   </View>
-                  <Text style={{ fontSize: 11, color: colors.muted, flexShrink: 0 }}>
-                    {entry.likeCount} likes
+                  <Text style={{ fontSize: 11, color: colors.muted, flexShrink: 0, textAlign: "right" }}>
+                    {entry.likeCount} likes{"\n"}
+                    <Text style={{ color: entry.meetsLikeThreshold ? colors.brand : colors.muted }}>
+                      {entry.meetsLikeThreshold ? "✓ qualifies" : `${Math.max(0, (entry.likeThreshold ?? 30) - entry.likeCount)} to qualify`}
+                    </Text>
                   </Text>
                 </TouchableOpacity>
               );

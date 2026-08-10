@@ -10,6 +10,7 @@ import { colors } from "@/lib/styles";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
 
 const completeLessonFn = httpsCallable(functions, "completeLesson");
+const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
 const ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
 const SUBJECT_CARDS: {
@@ -42,6 +43,8 @@ export default function LearnScreen() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string } | null>>({});
+  const [playbackLoading, setPlaybackLoading] = useState<string | null>(null);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [justMastered, setJustMastered] = useState<string | null>(null);
@@ -97,8 +100,23 @@ export default function LearnScreen() {
 
   async function playLesson(lessonId: string) {
     if (!subscribed) return;
+    const opening = playingId !== lessonId;
     setPlayingId((prev) => (prev === lessonId ? null : lessonId));
-    if (!viewedIds.has(lessonId)) {
+
+    // Playback credentials no longer live on the public lessons doc (see functions/index.js) —
+    // fetch them from the subscription-gated callable each time a lesson is opened.
+    if (opening && !playback[lessonId]) {
+      setPlaybackLoading(lessonId);
+      try {
+        const result = await getLessonPlaybackFn({ lessonId });
+        setPlayback((prev) => ({ ...prev, [lessonId]: result.data as { bunnyVideoId: string; bunnyLibraryId: string } }));
+      } catch {
+        setPlayback((prev) => ({ ...prev, [lessonId]: null }));
+      }
+      setPlaybackLoading(null);
+    }
+
+    if (opening && !viewedIds.has(lessonId)) {
       setViewedIds((prev) => new Set(prev).add(lessonId));
       await updateDoc(doc(db, "lessons", lessonId), { viewCount: increment(1) });
       setLessons((prev) => prev.map((l) => (l.id === lessonId ? { ...l, viewCount: (l.viewCount ?? 0) + 1 } : l)));
@@ -183,9 +201,12 @@ export default function LearnScreen() {
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
-              {playingId === lesson.id && lesson.bunnyVideoId && (
+              {playingId === lesson.id && playbackLoading === lesson.id && (
+                <Text style={{ color: colors.muted, marginTop: 10 }}>Loading video…</Text>
+              )}
+              {playingId === lesson.id && playback[lesson.id]?.bunnyVideoId && (
                 <WebView
-                  source={{ uri: `https://iframe.mediadelivery.net/embed/${lesson.bunnyLibraryId}/${lesson.bunnyVideoId}` }}
+                  source={{ uri: `https://iframe.mediadelivery.net/embed/${playback[lesson.id]!.bunnyLibraryId}/${playback[lesson.id]!.bunnyVideoId}` }}
                   style={{ width: "100%", height: 200, borderRadius: 12, marginTop: 10 }}
                 />
               )}

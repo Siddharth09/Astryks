@@ -4,7 +4,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{userId} {
-      allow read: if true;
+      // Was `if true` — publicly, unauthenticatedly readable, including pushToken,
+      // payoutOwed, and stripeCustomerId. Any signed-in account is still fine for the app's
+      // normal use (profiles/display names etc. are read through here), just not the entire
+      // internet with no login at all.
+      allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
@@ -34,11 +38,16 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.type in ['photo', 'video', 'link', 'text'];
 
-      allow update: if request.auth != null && (
-        resource.data.ownerId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
-      );
+      // Was also carve-out-able by ANY signed-in user via hasOnly(['likeCount']) /
+      // hasOnly(['commentCount']) — that let anyone set a post's likeCount/commentCount to
+      // whatever they wanted, directly forging the real-money Creative Prize leaderboard.
+      // Those counts are now maintained server-side only (onLikeCreated/onLikeDeleted/
+      // onCommentCreated/onCommentDeleted in functions/index.js, via the Admin SDK, which
+      // isn't subject to these rules) — a client update can only ever be the post's own owner
+      // editing their own post, and ownerId itself can never change on an update.
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId;
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
@@ -62,7 +71,13 @@ service cloud.firestore {
       allow write: if false; // manage from the Firebase console for now
     }
 
-    // Pre-recorded lesson videos — admin-managed, read-only for everyone else
+    // Pre-recorded lesson videos — admin-managed, read-only for everyone else. The public doc
+    // holds only browsable metadata (title, subjectId, viewCount, etc.) — the actual Bunny
+    // playback credentials live in the gated lessonPlayback doc below instead, moved there
+    // automatically by migrateLessonPlaybackFields in functions/index.js. Without that split,
+    // anyone could read bunnyVideoId/bunnyLibraryId straight off this doc (Firestore rules can
+    // only gate a whole document, never individual fields on it) and load the unauthenticated
+    // Bunny embed URL directly, completely bypassing the subscription paywall.
     match /lessons/{lessonId} {
       allow read: if true;
       allow update: if request.auth != null && (
@@ -71,6 +86,14 @@ service cloud.firestore {
       );
       allow create, delete: if request.auth != null
         && request.auth.token.email in ['mehta.siddharth09@gmail.com'];
+    }
+
+    // Lesson playback credentials (bunnyVideoId/bunnyLibraryId) — never readable directly by a
+    // client. Handed out only by the getLessonPlayback Cloud Function, which checks the
+    // caller's subscription status first. Written only by migrateLessonPlaybackFields /
+    // backfillLessonPlayback (Admin SDK, bypasses these rules).
+    match /lessonPlayback/{lessonId} {
+      allow read, write: if false;
     }
 
     // Trailer/preview videos shown on the home feed and subscribe prompt — admin-managed
@@ -108,7 +131,13 @@ service cloud.firestore {
     match /conversations/{conversationId} {
       allow read: if resource == null || (request.auth != null && request.auth.uid in resource.data.participants);
       allow create: if request.auth != null && request.auth.uid in request.resource.data.participants;
-      allow update: if request.auth != null && request.auth.uid in resource.data.participants;
+      // Pin the participant list — without this, any existing participant could silently add a
+      // third party to a private DM thread (which can include real bank/PayID details shared
+      // for prize payouts) just by updating lastMessage/lastMessageAt alongside a changed
+      // participants array.
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants;
 
       match /messages/{messageId} {
         allow read: if request.auth != null

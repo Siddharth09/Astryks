@@ -4,7 +4,7 @@ export default function PrizeRulesPage() {
   return (
     <div className="max-w-2xl mx-auto py-10 pb-24 px-4 text-sm text-ink/80 leading-relaxed">
       <h1 className="font-display text-3xl font-bold mb-2">Creative Prize — Official Rules</h1>
-      <p className="text-xs text-ink/40 mb-8">Last updated: 9 August 2026</p>
+      <p className="text-xs text-ink/40 mb-8">Last updated: 10 August 2026</p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">1. No purchase necessary</h2>
       <p className="mb-4">
@@ -26,28 +26,34 @@ export default function PrizeRulesPage() {
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">3. How to enter</h2>
       <p className="mb-4">
         Post an original photo or video to Astryks during the calendar month — that's it, you're
-        automatically entered the moment you post. There's no minimum number of likes required to
-        qualify. You'll get a message confirming your entry, with the option to opt out if you'd
-        rather not participate.
+        automatically entered the moment you post. You'll get a message confirming your entry, with the
+        option to opt out if you'd rather not participate. To actually win, your post needs to reach at
+        least 30 likes by the end of the month (see Section 4) — we ask for this because we want our
+        community to lift each other up and cheer on the creative work being shared here, not just to
+        post and move on.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">4. How a winner is chosen</h2>
       <p className="mb-4">
         At the end of each calendar month, among posts that are eligible (photo or video, created that
-        month, not opted out), the one with the highest like count wins. This is a skill/popularity-based
-        contest judged purely by the number of likes from the Astryks community — there is no random
-        draw. Astryks reserves the right to disqualify any post or account we reasonably believe used
-        fake accounts, bots, purchased likes/followers, or any other artificial means to inflate its
+        month, not opted out) AND have reached at least 30 likes, the one with the highest like count
+        wins. This is a skill/popularity-based contest judged purely by the number of likes from the
+        Astryks community — there is no random draw, and liking a post costs nothing and is open to
+        anyone, so reaching the 30-like minimum isn't a purchase or a form of payment to enter. If no
+        eligible post reaches 30 likes in a given month, no winner is picked for that month and no prize
+        is paid out. Astryks reserves the right to disqualify any post or account we reasonably believe
+        used fake accounts, bots, purchased likes/followers, or any other artificial means to inflate its
         like count, and to select the next-highest eligible post instead.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">5. The prize</h2>
       <p className="mb-4">
         We want every creative student on Astryks — subscriber or not — to be able to post, get
-        discovered, and compete for real cash, which is why entry is completely free. One winner per
-        calendar month receives AU$1,000 (Australian dollars), funded from Astryks' subscription
-        revenue. We're guaranteeing this prize every month through February 2027 (Astryks' first six
-        months) — see Section 8 for how we'd handle any change after that.
+        discovered, and compete for real cash, which is why entry is completely free. In any calendar
+        month where an entry reaches the 30-like minimum described in Section 4, one winner receives
+        AU$1,000 (Australian dollars), funded from Astryks' subscription revenue. We intend to run this
+        prize every month through February 2027 (Astryks' first six months), subject always to a
+        qualifying entry existing that month — see Section 8 for how we'd handle any change after that.
       </p>
       <p className="mb-4">
         The prize is paid by bank transfer or PayID/equivalent to details the winner provides. If
@@ -76,10 +82,11 @@ export default function PrizeRulesPage() {
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">8. Changes &amp; cancellation</h2>
       <p className="mb-4">
-        We're committed to running this prize, as described above, every month through February 2027.
-        After that, Astryks may modify, suspend, or end the Creative Prize, including changing the prize
-        amount or these rules, with reasonable notice in-app where practical. These Official Rules are
-        part of our <a href="/terms" className="link-accent">Terms of Service</a>.
+        We're committed to running this prize, as described above (including the 30-like qualifying
+        minimum in Section 4), every month through February 2027. After that, Astryks may modify,
+        suspend, or end the Creative Prize, including changing the prize amount, the like minimum, or
+        these rules, with reasonable notice in-app where practical. These Official Rules are part of our{" "}
+        <a href="/terms" className="link-accent">Terms of Service</a>.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">9. Governing law</h2>

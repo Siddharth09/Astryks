@@ -1,5 +1,5 @@
 const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const crypto = require("crypto");
@@ -30,6 +30,11 @@ const PRIZE_BOT_NAME = "Astryks Prizes";
 // that matters); PRIZE_PAYOUTS_ENABLED below is the actual safety valve if a given month's
 // revenue doesn't comfortably cover this.
 const PRIZE_AUD = 1000;
+
+// A post needs at least this many likes to actually qualify for that month's prize — see the
+// comment on nominateForPrize for the reasoning. If nothing clears this bar in a given month,
+// no winner is picked that month (sendMonthlyPrizeReport below handles that case explicitly).
+const PRIZE_LIKE_THRESHOLD = 30;
 
 // Kill switch for actually paying out the Creative Prize. The like-tracking, leaderboard, and
 // monthly winner-selection logic all keep running regardless (so you can see the mechanism
@@ -125,20 +130,25 @@ async function sendPrizeBotMessage(ownerId, ownerName, text, extraFields) {
 }
 
 // Marks a brand-new photo/video post eligible for that month's creative prize the moment
-// it's posted, and notifies the owner with a way to opt themselves back out. There's no
-// minimum like count to qualify — every creative post is automatically in the running from
-// the start, and the winner is simply whichever eligible post has the most likes at month end.
+// it's posted, and notifies the owner with a way to opt themselves back out. To actually win,
+// a post needs at least PRIZE_LIKE_THRESHOLD likes by month end (see sendMonthlyPrizeReport) —
+// entry itself has no minimum, every creative post is automatically in the running from the
+// start.
 //
 // IMPORTANT: entry/winning is NOT gated behind a subscription — this is deliberate, not an
 // oversight. A paid-subscribers-only, popularity-vote-decided cash prize is legally risky
 // (the "prize + chance + consideration" test for an unlawful lottery) in Australia, the US,
 // the UK, and Canada alike — see chat history around Aug 2026 for the full research, including
 // the Xclusive/LMCT+ unlawful-lottery conviction (SA, March 2026) for a subscription-gated
-// prize model. Keeping entry free for any account (and requiring no minimum number of
-// subscriber likes either) is what keeps this compliant everywhere at once, without needing
-// per-jurisdiction legal review. Do not re-add a subscription requirement, or a "likes must
-// come from subscribers" requirement, without redoing that legal review first — both
-// reintroduce the same consideration problem, just attached to a different party.
+// prize model. Keeping entry free for any account is what keeps this compliant everywhere at
+// once, without needing per-jurisdiction legal review. The PRIZE_LIKE_THRESHOLD requirement
+// (reinstated Aug 2026) doesn't reintroduce that risk: it's a free, uncapped engagement bar
+// (anyone, subscriber or not, can like a post at no cost) rather than something an entrant
+// pays or subscribes for, so it isn't "consideration" in the legal sense — it's the same kind
+// of qualifying bar as "your photo must be your own original work." Do not gate entry or
+// winning behind a subscription, or require that likes come specifically from subscribers,
+// without redoing that legal review first — both reintroduce the same consideration problem,
+// just attached to a different party.
 async function nominateForPrize(postId, post) {
   await db.doc(`posts/${postId}`).set(
     { prizeEligible: true, prizeNominatedAt: admin.firestore.FieldValue.serverTimestamp() },
@@ -148,12 +158,14 @@ async function nominateForPrize(postId, post) {
   await sendPrizeBotMessage(
     post.ownerId,
     post.ownerName,
-    `🎉 Your post is officially entered into this month's Astryks Creative Prize — AU$${PRIZE_AUD}! Just one ` +
-      `winner is picked each month across every subject (music, art, or anything else) — whoever's entry has ` +
-      `the most likes at the end of the month takes it, no minimum likes required to qualify. If you'd rather ` +
-      `not be entered, just tap "Opt out" below. You can also share your payout details (bank transfer or PayID) ` +
-      `right here now, so we're ready to send the cash instantly if you win — note that international transfers ` +
-      `from Australia may be subject to market FX rates and other overseas transfer considerations.`,
+    `🎉 Your post is officially entered into this month's Astryks Creative Prize — AU$${PRIZE_AUD}! The only ` +
+      `requirement is that a post needs at least ${PRIZE_LIKE_THRESHOLD} likes to qualify for that month's prize — ` +
+      `we ask this because we want our community to lift each other up, cheering on the beautiful things people ` +
+      `are creating here. Whoever's entry has the most likes (and clears ${PRIZE_LIKE_THRESHOLD}) at the end of ` +
+      `the month takes it home. If you'd rather not be entered, just tap "Opt out" below. You can also share your ` +
+      `payout details (bank transfer or PayID) right here now, so we're ready to send the cash instantly if you ` +
+      `win — note that international transfers from Australia may be subject to market FX rates and other ` +
+      `overseas transfer considerations.`,
     { type: "prizeNomination", postId }
   );
 }
@@ -223,6 +235,31 @@ exports.createBunnyUpload = onCall(
 
 // ---------- Callable: fetch link preview metadata for shared links ----------
 
+// Blocks the URL from resolving to a private/internal address before we let the server fetch
+// it — without this, fetchLinkPreview is a server-side-request-forgery primitive: any signed-in
+// user could point it at http://169.254.169.254/... (cloud metadata endpoints), localhost, or an
+// internal-network address and have Astryks's own backend make that request for them.
+function isPrivateOrLoopbackHostname(hostname) {
+  const h = hostname.toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal") || h.endsWith(".local")) {
+    return true;
+  }
+  // IPv4 literal checks: loopback, link-local/cloud-metadata, and the three private ranges.
+  const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [parseInt(ipv4[1], 10), parseInt(ipv4[2], 10)];
+    if (a === 127) return true; // loopback
+    if (a === 169 && b === 254) return true; // link-local / cloud metadata
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+    if (a === 0) return true; // 0.0.0.0/8
+  }
+  // IPv6 loopback/link-local/unique-local literals.
+  if (h === "::1" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return true;
+  return false;
+}
+
 exports.fetchLinkPreview = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -233,14 +270,52 @@ exports.fetchLinkPreview = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "A valid URL is required.");
   }
 
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new HttpsError("invalid-argument", "A valid URL is required.");
+  }
+  if (isPrivateOrLoopbackHostname(parsedUrl.hostname)) {
+    throw new HttpsError("invalid-argument", "This URL can't be previewed.");
+  }
+
   let html = "";
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AstryksBot/1.0)" },
-    });
-    html = await res.text();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let res;
+    try {
+      res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; AstryksBot/1.0)" },
+        redirect: "manual", // don't auto-follow redirects — a redirect to a private address would bypass the check above
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (res.status >= 300 && res.status < 400) {
+      // Refuse to blindly follow the redirect — return a plain fallback instead of risking SSRF.
+      return { title: url, image: null, domain: parsedUrl.hostname };
+    }
+    // Cap how much we read — a malicious server could otherwise stream gigabytes at this function.
+    const reader = res.body?.getReader ? res.body.getReader() : null;
+    if (reader) {
+      const chunks = [];
+      let total = 0;
+      const MAX_BYTES = 1024 * 1024; // 1MB is plenty for <head> metadata
+      while (total < MAX_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        total += value.length;
+      }
+      html = Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
+    } else {
+      html = (await res.text()).slice(0, 1024 * 1024);
+    }
   } catch {
-    return { title: url, image: null, domain: new URL(url).hostname };
+    return { title: url, image: null, domain: parsedUrl.hostname };
   }
 
   const pick = (regex) => {
@@ -254,7 +329,7 @@ exports.fetchLinkPreview = onCall(async (request) => {
     url;
   const image = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
 
-  return { title: title.slice(0, 200), image, domain: new URL(url).hostname };
+  return { title: title.slice(0, 200), image, domain: parsedUrl.hostname };
 });
 
 // ---------- Callable: mark a lesson complete ----------
@@ -350,15 +425,25 @@ exports.deleteLesson = onCall(
     }
     const lesson = lessonSnap.data();
 
-    if (lesson.bunnyVideoId) {
+    // The playback credentials normally live in the gated `lessonPlayback` doc (see
+    // migrateLessonPlaybackFields below) — fall back to the lesson doc itself in case this
+    // particular lesson was created/deleted before that migration ran.
+    const playbackRef = db.doc(`lessonPlayback/${lessonId}`);
+    const playbackSnap = await playbackRef.get();
+    const playback = playbackSnap.exists ? playbackSnap.data() : lesson;
+
+    if (playback.bunnyVideoId) {
       try {
         await fetch(
-          `https://video.bunnycdn.com/library/${lesson.bunnyLibraryId}/videos/${lesson.bunnyVideoId}`,
+          `https://video.bunnycdn.com/library/${playback.bunnyLibraryId}/videos/${playback.bunnyVideoId}`,
           { method: "DELETE", headers: { AccessKey: BUNNY_API_KEY.value() } }
         );
       } catch {
         // If Bunny cleanup fails, still proceed with removing the lesson itself.
       }
+    }
+    if (playbackSnap.exists) {
+      await playbackRef.delete();
     }
 
     // Clean up everyone's progress records for this lesson too.
@@ -372,9 +457,106 @@ exports.deleteLesson = onCall(
   }
 );
 
+// ---------- Trigger + callable: keep lesson playback credentials out of the public lessons doc ----------
+//
+// `lessons/{lessonId}` is publicly readable (see firestore.rules — anyone browsing the catalog,
+// subscribed or not, needs to see titles/thumbnails). Firestore rules can only restrict access
+// to a WHOLE document, never individual fields on it — so as long as bunnyVideoId/bunnyLibraryId
+// lived directly on that public doc, anyone (including a signed-out visitor calling the
+// Firestore SDK directly) could read them and load the unauthenticated Bunny embed URL,
+// completely bypassing the subscription paywall the UI only enforced client-side.
+//
+// The fix: whenever a lesson doc is written with those fields present, immediately move them
+// into a separate `lessonPlayback/{lessonId}` doc (client access denied entirely, same as
+// `reports`/`prizePayouts`) and strip them from the public doc. Playback credentials are then
+// only ever handed out via getLessonPlayback below, which checks the caller's subscription
+// status first.
+exports.migrateLessonPlaybackFields = onDocumentWritten("lessons/{lessonId}", async (event) => {
+  const after = event.data?.after?.data();
+  if (!after || (!after.bunnyVideoId && !after.bunnyLibraryId)) return;
+
+  const lessonId = event.params.lessonId;
+  await db.doc(`lessonPlayback/${lessonId}`).set(
+    { bunnyVideoId: after.bunnyVideoId || null, bunnyLibraryId: after.bunnyLibraryId || null },
+    { merge: true }
+  );
+  await db.doc(`lessons/${lessonId}`).update({
+    bunnyVideoId: admin.firestore.FieldValue.delete(),
+    bunnyLibraryId: admin.firestore.FieldValue.delete(),
+  });
+});
+
+// One-time maintenance callable for lessons that already had bunnyVideoId/bunnyLibraryId on
+// them before migrateLessonPlaybackFields existed (that trigger only fires on a NEW write, so
+// it doesn't retroactively fix already-created docs). Safe to run more than once. Admin-only;
+// trigger it once from the browser console, same as backfillPostVisibility below.
+exports.backfillLessonPlayback = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const snap = await db.collection("lessons").get();
+  let migrated = 0;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (!data.bunnyVideoId && !data.bunnyLibraryId) continue;
+    await db.doc(`lessonPlayback/${doc.id}`).set(
+      { bunnyVideoId: data.bunnyVideoId || null, bunnyLibraryId: data.bunnyLibraryId || null },
+      { merge: true }
+    );
+    await doc.ref.update({
+      bunnyVideoId: admin.firestore.FieldValue.delete(),
+      bunnyLibraryId: admin.firestore.FieldValue.delete(),
+    });
+    migrated++;
+  }
+  return { migrated };
+});
+
+// Callable: the ONLY legitimate way to get a lesson's actual playback credentials now — gated
+// on an active subscription (or admin), unlike reading them straight off the public lessons doc.
+exports.getLessonPlayback = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const lessonId = request.data?.lessonId;
+  if (!lessonId) {
+    throw new HttpsError("invalid-argument", "lessonId is required.");
+  }
+
+  const isAdmin = ADMIN_EMAILS.includes(request.auth.token.email ?? "");
+  if (!isAdmin) {
+    const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+    if (userSnap.data()?.subscriptionStatus !== "active") {
+      throw new HttpsError("permission-denied", "An active subscription is required to watch lessons.");
+    }
+  }
+
+  const playbackSnap = await db.doc(`lessonPlayback/${lessonId}`).get();
+  // Fall back to the lesson doc itself for any lesson not yet migrated (shouldn't happen once
+  // backfillLessonPlayback has been run once, but keeps this callable working either way).
+  const lessonSnap = playbackSnap.exists ? null : await db.doc(`lessons/${lessonId}`).get();
+  const data = playbackSnap.exists ? playbackSnap.data() : lessonSnap?.data();
+
+  if (!data?.bunnyVideoId) {
+    throw new HttpsError("not-found", "This lesson doesn't have a video yet.");
+  }
+  return { bunnyVideoId: data.bunnyVideoId, bunnyLibraryId: data.bunnyLibraryId };
+});
+
 // ---------- Callable: delete a post (owner or admin), cleaning up Bunny/Storage too ----------
 
 // Shared cleanup used by both deletePost (single post) and deleteUserAccount (all of a user's posts).
+//
+// SECURITY: this function is called with admin-level privileges (it deletes from Storage/Bunny
+// using a service credential, not the caller's own permissions), so it must never blindly trust
+// fields on the post document that the post's own owner could have set. Regular posts are only
+// ever created with a `mediaPath` under `posts/{ownerId}/...` (see ShareComposer.tsx) — they
+// never legitimately set `bunnyVideoId`/`bunnyLibraryId` (those are for the separate,
+// admin-only `lessons` collection, cleaned up by deleteLesson instead). Without the checks
+// below, a malicious user could set an arbitrary `bunnyVideoId`/`bunnyLibraryId` or a
+// `mediaPath` pointing at someone else's file on their own post, then delete that post to make
+// this admin-privileged function delete media it doesn't actually own — a "confused deputy"
+// attack.
 async function deletePostInternal(postRef, post, bunnyApiKey) {
   // Clean up likes and comments subcollections.
   for (const sub of ["likes", "comments"]) {
@@ -384,25 +566,30 @@ async function deletePostInternal(postRef, post, bunnyApiKey) {
     if (!subSnap.empty) await batch.commit();
   }
 
-  // Clean up the underlying video on Bunny, if this was a lesson-style upload.
-  if (post.bunnyVideoId) {
-    try {
-      await fetch(
-        `https://video.bunnycdn.com/library/${post.bunnyLibraryId}/videos/${post.bunnyVideoId}`,
-        { method: "DELETE", headers: { AccessKey: bunnyApiKey } }
-      );
-    } catch {
-      // If Bunny cleanup fails, still proceed with removing the post itself.
+  // Regular posts never legitimately reference a Bunny video — that's only ever used by the
+  // separate `lessons` collection, which has its own deleteLesson cleanup. Never act on
+  // bunnyVideoId/bunnyLibraryId here, so a forged value on a post can't be used to delete an
+  // unrelated Bunny video (e.g. an admin's lesson video) that the post's owner doesn't control.
+
+  // Clean up the file in Firebase Storage, for photo/video posts uploaded there — but only if
+  // the path is actually inside this post's own owner's folder, matching what the client is
+  // ever allowed to write. This stops a forged mediaPath from deleting another user's file.
+  if (post.mediaPath && typeof post.mediaPath === "string" && post.ownerId) {
+    const expectedPrefix = `posts/${post.ownerId}/`;
+    if (post.mediaPath.startsWith(expectedPrefix)) {
+      try {
+        await admin.storage().bucket().file(post.mediaPath).delete();
+      } catch {
+        // File may already be gone — not fatal.
+      }
     }
   }
 
-  // Clean up the file in Firebase Storage, for photo/video posts uploaded there.
-  if (post.mediaPath) {
-    try {
-      await admin.storage().bucket().file(post.mediaPath).delete();
-    } catch {
-      // File may already be gone — not fatal.
-    }
+  // Best-effort: this post's own prize payout details (bank/PayID), if any were submitted.
+  try {
+    await db.doc(`prizePayouts/${postRef.id}`).delete();
+  } catch {
+    // Not fatal if this fails — nothing sensitive is exposed by leaving a stray payout doc.
   }
 
   await postRef.delete();
@@ -448,48 +635,71 @@ exports.deletePost = onCall(
 
 const REPORT_REASONS = ["Spam", "Harassment or bullying", "Inappropriate content", "Fake account", "Other"];
 
-exports.submitReport = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "You must be logged in.");
-  }
-  const { targetType, targetId, postId, reason, details } = request.data ?? {};
-  if (!["post", "comment", "user"].includes(targetType)) {
-    throw new HttpsError("invalid-argument", "targetType must be post, comment, or user.");
-  }
-  if (!targetId) {
-    throw new HttpsError("invalid-argument", "targetId is required.");
-  }
-  if (targetType === "comment" && !postId) {
-    throw new HttpsError("invalid-argument", "postId is required when reporting a comment.");
-  }
-  const safeReason = REPORT_REASONS.includes(reason) ? reason : "Other";
+exports.submitReport = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const { targetType, targetId, postId, reason, details } = request.data ?? {};
+    if (!["post", "comment", "user"].includes(targetType)) {
+      throw new HttpsError("invalid-argument", "targetType must be post, comment, or user.");
+    }
+    if (!targetId) {
+      throw new HttpsError("invalid-argument", "targetId is required.");
+    }
+    if (targetType === "comment" && !postId) {
+      throw new HttpsError("invalid-argument", "postId is required when reporting a comment.");
+    }
+    const safeReason = REPORT_REASONS.includes(reason) ? reason : "Other";
+    const safeDetails = typeof details === "string" ? details.slice(0, 1000) : "";
 
-  // Don't let the same person pile up duplicate reports on the same thing — collapse to a no-op.
-  const existing = await db
-    .collection("reports")
-    .where("reporterId", "==", request.auth.uid)
-    .where("targetType", "==", targetType)
-    .where("targetId", "==", targetId)
-    .where("status", "==", "pending")
-    .limit(1)
-    .get();
-  if (!existing.empty) {
-    return { ok: true, duplicate: true };
-  }
+    // Don't let the same person pile up duplicate reports on the same thing — collapse to a no-op.
+    const existing = await db
+      .collection("reports")
+      .where("reporterId", "==", request.auth.uid)
+      .where("targetType", "==", targetType)
+      .where("targetId", "==", targetId)
+      .where("status", "==", "pending")
+      .limit(1)
+      .get();
+    if (!existing.empty) {
+      return { ok: true, duplicate: true };
+    }
 
-  await db.collection("reports").add({
-    targetType,
-    targetId,
-    postId: postId ?? null,
-    reason: safeReason,
-    details: typeof details === "string" ? details.slice(0, 1000) : "",
-    reporterId: request.auth.uid,
-    reporterName: request.auth.token.name ?? "Member",
-    status: "pending",
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  return { ok: true };
-});
+    const reportRef = await db.collection("reports").add({
+      targetType,
+      targetId,
+      postId: postId ?? null,
+      reason: safeReason,
+      details: safeDetails,
+      reporterId: request.auth.uid,
+      reporterName: request.auth.token.name ?? "Member",
+      status: "pending",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Let the admin know right away — previously this only wrote to Firestore with no
+    // notification at all, so reports could sit unseen indefinitely.
+    try {
+      await sendSupportEmail(
+        `New report: ${targetType} — ${safeReason}`,
+        `${request.auth.token.name ?? "A member"} reported a ${targetType} (id: ${targetId}` +
+          `${postId ? `, on post: ${postId}` : ""}).\n\n` +
+          `Reason: ${safeReason}\n` +
+          `Details: ${safeDetails || "(none provided)"}\n\n` +
+          `Reporter uid: ${request.auth.uid}\n` +
+          `Report id: ${reportRef.id}\n\n` +
+          `Review and take action here: https://astryks.com/admin/reports`
+      );
+    } catch {
+      // Don't fail the report just because the email failed to send — it's still saved and
+      // will show up on the admin reports page either way.
+    }
+
+    return { ok: true };
+  }
+);
 
 exports.getReports = onCall(async (request) => {
   if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
@@ -565,8 +775,9 @@ exports.resolveReport = onCall(
         const commentRef = db.doc(`posts/${report.postId}/comments/${report.targetId}`);
         const commentSnap = await commentRef.get();
         if (commentSnap.exists) {
+          // Just delete it — the onCommentDeleted trigger below keeps the post's commentCount
+          // in sync, so there's no need (and it would double-count) to decrement it here too.
           await commentRef.delete();
-          await db.doc(`posts/${report.postId}`).update({ commentCount: admin.firestore.FieldValue.increment(-1) });
         }
       }
       // Reported users aren't auto-deleted — an admin reviews their profile/posts directly.
@@ -658,7 +869,11 @@ exports.getPrizeLeaderboard = onCall(async (request) => {
         title: p.title || null,
         mediaUrl: p.type === "photo" ? p.mediaUrl : null,
         type: p.type,
+        // "Entered" the draw vs. actually cleared the like bar to be in contention to win —
+        // the UI can use likeThreshold to show "X / 30 likes" progress either way.
         eligible: !!p.prizeEligible,
+        meetsLikeThreshold: (p.likeCount ?? 0) >= PRIZE_LIKE_THRESHOLD,
+        likeThreshold: PRIZE_LIKE_THRESHOLD,
       };
     })
   );
@@ -800,7 +1015,8 @@ exports.markPrizeWinnerPaid = onCall(async (request) => {
 // what App Store/Play Store now require: an in-app path for a user to delete their own
 // account and data, not just an admin-only tool.
 async function deleteAccountInternal(uid, bunnyApiKey) {
-  // Delete all of this user's posts, with the same cleanup deletePost does for each one.
+  // Delete all of this user's posts, with the same cleanup deletePost does for each one
+  // (this also cleans up that post's own prizePayouts doc — see deletePostInternal).
   const postsSnap = await db.collection("posts").where("ownerId", "==", uid).get();
   for (const postDoc of postsSnap.docs) {
     await deletePostInternal(postDoc.ref, postDoc.data(), bunnyApiKey);
@@ -825,6 +1041,49 @@ async function deleteAccountInternal(uid, bunnyApiKey) {
   savesSnap.docs.forEach((d) => cleanupBatch.delete(d.ref));
   progressSnap.docs.forEach((d) => cleanupBatch.delete(d.ref));
   if (!savesSnap.empty || !progressSnap.empty) await cleanupBatch.commit();
+
+  // Remove any likes/comments this user left on OTHER people's posts — deleting these fires
+  // onLikeDeleted/onCommentDeleted (see those triggers above), which keeps each affected post's
+  // likeCount/commentCount correctly in sync automatically, so no manual decrement is needed
+  // here. Best-effort: wrapped so a missing Firestore index or transient error doesn't block
+  // the rest of account deletion (the more sensitive data below still gets removed either way).
+  try {
+    const commentsSnap = await db.collectionGroup("comments").where("userId", "==", uid).get();
+    if (!commentsSnap.empty) {
+      const commentBatch = db.batch();
+      commentsSnap.docs.forEach((d) => commentBatch.delete(d.ref));
+      await commentBatch.commit();
+    }
+  } catch (err) {
+    console.error(`deleteAccountInternal: comment cleanup failed for ${uid}:`, err);
+  }
+  try {
+    // Like docs are keyed BY the liker's uid (posts/{postId}/likes/{uid}) rather than having a
+    // userId field, so there's no field to filter a collectionGroup query on — this does a full
+    // scan of the likes collection group. Fine at today's scale; worth revisiting (e.g. a
+    // separate per-user index of what they've liked) if the app grows a lot.
+    const likesSnap = await db.collectionGroup("likes").get();
+    const mine = likesSnap.docs.filter((d) => d.id === uid);
+    for (let i = 0; i < mine.length; i += 400) {
+      const likeBatch = db.batch();
+      mine.slice(i, i + 400).forEach((d) => likeBatch.delete(d.ref));
+      await likeBatch.commit();
+    }
+  } catch (err) {
+    console.error(`deleteAccountInternal: like cleanup failed for ${uid}:`, err);
+  }
+
+  // Remove their referral code mapping, if they ever generated one (see getOrCreateReferralCode).
+  try {
+    const referralCodeSnap = await db.collection("referralCodes").where("uid", "==", uid).get();
+    if (!referralCodeSnap.empty) {
+      const referralBatch = db.batch();
+      referralCodeSnap.docs.forEach((d) => referralBatch.delete(d.ref));
+      await referralBatch.commit();
+    }
+  } catch (err) {
+    console.error(`deleteAccountInternal: referral code cleanup failed for ${uid}:`, err);
+  }
 
   // Delete their Firestore user doc, then their actual login.
   await db.doc(`users/${uid}`).delete();
@@ -903,9 +1162,15 @@ function isVisibleTo(post, callerUid) {
   return post.visibility !== "private" || post.ownerId === callerUid;
 }
 
+// Capped so this can't be used to force a full unbounded collection scan on every call (an
+// unauthenticated caller could otherwise hit this repeatedly as the post count grows, driving
+// up Firestore read costs with no bound at all). 500 is comfortably above today's post volume;
+// revisit with real cursor-based pagination in the client once the app has more posts than that.
+const FEED_PAGE_LIMIT = 500;
+
 exports.getFeed = onCall(async (request) => {
   const callerUid = request.auth?.uid || null;
-  const snap = await db.collection("posts").orderBy("createdAt", "desc").get();
+  const snap = await db.collection("posts").orderBy("createdAt", "desc").limit(FEED_PAGE_LIMIT).get();
   const posts = snap.docs.map(serializePost).filter((p) => isVisibleTo(p, callerUid));
   return { posts };
 });
@@ -923,6 +1188,7 @@ exports.getUserPosts = onCall(async (request) => {
     .where("ownerId", "==", userId)
     .where("type", "in", ["photo", "video"])
     .orderBy("createdAt", "desc")
+    .limit(FEED_PAGE_LIMIT)
     .get();
 
   const posts = snap.docs
@@ -1031,12 +1297,23 @@ exports.onPostCreated = onDocumentCreated("posts/{postId}", async (event) => {
   await nominateForPrize(postId, post);
 });
 
+// ---------- Triggers: keep posts/{postId}.likeCount in sync (Admin SDK, bypasses rules) ----------
+//
+// This is the ONLY place likeCount is ever changed server-side. It used to also be writable
+// directly by the client (a Firestore rule carve-out let anyone set a post's likeCount to
+// whatever they wanted), which meant the real-money Creative Prize leaderboard could be
+// trivially forged. That carve-out has been removed from firestore.rules — likeCount is now
+// derived purely from the actual number of documents in the likes subcollection, maintained
+// here with FieldValue.increment (atomic, and immune to lost updates from concurrent likes).
+
 exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async (event) => {
   const { postId, userId } = event.params;
-  const postSnap = await db.doc(`posts/${postId}`).get();
+  const postRef = db.doc(`posts/${postId}`);
+  const postSnap = await postRef.get();
   if (!postSnap.exists) return;
 
   const post = postSnap.data();
+  await postRef.update({ likeCount: admin.firestore.FieldValue.increment(1) });
 
   if (post.ownerId === userId) return;
 
@@ -1046,15 +1323,30 @@ exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async
   await sendPush(post.ownerId, "New like", `${likerName} liked "${post.title || "your post"}"`);
 });
 
-// ---------- Trigger: push notification when someone comments on your post ----------
+exports.onLikeDeleted = onDocumentDeleted("posts/{postId}/likes/{userId}", async (event) => {
+  const { postId } = event.params;
+  try {
+    await db.doc(`posts/${postId}`).update({ likeCount: admin.firestore.FieldValue.increment(-1) });
+  } catch {
+    // Post itself may have already been deleted (e.g. as part of account deletion) — nothing
+    // to decrement in that case.
+  }
+});
+
+// ---------- Trigger: push notification when someone comments on your post, + commentCount ----------
+// Same reasoning as likeCount above — commentCount is derived from the comments subcollection,
+// not writable directly by the client anymore.
 
 exports.onCommentCreated = onDocumentCreated("posts/{postId}/comments/{commentId}", async (event) => {
   const { postId } = event.params;
   const comment = event.data.data();
-  const postSnap = await db.doc(`posts/${postId}`).get();
+  const postRef = db.doc(`posts/${postId}`);
+  const postSnap = await postRef.get();
   if (!postSnap.exists) return;
 
   const post = postSnap.data();
+  await postRef.update({ commentCount: admin.firestore.FieldValue.increment(1) });
+
   if (post.ownerId === comment.userId) return;
 
   await sendPush(
@@ -1062,6 +1354,15 @@ exports.onCommentCreated = onDocumentCreated("posts/{postId}/comments/{commentId
     "New comment",
     `${comment.userName || "Someone"}: ${comment.body}`.slice(0, 120)
   );
+});
+
+exports.onCommentDeleted = onDocumentDeleted("posts/{postId}/comments/{commentId}", async (event) => {
+  const { postId } = event.params;
+  try {
+    await db.doc(`posts/${postId}`).update({ commentCount: admin.firestore.FieldValue.increment(-1) });
+  } catch {
+    // Post itself may have already been deleted — nothing to decrement in that case.
+  }
 });
 
 // ---------- Trigger: push notification for new direct messages ----------
@@ -1114,6 +1415,25 @@ const stripePriceId = defineSecret("STRIPE_PRICE_ID");
 // in an `Authorization: Basic <token>` header — note it's NOT base64-encoded the way real HTTP
 // Basic auth normally is, it's just their chosen header format for a plain shared secret.
 const qonversionWebhookAuth = defineSecret("QONVERSION_WEBHOOK_AUTH");
+
+// Only ever send Stripe redirects back to Astryks's own domain — without this, a caller could
+// pass any successUrl/cancelUrl/returnUrl they like and turn our own Checkout/Billing Portal
+// session into an open redirect to an attacker-controlled site (phishing, credential capture,
+// etc.), all under a legitimate-looking astryks.com/checkout link on the way in.
+const ALLOWED_REDIRECT_HOSTS = new Set(["astryks.com", "www.astryks.com"]);
+function safeRedirectUrl(url, fallbackPath) {
+  const fallback = `https://astryks.com${fallbackPath}`;
+  if (typeof url !== "string" || !url) return fallback;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "https:" && ALLOWED_REDIRECT_HOSTS.has(parsed.hostname)) {
+      return url;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1187,8 +1507,8 @@ exports.createCheckoutSession = onCall(
       discounts,
       client_reference_id: uid,
       metadata: { uid, referrerUid: referrerUid || "" },
-      success_url: request.data?.successUrl,
-      cancel_url: request.data?.cancelUrl,
+      success_url: safeRedirectUrl(request.data?.successUrl, "/home"),
+      cancel_url: safeRedirectUrl(request.data?.cancelUrl, "/home"),
       // Required (not just "auto") so every subscriber's billing country is captured —
       // the webhook below saves it as the authoritative countryCode on their profile.
       // If the Price this Product uses has per-currency amounts configured in the Stripe
@@ -1215,7 +1535,7 @@ exports.createBillingPortalSession = onCall(
 
     const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: request.data?.returnUrl,
+      return_url: safeRedirectUrl(request.data?.returnUrl, "/me"),
     });
     return { url: portal.url };
   }
@@ -1295,54 +1615,72 @@ exports.stripeWebhook = onRequest(
 // and put the same value you choose for the "Header Authorization-Token Value" field there into
 // the QONVERSION_WEBHOOK_AUTH secret via `firebase functions:secrets:set`.
 exports.qonversionWebhook = onRequest({ secrets: [qonversionWebhookAuth] }, async (req, res) => {
-  const authHeader = req.headers["authorization"] || "";
-  if (authHeader !== `Basic ${qonversionWebhookAuth.value()}`) {
-    res.status(401).send("Unauthorized");
-    return;
-  }
+  try {
+    const authHeader = req.headers["authorization"] || "";
+    const expected = `Basic ${qonversionWebhookAuth.value()}`;
 
-  const event = req.body || {};
-  const uid = event.custom_user_id || event.user_id;
-  if (!uid) {
-    res.status(400).send("Missing custom_user_id/user_id");
-    return;
-  }
+    // Timing-safe comparison — a plain !== leaks (via response-time differences) how many
+    // leading characters of the secret an attacker's guess got right. crypto.timingSafeEqual
+    // requires equal-length buffers, so pad/compare lengths first to avoid it throwing (which
+    // would itself leak length information via a different error).
+    const authBuf = Buffer.from(authHeader);
+    const expectedBuf = Buffer.from(expected);
+    const isAuthorized =
+      authBuf.length === expectedBuf.length && crypto.timingSafeEqual(authBuf, expectedBuf);
+    if (!isAuthorized) {
+      res.status(401).send("Unauthorized");
+      return;
+    }
 
-  // Qonversion's webhook payload includes the current state of every entitlement directly, so
-  // unlike RevenueCat's event-type-based approach, we don't need to interpret event_name values
-  // (trial_converted, subscription_renewed, subscription_canceled, etc.) ourselves — just read
-  // whether the entitlement we care about is currently active. `entitlements` comes through as
-  // an object keyed by numeric string index, not an array.
-  // Must match ENTITLEMENT_ID in astryks-mobile/lib/purchases.ts.
-  const ENTITLEMENT_ID = "premium";
-  const entitlements = Object.values(event.entitlements || {});
-  const premium = entitlements.find((e) => e && e.id === ENTITLEMENT_ID);
+    const event = req.body || {};
+    const uid = event.custom_user_id || event.user_id;
+    // Firebase Auth uids are never longer than 128 chars and this must be a plain identifier,
+    // not a Firestore path — reject anything that isn't a simple, bounded string before ever
+    // using it to build a document path.
+    if (!uid || typeof uid !== "string" || uid.length > 128 || uid.includes("/")) {
+      res.status(400).send("Missing or invalid custom_user_id/user_id");
+      return;
+    }
 
-  if (!premium) {
-    // Event not related to our entitlement (e.g. a different product/entitlement in the same
-    // project) — nothing to do.
+    // Qonversion's webhook payload includes the current state of every entitlement directly, so
+    // unlike RevenueCat's event-type-based approach, we don't need to interpret event_name values
+    // (trial_converted, subscription_renewed, subscription_canceled, etc.) ourselves — just read
+    // whether the entitlement we care about is currently active. `entitlements` comes through as
+    // an object keyed by numeric string index, not an array.
+    // Must match ENTITLEMENT_ID in astryks-mobile/lib/purchases.ts.
+    const ENTITLEMENT_ID = "premium";
+    const entitlements = Object.values(event.entitlements || {});
+    const premium = entitlements.find((e) => e && e.id === ENTITLEMENT_ID);
+
+    if (!premium) {
+      // Event not related to our entitlement (e.g. a different product/entitlement in the same
+      // project) — nothing to do.
+      res.json({ received: true });
+      return;
+    }
+
+    if (premium.active) {
+      await db.doc(`users/${uid}`).set(
+        {
+          subscriptionStatus: "active",
+          subscriptionPlatform: event.platform ? event.platform.toLowerCase() : "qonversion",
+          ...(event.country ? { countryCode: event.country } : {}),
+        },
+        { merge: true }
+      );
+    } else {
+      // `active: false` already accounts for the "keep access until the paid period ends" grace
+      // period the same way RevenueCat's CANCELLATION-vs-EXPIRATION distinction did — Qonversion
+      // keeps `active: true` until the period actually lapses even after the user cancels
+      // auto-renew, so we don't need separate cancellation-vs-expiration handling here.
+      await db.doc(`users/${uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
+    }
+
     res.json({ received: true });
-    return;
+  } catch (err) {
+    console.error("qonversionWebhook error:", err);
+    res.status(500).send("Internal error");
   }
-
-  if (premium.active) {
-    await db.doc(`users/${uid}`).set(
-      {
-        subscriptionStatus: "active",
-        subscriptionPlatform: event.platform ? event.platform.toLowerCase() : "qonversion",
-        ...(event.country ? { countryCode: event.country } : {}),
-      },
-      { merge: true }
-    );
-  } else {
-    // `active: false` already accounts for the "keep access until the paid period ends" grace
-    // period the same way RevenueCat's CANCELLATION-vs-EXPIRATION distinction did — Qonversion
-    // keeps `active: true` until the period actually lapses even after the user cancels
-    // auto-renew, so we don't need separate cancellation-vs-expiration handling here.
-    await db.doc(`users/${uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
-  }
-
-  res.json({ received: true });
 });
 
 // ---------- Scheduled: mark $50 referral payouts owed after 3 months of active subscription ----------
@@ -1412,7 +1750,29 @@ exports.sendMonthlyPrizeReport = onSchedule(
       return;
     }
 
-    const winner = candidates[0];
+    const topPost = candidates[0];
+    const hasWinner = (topPost.likeCount ?? 0) >= PRIZE_LIKE_THRESHOLD;
+
+    if (!hasWinner) {
+      // Nobody cleared the ${PRIZE_LIKE_THRESHOLD}-like bar this month — per the current Official
+      // Rules, no winner is picked and nothing is persisted to prizeWinners for this month.
+      const lines = candidates
+        .slice(0, 10)
+        .map(
+          (p, i) =>
+            `${i + 1}. ${p.ownerName || "Member"} — ${p.likeCount ?? 0} likes — "${p.title || p.body?.slice(0, 60) || `(${p.type} post)`}"`
+        )
+        .join("\n");
+      await sendSupportEmail(
+        `Astryks creative prize — ${monthLabel}: no winner this month`,
+        `The top post this month topped out at ${topPost.likeCount ?? 0} likes, short of the ${PRIZE_LIKE_THRESHOLD}-like ` +
+          `minimum needed to win — so per the Official Rules, no winner is picked for ${monthLabel} and no ` +
+          `AU$${PRIZE_AUD} is paid out.\n\nTop entries for reference:\n${lines}`
+      );
+      return;
+    }
+
+    const winner = topPost;
     let winnerPayout = null;
     try {
       const payoutSnap = await db.doc(`prizePayouts/${winner.id}`).get();
@@ -1491,8 +1851,8 @@ exports.sendMonthlyPrizeReport = onSchedule(
 
     await sendSupportEmail(
       `Astryks creative prize — ${monthLabel}: ${candidates.length} nominee${candidates.length === 1 ? "" : "s"}`,
-      `Ranked by likes, for creative posts posted in ${monthLabel} that didn't opt out — no minimum like count ` +
-        `required to qualify.\n${payoutStatusLine}\n\n${revenueLine}\n\n${lines.join("\n\n")}`
+      `Ranked by likes, for creative posts posted in ${monthLabel} that didn't opt out — the winner needed at ` +
+        `least ${PRIZE_LIKE_THRESHOLD} likes to qualify.\n${payoutStatusLine}\n\n${revenueLine}\n\n${lines.join("\n\n")}`
     );
   }
 );
@@ -1550,19 +1910,32 @@ exports.runPrizeReportNow = onCall(
     );
 
     const subscriberCount = await getActiveSubscriberCount();
+    const leader = candidates[0];
+    const leaderMeetsThreshold = (leader.likeCount ?? 0) >= PRIZE_LIKE_THRESHOLD;
+    const thresholdLine = leaderMeetsThreshold
+      ? `The current leader has cleared the ${PRIZE_LIKE_THRESHOLD}-like minimum needed to win.`
+      : `⚠️ The current leader has only ${leader.likeCount ?? 0} likes — short of the ${PRIZE_LIKE_THRESHOLD}-like ` +
+        `minimum needed to win. If nobody clears that bar by month end, no winner is picked for ${monthLabel}.`;
 
     await sendSupportEmail(
       `Astryks creative prize — ${monthLabel} so far: ${candidates.length} nominee${candidates.length === 1 ? "" : "s"} ` +
         `(as of ${now.toLocaleDateString("en-AU")})`,
-      `Ranked by likes, for creative posts posted in ${monthLabel} through today that didn't opt out — no minimum ` +
-        `like count required to qualify. This is a live snapshot, not the final monthly winner — the automatic ` +
-        `report on the 1st of next month is what actually determines and records the winner.\n\n` +
+      `Ranked by likes, for creative posts posted in ${monthLabel} through today that didn't opt out — a post ` +
+        `needs at least ${PRIZE_LIKE_THRESHOLD} likes to actually win. This is a live snapshot, not the final ` +
+        `monthly winner — the automatic report on the 1st of next month is what actually determines and records ` +
+        `the winner.\n\n${thresholdLine}\n\n` +
         `The prize is a flat AU$${PRIZE_AUD}/month. You currently have ${subscriberCount} active subscriber` +
         `${subscriberCount === 1 ? "" : "s"} (web + mobile) — check your Stripe/App Store/Play Console dashboards ` +
         `for actual net revenue so far this month as a sanity check.` +
         `\n\n${lines.join("\n\n")}`
     );
 
-    return { count: candidates.length, leader: candidates[0].ownerName || "Member", subscriberCount };
+    return {
+      count: candidates.length,
+      leader: leader.ownerName || "Member",
+      leaderLikeCount: leader.likeCount ?? 0,
+      leaderMeetsThreshold,
+      subscriberCount,
+    };
   }
 );

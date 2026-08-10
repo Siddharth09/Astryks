@@ -55,7 +55,7 @@ const PRICING_FEATURES = [
 const PRIZE_STEPS = [
   { n: "1", t: "Share your work", d: "Post whatever you're proud of — a song, a painting, a portfolio piece. Free account, no subscription needed." },
   { n: "2", t: "Get likes from the community", d: "The more people who love it, the better your chances." },
-  { n: "3", t: "Every post counts", d: "No minimum likes needed — you're entered the moment you post." },
+  { n: "3", t: "Reach 30 likes", d: "You're entered the moment you post — cross 30 likes and you're in the running to win." },
   { n: "4", t: "Win AU$1,000", d: "One winner, chosen across every subject, at the end of each calendar month." },
 ];
 
@@ -64,7 +64,7 @@ const FAQS = [
   { q: "How do the locked videos work?", a: "New lessons unlock regularly. Once a lesson unlocks for you, it's yours to rewatch any time — even if you cancel later." },
   { q: "Can I post what I make?", a: "Yes — post your own work and get feedback from other people learning alongside you." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
-  { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month. No minimum like count and no subscription required — anyone with a free Astryks account can post and compete. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue, and we're guaranteeing it every month through our first six months (through February 2027). International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
+  { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month, as long as it's reached at least 30 likes. We ask for that because we want our community to lift each other up and cheer on the creative work being shared here — no subscription required, just a free like from anyone. If nothing reaches 30 likes in a given month, no winner is picked that month. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue, and we're running it every month through our first six months (through February 2027). International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
   { q: "Do I have to subscribe to post or enter the prize?", a: "No — creating an account, posting, liking, and entering the Creative Prize are all free. A subscription is only needed to unlock the pre-recorded lesson library." },
   { q: "What devices does Astryks work on?", a: "Any modern smartphone, tablet, laptop, or desktop — just a browser, or the app." },
 ];
@@ -299,15 +299,17 @@ export default function LoginScreen() {
           Every month, for the community&apos;s most-loved post
         </Text>
         <Text style={{ fontSize: 11, fontWeight: "700", color: colors.brand, backgroundColor: "white", alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10, overflow: "hidden" }}>
-          Guaranteed every month through our first 6 months
+          Running every month through our first 6 months
         </Text>
         <Text style={{ fontSize: 13, color: colors.ink, lineHeight: 19, marginBottom: 10 }}>
           We want every creative student — subscriber or not — to be able to post, get discovered, and
           compete for real cash, so entering is completely free for anyone with an Astryks account. At
           the end of each calendar month, whoever&apos;s single creative post — across music, art, or any
-          other creative project — has the most likes wins. No minimum likes, no subscription required.
-          We started Astryks because real creative work deserves real recognition, and we genuinely
-          can&apos;t wait to see what you make.
+          other creative project — has the most likes wins, as long as it&apos;s reached at least 30 likes.
+          We ask for that because we want our community to lift each other up and cheer on the creative
+          work being shared here — no subscription required, just a free like from anyone. If nothing
+          reaches 30 likes in a given month, no winner is picked that month. We started Astryks because
+          real creative work deserves real recognition, and we genuinely can&apos;t wait to see what you make.
         </Text>
         <Text style={{ fontSize: 11, color: colors.muted, lineHeight: 15, marginBottom: 16 }}>
           AU$1,000 (Australian dollars), funded from Astryks subscription revenue. International

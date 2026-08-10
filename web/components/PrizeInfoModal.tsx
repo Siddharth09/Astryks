@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-const THRESHOLD = 50;
+const THRESHOLD = 30;
 
 function daysLeftInMonth() {
   const now = new Date();
@@ -45,16 +45,19 @@ export default function PrizeInfoModal({
         <p className="text-sm text-ink/70 mb-2 leading-relaxed">
           {generic
             ? "Share a photo or video and you could be in the running. "
-            : "In an attempt to incentivise the arts, "}
-          At the end of each calendar month we award AU$1,000 (Australian dollars) in cash to whoever's
-          single creative post — across music, art, or any other creative project — has the most likes
-          that month. Only one winner is picked each month, and the only condition is reaching at least{" "}
-          {THRESHOLD} likes.
+            : "Every month, "}
+          we award AU$1,000 (Australian dollars) in cash to whoever's single creative post —
+          across music, art, or any other creative project — has the most likes that month. The
+          only requirement is that a post needs at least {THRESHOLD} likes to qualify. We ask for
+          that because we want our community to lift each other up — liking a post is free and
+          takes a second, and it's how we get to cheer on the beautiful things people are making
+          here. Just one winner is picked each month; if nothing reaches {THRESHOLD} likes in a
+          given month, no winner is picked that month.
         </p>
         <p className="text-xs text-ink/40 mb-4 leading-relaxed">
           International transfers from Australia may be subject to market foreign exchange rates and
-          other overseas transfer considerations. We run this every month to keep incentivising young
-          creatives to create something beautiful.
+          other overseas transfer considerations. We run this every month to keep encouraging our
+          community to create something beautiful and to celebrate each other's work.
         </p>
 
         {generic ? null : optedOut ? (

@@ -1,20 +1,32 @@
 rules_version = '2';
 
+// Every path below used to allow ANY authenticated user to write a file of ANY size and ANY
+// content type into their own folder — no limit at all. That means (a) a denial-of-wallet risk
+// (someone uploading huge files repeatedly to run up Storage/bandwidth costs), and (b) Astryks's
+// own bucket could be used to publicly host arbitrary non-media content (HTML/JS, etc.) that has
+// nothing to do with the app, since read access is public. Each match below now caps size and
+// restricts content-type to what that folder is actually for.
 service firebase.storage {
   match /b/{bucket}/o {
     match /videos/{userId}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 500 * 1024 * 1024
+        && request.resource.contentType.matches('video/.*');
     }
 
     match /posts/{userId}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 200 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|video/.*');
     }
 
     match /avatars/{userId}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
   }
 }

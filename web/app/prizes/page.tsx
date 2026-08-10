@@ -42,8 +42,10 @@ export default function PrizesPage() {
       <p className="text-sm text-ink/60 mb-1">
         Free to enter for every Astryks member — no subscription needed. One winner is picked each
         month, across every subject — music, art, or any other creative project. Whoever's post has
-        the most likes at the end of this calendar month wins, no minimum likes required. Guaranteed
-        every month through our first 6 months (through February 2027).
+        the most likes at the end of this calendar month wins — the only requirement is reaching at
+        least 30 likes, because we want our community cheering each other on. If nothing reaches 30
+        likes in a given month, no winner is picked that month. We're running this every month through
+        our first 6 months (through February 2027).
       </p>
       <p className="text-sm font-medium text-brand mb-6">
         {daysLeft} day{daysLeft === 1 ? "" : "s"} left this month
@@ -109,8 +111,15 @@ export default function PrizesPage() {
                       <div className="h-full bg-brand rounded-full" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
-                  <span className="text-xs text-ink/50 flex-shrink-0">
+                  <span className="text-xs text-ink/50 flex-shrink-0 text-right">
                     {entry.likeCount} likes
+                    {entry.meetsLikeThreshold ? (
+                      <span className="block text-brand">✓ qualifies</span>
+                    ) : (
+                      <span className="block text-ink/30">
+                        {Math.max(0, (entry.likeThreshold ?? 30) - entry.likeCount)} to qualify
+                      </span>
+                    )}
                   </span>
                 </Link>
               );

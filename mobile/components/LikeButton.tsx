@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { TouchableOpacity, Text } from "react-native";
 import { router } from "expo-router";
-import { doc, getDoc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, deleteDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { colors } from "@/lib/styles";
 
@@ -32,20 +32,17 @@ export default function LikeButton({
     if (busy) return;
     if (!currentUserId) return router.push("/login");
     setBusy(true);
-    const postRef = doc(db, "posts", postId);
+    // likeCount itself is maintained server-side (onLikeCreated/onLikeDeleted in
+    // functions/index.js) — the client only creates/deletes its own like doc now, and just
+    // optimistically bumps the on-screen count for instant feedback.
     const likeRef = doc(db, "posts", postId, "likes", currentUserId);
-    const batch = writeBatch(db);
 
     if (liked) {
-      batch.delete(likeRef);
-      batch.update(postRef, { likeCount: increment(-1) });
-      await batch.commit();
+      await deleteDoc(likeRef);
       setLiked(false);
       setCount((c) => c - 1);
     } else {
-      batch.set(likeRef, { createdAt: serverTimestamp() });
-      batch.update(postRef, { likeCount: increment(1) });
-      await batch.commit();
+      await setDoc(likeRef, { createdAt: serverTimestamp() });
       setLiked(true);
       setCount((c) => c + 1);
     }
