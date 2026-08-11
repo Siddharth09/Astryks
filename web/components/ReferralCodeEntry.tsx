@@ -49,9 +49,7 @@ export default function ReferralCodeEntry() {
         </button>
       </div>
       {status === "valid" && (
-        <p className="text-xs text-green-700">
-          Code applied — you'll get 20% off ($4/week) for your first 3 months.
-        </p>
+        <p className="text-xs text-green-700">Code applied — thanks for joining through a friend!</p>
       )}
       {status === "invalid" && <p className="text-xs text-red-600">That code doesn't look right — double check it.</p>}
     </div>

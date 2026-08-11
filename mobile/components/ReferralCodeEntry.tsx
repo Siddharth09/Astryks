@@ -50,7 +50,7 @@ export default function ReferralCodeEntry() {
         </TouchableOpacity>
       </View>
       {status === "valid" && (
-        <Text style={{ fontSize: 11, color: "#15803D" }}>Code applied — 20% off ($4/week) for 3 months.</Text>
+        <Text style={{ fontSize: 11, color: "#15803D" }}>Code applied — thanks for joining through a friend!</Text>
       )}
       {status === "invalid" && <Text style={{ fontSize: 11, color: "#B91C1C" }}>That code doesn't look right.</Text>}
     </View>

@@ -2700,23 +2700,22 @@ exports.createCheckoutSession = onCall(
       priceId = stripePriceId.value();
     }
 
-    let discounts = [];
+    // No discount for the referred person — referral codes are tracked purely so the
+    // referrer can be paid out $50 after the referred person stays subscribed 90 days
+    // (see checkReferralPayouts below). There used to be a 20%-off coupon here too; that
+    // was removed, so this block only resolves referrerUid for tracking/payout purposes.
     let referrerUid = null;
 
     if (referralCode) {
       const codeSnap = await db.doc(`referralCodes/${referralCode}`).get();
       if (codeSnap.exists && codeSnap.data().uid !== uid) {
         referrerUid = codeSnap.data().uid;
-        // A Stripe Coupon with the exact ID "REFERRAL20" — 20% off, repeating for 3 months —
-        // must be created once in the Stripe dashboard (Product catalog → Coupons).
-        discounts = [{ coupon: "REFERRAL20" }];
       }
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      discounts,
       client_reference_id: uid,
       metadata: { uid, referrerUid: referrerUid || "", plan },
       success_url: safeRedirectUrl(request.data?.successUrl, "/home"),
