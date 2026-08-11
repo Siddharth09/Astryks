@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import TrailersSection from "@/components/TrailersSection";
-import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
+import { annualFullPriceDisplay, detectCountryCode, getLocalizedPricing } from "@/lib/geo";
 
 const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
 
@@ -15,6 +15,11 @@ export default function SubscriptionBanner() {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
+  // Which plan the "Subscribe" button below actually checks out — defaults to weekly, same as
+  // before, but now it's an explicit, visible choice instead of a default hidden behind a small
+  // "or save with annual" link underneath.
+  const [plan, setPlan] = useState<"weekly" | "annual">("weekly");
+  const [billingError, setBillingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -26,15 +31,23 @@ export default function SubscriptionBanner() {
     });
   }, [user]);
 
-  async function handleSubscribe(plan: "weekly" | "annual") {
+  async function handleSubscribe() {
     setLoading(true);
-    const result = await createCheckoutSession({
-      plan,
-      successUrl: `${location.origin}/home`,
-      cancelUrl: `${location.origin}/home`,
-    });
-    const { url } = result.data as { url: string };
-    location.href = url;
+    setBillingError(null);
+    try {
+      const result = await createCheckoutSession({
+        plan,
+        successUrl: `${location.origin}/home`,
+        cancelUrl: `${location.origin}/home`,
+      });
+      location.href = (result.data as { url: string }).url;
+    } catch (err: any) {
+      // Without this, a failed checkout call used to leave the button stuck on "Loading…"
+      // forever with no explanation — see Aug 2026 incident where a mistyped Stripe price ID
+      // did exactly that for every visitor until someone happened to check the browser console.
+      setBillingError(err.message ?? "Couldn't start checkout — please try again.");
+      setLoading(false);
+    }
   }
 
   if (status === null || status === "active") return null;
@@ -47,20 +60,38 @@ export default function SubscriptionBanner() {
           <p className="text-sm font-medium">
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </p>
-          <p className="text-xs text-ink/60">{pricing.display} · cancel anytime · 15 min free preview in Learn</p>
+          <p className="text-xs text-ink/60">cancel anytime · 15 min free preview in Learn</p>
         </div>
-        <button onClick={() => handleSubscribe("weekly")} disabled={loading} className="btn-primary text-xs px-4 py-2">
-          {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
+      </div>
+
+      {/* Explicit plan picker — two clearly-priced options instead of one default button plus a
+          tiny "or save with annual" link underneath, so the annual option isn't easy to miss. */}
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          type="button"
+          onClick={() => setPlan("weekly")}
+          aria-pressed={plan === "weekly"}
+          className={plan === "weekly" ? "btn-primary text-xs px-3 py-1.5 rounded-full" : "btn-secondary text-xs px-3 py-1.5 rounded-full"}
+        >
+          Weekly · {pricing.display}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPlan("annual")}
+          aria-pressed={plan === "annual"}
+          className={plan === "annual" ? "btn-primary text-xs px-3 py-1.5 rounded-full" : "btn-secondary text-xs px-3 py-1.5 rounded-full"}
+        >
+          Annual · <span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay}
         </button>
       </div>
+
+      <button onClick={handleSubscribe} disabled={loading} className="btn-primary text-xs px-4 py-2 mt-3 w-full sm:w-auto">
+        {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
+      </button>
+      {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}
+
       <TrailersSection compact />
-      <p className="text-[11px] text-ink/50 mt-2">
-        or{" "}
-        <button onClick={() => handleSubscribe("annual")} disabled={loading} className="underline">
-          save with annual — {pricing.annualDisplay}
-        </button>{" "}
-        · full refunds within 90 days, no questions asked
-      </p>
+      <p className="text-[11px] text-ink/50 mt-2">Full refunds within 90 days, no questions asked.</p>
     </div>
   );
 }

@@ -106,6 +106,17 @@ export function getLocalizedPricing(countryCode: string | null): PriceInfo {
   return DEFAULT_PRICE;
 }
 
+// What paying weekly all year (52 weeks) would add up to, formatted the same way as the
+// display strings above. Meant to be shown struck through next to the actual annual price, so
+// the saving is obvious at a glance instead of relying on wording like "2 weeks free" — which
+// read too much like the separate 15-minute-preview trial and confused people about whether
+// annual subscribers got some kind of free period before being charged. They don't; this is
+// purely a per-year discount for paying upfront.
+export function annualFullPriceDisplay(price: PriceInfo): string {
+  const fullYearAmount = price.amount * 52;
+  return `${price.symbol}${new Intl.NumberFormat("en-US").format(fullYearAmount)}`;
+}
+
 // Converts a 2-letter ISO-3166 country code into its flag emoji via Unicode regional
 // indicator symbols (e.g. "AU" -> 🇦🇺). Returns "" for anything that isn't a clean 2-letter code.
 export function flagEmoji(countryCode?: string | null): string {

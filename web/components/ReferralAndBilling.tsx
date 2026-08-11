@@ -5,7 +5,7 @@ import { collection, doc, getCountFromServer, getDoc, query, where } from "fireb
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
+import { annualFullPriceDisplay, detectCountryCode, getLocalizedPricing } from "@/lib/geo";
 
 const createBillingPortalSession = httpsCallable(functions, "createBillingPortalSession");
 const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
@@ -209,7 +209,7 @@ export default function ReferralAndBilling() {
             </label>
             <label className="flex items-center gap-1.5 text-xs text-ink/70">
               <input type="radio" name="plan" checked={plan === "annual"} onChange={() => setPlan("annual")} />
-              Annual ({pricing.annualDisplay} — 2 weeks free)
+              Annual (<span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay})
             </label>
           </div>
         )}
