@@ -11,6 +11,7 @@ import { colors } from "@/lib/styles";
 
 const getUserPosts = httpsCallable(functions, "getUserPosts");
 const submitReportFn = httpsCallable(functions, "submitReport");
+const getPublicProfile = httpsCallable(functions, "getPublicProfile");
 
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
@@ -35,13 +36,20 @@ export default function UserProfileScreen() {
       return;
     }
     (async () => {
-      const snap = await getDoc(doc(db, "users", userId));
-      if (!snap.exists()) {
+      // Fetched via a Cloud Function rather than a direct getDoc: firestore.rules restricts
+      // users/{uid} reads to that document's own owner (it also holds stripeCustomerId/
+      // subscriptionStatus/payoutOwed), so viewing someone else's profile goes through
+      // getPublicProfile instead, which only ever returns displayName/photoURL.
+      let profileData: any;
+      try {
+        const result = await getPublicProfile({ uid: userId });
+        profileData = result.data;
+      } catch (err) {
         setMissing(true);
         setLoading(false);
         return;
       }
-      setProfile(snap.data());
+      setProfile(profileData);
 
       // Fetched via a Cloud Function rather than a direct Firestore query: Firestore security
       // rules can't filter a list query, so hiding this person's private posts from anyone but

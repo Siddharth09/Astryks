@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, query, where, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 import FollowButton from "@/components/FollowButton";
+
+const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
 
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
@@ -16,13 +19,22 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
 
   useEffect(() => {
     (async () => {
-      const [subjSnap, lessonsSnap, progressSnap, followsSnap, usersSnap] = await Promise.all([
+      // The people-suggestions query below used to be a direct `collection("users").limit(40)`
+      // — before firestore.rules restricted users/{uid} reads to each doc's own owner, that
+      // handed back everyone's full profile (stripeCustomerId/payoutOwed included). Now served
+      // through listPublicProfiles, which only ever returns displayName/photoURL.
+      const [subjSnap, lessonsSnap, progressSnap, followsSnap, profilesResult] = await Promise.all([
         getDocs(query(collection(db, "subjects"))),
         getDocs(collection(db, "lessons")),
         getDocs(query(collection(db, "lessonProgress"), where("uid", "==", currentUserId))),
         getDocs(query(collection(db, "follows"), where("followerId", "==", currentUserId))),
-        getDocs(query(collection(db, "users"), limit(40))),
+        listPublicProfiles({ limit: 40 }),
       ]);
+      const profiles = (profilesResult.data as any).profiles as {
+        uid: string;
+        displayName: string | null;
+        photoURL: string | null;
+      }[];
 
       const subjectNameById: Record<string, string> = Object.fromEntries(
         subjSnap.docs.map((d) => [d.id, (d.data() as any).name ?? "Lesson"])
@@ -71,11 +83,10 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
       }
 
       const followingIds = new Set(followsSnap.docs.map((d) => (d.data() as any).followingId));
-      const peopleCards: PersonCard[] = usersSnap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as any) }))
-        .filter((u) => u.id !== currentUserId && !followingIds.has(u.id))
+      const peopleCards: PersonCard[] = profiles
+        .filter((u) => u.uid !== currentUserId && !followingIds.has(u.uid))
         .slice(0, 8)
-        .map((u) => ({ kind: "person" as const, id: u.id, displayName: u.displayName ?? "Member", photoURL: u.photoURL ?? null }));
+        .map((u) => ({ kind: "person" as const, id: u.uid, displayName: u.displayName ?? "Member", photoURL: u.photoURL ?? null }));
 
       // Interleave lessons and people so the row feels mixed rather than two separate blocks.
       const merged: (LessonCard | PersonCard)[] = [];

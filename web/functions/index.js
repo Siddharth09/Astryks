@@ -1516,6 +1516,49 @@ exports.getUserPosts = onCall(async (request) => {
   return { posts };
 });
 
+// Public-facing info for someone's profile page — deliberately returns only the two fields
+// that page actually renders (displayName/photoURL). firestore.rules restricts users/{uid}
+// reads to the document's own owner (that doc also holds stripeCustomerId/subscriptionStatus/
+// payoutOwed — rules can only gate a whole document, never individual fields on it), so this is
+// how everyone else still gets to see a name and a photo without also being able to read
+// someone else's billing data straight out of Firestore.
+exports.getPublicProfile = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const targetUid = request.data?.uid;
+  if (!targetUid || typeof targetUid !== "string") {
+    throw new HttpsError("invalid-argument", "uid is required.");
+  }
+  const snap = await db.doc(`users/${targetUid}`).get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "That profile doesn't exist.");
+  }
+  const data = snap.data();
+  return { displayName: data.displayName ?? null, photoURL: data.photoURL ?? null };
+});
+
+// Same reasoning as getPublicProfile, but for the two screens that browse/search many people at
+// once (Messages' "New message" search, the home feed's "Suggested for you" row). Both used to
+// run a direct `collection("users").limit(N)` query straight from the client — harmless while
+// users/{uid} only held public fields, but once billing fields lived on the same document that
+// query handed back everyone's stripeCustomerId/payoutOwed/subscriptionStatus too, to anyone
+// signed in. This returns only what those screens actually render.
+exports.listPublicProfiles = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const requested = Number(request.data?.limit) || 200;
+  const cappedLimit = Math.min(Math.max(requested, 1), 200);
+  const snap = await db.collection("users").limit(cappedLimit).get();
+  const profiles = snap.docs.map((d) => ({
+    uid: d.id,
+    displayName: d.data().displayName ?? null,
+    photoURL: d.data().photoURL ?? null,
+  }));
+  return { profiles };
+});
+
 // One-time maintenance callable: older posts (created before the public/private
 // toggle existed) have no `visibility` field at all. The app already treats a
 // missing field as "public" everywhere, so this just makes that explicit in the
@@ -1536,6 +1579,70 @@ exports.backfillPostVisibility = onCall(async (request) => {
   }
   await Promise.all(batches);
   return { updated: missing.length };
+});
+
+// One-time maintenance callable: private posts uploaded before storage.rules could check a
+// post's visibility (see postIsPrivate in storage.rules) have their media sitting at the old
+// flat posts/{ownerId}/{fileName} layout, which has no postId in it for Storage to look up —
+// so those files stayed publicly readable by anyone with the URL even though the post itself
+// was marked private. This copies each such post's file onto the new posts/{ownerId}/{postId}/
+// {fileName} layout (which storage.rules DOES gate by visibility), repoints the post's
+// mediaUrl/mediaPath at the new location, and removes the old public copy. Public posts are
+// left alone — their media was never meant to be gated, so there's nothing to fix. Safe to run
+// more than once: anything already on the new layout (already migrated, or created after the
+// fix shipped) is skipped, not touched.
+exports.migratePrivatePostMedia = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+
+  const snap = await db.collection("posts").where("visibility", "==", "private").get();
+  const bucket = admin.storage().bucket();
+  let migrated = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const docSnap of snap.docs) {
+    const post = docSnap.data();
+    const oldPath = post.mediaPath;
+    if (!oldPath || typeof oldPath !== "string" || !post.ownerId) {
+      continue; // text/link post — no media file to move
+    }
+
+    // Old flat layout is exactly posts/{ownerId}/{fileName} — three path segments. The new
+    // layout has four (posts/{ownerId}/{postId}/{fileName}), so anything already there
+    // (already migrated, or created after the fix shipped) is left alone.
+    const parts = oldPath.split("/");
+    if (parts.length !== 3 || parts[0] !== "posts" || parts[1] !== post.ownerId) {
+      skipped++;
+      continue;
+    }
+
+    const newPath = `posts/${post.ownerId}/${docSnap.id}/${parts[2]}`;
+    try {
+      const [oldMetadata] = await bucket.file(oldPath).getMetadata();
+      let token = oldMetadata.metadata && oldMetadata.metadata.firebaseStorageDownloadTokens;
+
+      await bucket.file(oldPath).copy(bucket.file(newPath));
+
+      // A Cloud Storage copy carries the source's custom metadata (including the download
+      // token) over to the new file, so the existing token should already work at the new
+      // path. Only mint a fresh one on the off chance an older upload never had one.
+      if (!token) {
+        token = crypto.randomUUID();
+        await bucket.file(newPath).setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+      }
+      const mediaUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(newPath)}?alt=media&token=${token}`;
+
+      await docSnap.ref.update({ mediaUrl, mediaPath: newPath });
+      await bucket.file(oldPath).delete().catch(() => {});
+      migrated++;
+    } catch (err) {
+      failed++;
+    }
+  }
+
+  return { migrated, skipped, failed };
 });
 
 // ---------- Callable: list every signed-up account (admin dashboard) ----------

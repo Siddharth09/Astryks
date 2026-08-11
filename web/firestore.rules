@@ -4,11 +4,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{userId} {
-      // Was `if true` — publicly, unauthenticatedly readable, including pushToken,
-      // payoutOwed, and stripeCustomerId. Any signed-in account is still fine for the app's
-      // normal use (profiles/display names etc. are read through here), just not the entire
-      // internet with no login at all.
-      allow read: if request.auth != null;
+      // Was `if request.auth != null` — any signed-in account, not just this doc's owner, could
+      // read the WHOLE document, including stripeCustomerId, payoutOwed, and subscriptionStatus.
+      // Rules can only gate access to a whole document, never individual fields on it, so the
+      // only way to keep those fields owner-only while still letting everyone else see a name
+      // and a photo is to serve that public slice through a Cloud Function instead — see
+      // getPublicProfile/listPublicProfiles in functions/index.js, same pattern already used
+      // below for prizeWinners/payoutAccounts/refundRequests.
+      allow read: if request.auth != null && request.auth.uid == userId;
 
       // Allowlist, not a blocklist: the client only ever legitimately sets these four fields
       // (see AuthContext.tsx, usePushNotifications.ts). Everything else — subscriptionStatus,

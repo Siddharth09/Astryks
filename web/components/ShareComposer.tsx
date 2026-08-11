@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { storage, db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,7 +58,13 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
     setError(null);
 
     const type = file.type.startsWith("video") ? "video" : "photo";
-    const path = `posts/${user.uid}/${crypto.randomUUID()}-${file.name}`;
+    // Pre-generate the post's Firestore doc ID and fold it into the storage path (rather than
+    // a bare random filename) so storage.rules can look up *this exact post's* visibility
+    // before serving the file — see the posts/{userId}/{postId}/{fileName} match block there.
+    // Without the postId in the path, Storage has no way to know which post a file belongs to,
+    // so a "private" post's media stayed just as publicly fetchable as a public one's.
+    const postRef = doc(collection(db, "posts"));
+    const path = `posts/${user.uid}/${postRef.id}/${crypto.randomUUID()}-${file.name}`;
     const storageRef = ref(storage, path);
 
     try {
@@ -68,7 +74,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
       });
       const mediaUrl = await getDownloadURL(storageRef);
 
-      await addDoc(collection(db, "posts"), {
+      await setDoc(postRef, {
         type,
         title: title || null,
         mediaUrl,

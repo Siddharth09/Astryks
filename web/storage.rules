@@ -8,6 +8,17 @@ rules_version = '2';
 // restricts content-type to what that folder is actually for.
 service firebase.storage {
   match /b/{bucket}/o {
+    // True only if the given post exists AND is explicitly marked private — used below to gate
+    // reads of post media uploaded after the postId-in-path change. Checks existence first: a
+    // bare firestore.get() on a postId that doesn't exist yet (the brief window between an
+    // upload finishing and its Firestore doc write completing) would otherwise fail the whole
+    // rule instead of just this condition, same reasoning as the "resource == null ||" guards
+    // in firestore.rules.
+    function postIsPrivate(postId) {
+      return firestore.exists(/databases/(default)/documents/posts/$(postId))
+        && firestore.get(/databases/(default)/documents/posts/$(postId)).data.visibility == 'private';
+    }
+
     match /videos/{userId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId
@@ -15,6 +26,22 @@ service firebase.storage {
         && request.resource.contentType.matches('video/.*');
     }
 
+    // Post media uploaded after the private-post-media fix: the path now includes the post's
+    // own Firestore doc ID (see ShareComposer.tsx/home.tsx), so unlike the legacy flat layout
+    // below, this one can actually check whether that specific post is private before serving
+    // the file. A private post's owner can still always read their own file.
+    match /posts/{userId}/{postId}/{fileName} {
+      allow read: if (request.auth != null && request.auth.uid == userId) || !postIsPrivate(postId);
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 200 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|video/.*');
+    }
+
+    // Legacy flat path, from before post media carried the post's own ID above — kept public
+    // since Storage has no way to look up which post one of these files belongs to, so its
+    // visibility can't be checked here. migratePrivatePostMedia in functions/index.js is a
+    // one-time admin cleanup that moves any already-private post's file onto the new path
+    // instead, after which nothing should be writing to this old layout anymore.
     match /posts/{userId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId

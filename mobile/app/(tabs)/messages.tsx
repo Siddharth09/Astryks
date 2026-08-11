@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, TextInput, Image, ScrollView } from "react-native";
 import { router } from "expo-router";
-import { collection, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, setDoc, limit } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 
 const getMessageSuggestions = httpsCallable(functions, "getMessageSuggestions");
+const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
 const SUBJECT_NAMES: Record<string, string> = { music: "Music", art: "Art", finance: "Finance" };
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
@@ -43,8 +44,15 @@ export default function MessagesScreen() {
   async function openSearch() {
     setShowSearch(true);
     if (allUsers === null && user) {
-      const snap = await getDocs(query(collection(db, "users"), limit(200)));
-      setAllUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((u) => u.id !== user.uid));
+      // Was a direct `collection("users").limit(200)` query — before firestore.rules
+      // restricted users/{uid} reads to each doc's own owner, that handed back everyone's
+      // full profile document (stripeCustomerId/payoutOwed included) to search through. This
+      // Cloud Function returns only displayName/photoURL for each person.
+      const result = await listPublicProfiles({ limit: 200 });
+      const profiles = (result.data as any).profiles as { uid: string; displayName: string | null; photoURL: string | null }[];
+      setAllUsers(
+        profiles.map((p) => ({ id: p.uid, displayName: p.displayName, photoURL: p.photoURL })).filter((u) => u.id !== user.uid)
+      );
     }
   }
 

@@ -7,6 +7,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 
 const deleteUserAccountFn = httpsCallable(functions, "deleteUserAccount");
 const backfillPostVisibilityFn = httpsCallable(functions, "backfillPostVisibility");
+const migratePrivatePostMediaFn = httpsCallable(functions, "migratePrivatePostMedia");
 const listAllUsersFn = httpsCallable(functions, "listAllUsers");
 
 // Simple allowlist for who can delete accounts — same as the lesson upload page.
@@ -29,6 +30,8 @@ export default function AdminUsersPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [mediaMigrateLoading, setMediaMigrateLoading] = useState(false);
+  const [mediaMigrateResult, setMediaMigrateResult] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<ListedUser[] | null>(null);
   const [usersError, setUsersError] = useState<string | null>(null);
 
@@ -90,6 +93,25 @@ export default function AdminUsersPage() {
       setBackfillResult(err.message ?? "Couldn't run that.");
     } finally {
       setBackfillLoading(false);
+    }
+  }
+
+  async function handleMediaMigrate() {
+    setMediaMigrateLoading(true);
+    setMediaMigrateResult(null);
+    try {
+      const result = await migratePrivatePostMediaFn();
+      const { migrated, skipped, failed } = result.data as { migrated: number; skipped: number; failed: number };
+      setMediaMigrateResult(
+        migrated === 0 && failed === 0
+          ? "Nothing to do — every private post's media is already on the new, gated storage path."
+          : `Moved ${migrated} private post${migrated === 1 ? "" : "s"}' media to the new storage path.` +
+            (failed > 0 ? ` ${failed} couldn't be moved — safe to run again.` : "")
+      );
+    } catch (err: any) {
+      setMediaMigrateResult(err.message ?? "Couldn't run that.");
+    } finally {
+      setMediaMigrateLoading(false);
     }
   }
 
@@ -182,6 +204,24 @@ export default function AdminUsersPage() {
           className="btn-secondary text-sm px-4 py-2 disabled:opacity-50"
         >
           {backfillLoading ? "Running…" : "Tag older posts as public"}
+        </button>
+      </div>
+
+      <div className="mt-8 pt-6 border-t border-ink/10">
+        <h2 className="font-display text-lg font-semibold mb-2">Move private post media to the gated storage path</h2>
+        <p className="text-sm text-ink/60 mb-4">
+          Private posts made before this fix have their photo/video sitting at a storage path that can't be
+          checked for privacy — the file itself was still publicly fetchable by anyone with the URL, even
+          though the post was marked private. This moves each one to the new path and deletes the old public
+          copy. Public posts aren't touched. Safe to run more than once.
+        </p>
+        {mediaMigrateResult && <p className="text-sm text-ink/70 mb-3">{mediaMigrateResult}</p>}
+        <button
+          onClick={handleMediaMigrate}
+          disabled={mediaMigrateLoading}
+          className="btn-secondary text-sm px-4 py-2 disabled:opacity-50"
+        >
+          {mediaMigrateLoading ? "Running…" : "Move private posts' media"}
         </button>
       </div>
     </div>

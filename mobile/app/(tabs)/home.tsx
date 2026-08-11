@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, TextInput, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { collection, getDocs, query, where, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { db, storage, functions } from "@/lib/firebase";
@@ -116,7 +116,13 @@ export default function HomeScreen() {
     const { uri, type } = pendingMedia;
     const response = await fetch(uri);
     const blob = await response.blob();
-    const path = `posts/${user.uid}/${Date.now()}`;
+    // Pre-generate the post's Firestore doc ID and fold it into the storage path (rather than
+    // a bare timestamp) so storage.rules can look up *this exact post's* visibility before
+    // serving the file — see the posts/{userId}/{postId}/{fileName} match block there. Without
+    // the postId in the path, Storage has no way to know which post a file belongs to, so a
+    // "private" post's media stayed just as publicly fetchable as a public one's.
+    const postRef = doc(collection(db, "posts"));
+    const path = `posts/${user.uid}/${postRef.id}/${Date.now()}`;
     const storageRef = ref(storage, path);
     const task = uploadBytesResumable(storageRef, blob);
 
@@ -125,7 +131,7 @@ export default function HomeScreen() {
     });
     const mediaUrl = await getDownloadURL(storageRef);
 
-    await addDoc(collection(db, "posts"), {
+    await setDoc(postRef, {
       type,
       title: null,
       mediaUrl,
