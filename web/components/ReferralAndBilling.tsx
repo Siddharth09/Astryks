@@ -98,8 +98,13 @@ export default function ReferralAndBilling() {
     setLoading(true);
     setBillingError(null);
     try {
+      // Same fix as SubscriptionBanner.tsx: the stored referral code was never actually being
+      // sent to createCheckoutSession, so referrerUid was always null and the referrer's $50
+      // payout never fired for anyone.
+      const referralCode = localStorage.getItem("astryks_referral_code") || undefined;
       const result = await createCheckoutSession({
         plan,
+        referralCode,
         successUrl: `${location.origin}/me`,
         cancelUrl: `${location.origin}/me`,
       });

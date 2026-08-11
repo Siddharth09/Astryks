@@ -28,6 +28,13 @@ export default function SignupScreen() {
         displayName: name,
         createdAt: serverTimestamp(),
       });
+      // AuthContext's own onAuthStateChanged listener fires the instant createUserWithEmailAndPassword
+      // resolves, with the auth user's displayName still null at that point (updateProfile above
+      // hasn't landed yet) — so without this, it writes users/{uid}.displayName as the fallback
+      // "Member" and that's what shows up in search/profile pages until the next full login,
+      // since profile edits don't re-fire onAuthStateChanged. Set the real name here too so it's
+      // correct immediately.
+      await setDoc(doc(db, "users", cred.user.uid), { displayName: name }, { merge: true });
       router.replace("/(tabs)/home");
     } catch (err: any) {
       setError(err.message);

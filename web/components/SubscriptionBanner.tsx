@@ -35,8 +35,14 @@ export default function SubscriptionBanner() {
     setLoading(true);
     setBillingError(null);
     try {
+      // Without this, a referral code entered via ReferralCodeEntry/ReferralCapture just sat in
+      // localStorage forever — createCheckoutSession was never actually told about it, so
+      // referrerUid was always null and the referrer's $50-after-90-days payout never fired for
+      // anyone, ever. This is what actually wires the two halves of the referral feature together.
+      const referralCode = localStorage.getItem("astryks_referral_code") || undefined;
       const result = await createCheckoutSession({
         plan,
+        referralCode,
         successUrl: `${location.origin}/home`,
         cancelUrl: `${location.origin}/home`,
       });

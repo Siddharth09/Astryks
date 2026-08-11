@@ -1303,7 +1303,31 @@ exports.approvePrizeWinnerAnnouncement = onCall(
 // "Delete my account" button (deleteMyAccount, deletes the caller's own uid) — this is also
 // what App Store/Play Store now require: an in-app path for a user to delete their own
 // account and data, not just an admin-only tool.
-async function deleteAccountInternal(uid, bunnyApiKey) {
+async function deleteAccountInternal(uid, bunnyApiKey, stripeSecretValue) {
+  // Cancel any active Stripe subscription FIRST, before anything else below deletes
+  // users/{uid} (the only place stripeCustomerId is stored). Without this, someone who
+  // deletes their own account keeps being billed by Stripe on schedule — Stripe has no idea
+  // the account is gone — and once users/{uid} is gone there's no record left anywhere to
+  // even notice the still-active subscription. Cancel immediately (not "at period end" like
+  // the self-serve cancel flow), since there's no account left for a period to end for.
+  // Best-effort/non-blocking: a Stripe hiccup shouldn't prevent someone from deleting their
+  // account, but it's logged clearly so it doesn't fail silently.
+  try {
+    const userSnapForStripe = await db.doc(`users/${uid}`).get();
+    const customerId = userSnapForStripe.data()?.stripeCustomerId;
+    if (customerId && stripeSecretValue) {
+      const stripe = Stripe(stripeSecretValue);
+      const subsList = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+      for (const sub of subsList.data) {
+        if (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due") {
+          await stripe.subscriptions.cancel(sub.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`deleteAccountInternal: failed to cancel Stripe subscription for ${uid} — needs manual follow-up in Stripe`, err);
+  }
+
   // Delete all of this user's posts, with the same cleanup deletePost does for each one
   // (this also cleans up that post's own prizePayouts doc — see deletePostInternal).
   const postsSnap = await db.collection("posts").where("ownerId", "==", uid).get();
@@ -1382,7 +1406,7 @@ async function deleteAccountInternal(uid, bunnyApiKey) {
 // ---------- Callable: admin-only — permanently delete a user's account and their content ----------
 
 exports.deleteUserAccount = onCall(
-  { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID] },
+  { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -1406,7 +1430,7 @@ exports.deleteUserAccount = onCall(
       throw new HttpsError("not-found", `No account found for ${email}.`);
     }
 
-    await deleteAccountInternal(targetUser.uid, BUNNY_API_KEY.value());
+    await deleteAccountInternal(targetUser.uid, BUNNY_API_KEY.value(), stripeSecret.value());
     return { ok: true, deletedUid: targetUser.uid };
   }
 );
@@ -1417,11 +1441,11 @@ exports.deleteUserAccount = onCall(
 // create an account in-app must also be able to delete it and their data in-app, without
 // having to email support. Web: called from app/me/page.tsx. Mobile: called from
 // app/(tabs)/me.tsx.
-exports.deleteMyAccount = onCall({ secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID] }, async (request) => {
+exports.deleteMyAccount = onCall({ secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
-  await deleteAccountInternal(request.auth.uid, BUNNY_API_KEY.value());
+  await deleteAccountInternal(request.auth.uid, BUNNY_API_KEY.value(), stripeSecret.value());
   return { ok: true };
 });
 
