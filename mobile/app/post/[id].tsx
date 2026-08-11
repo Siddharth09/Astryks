@@ -165,7 +165,7 @@ export default function PostDetailScreen() {
       </View>
       {post.title ? <Text style={{ fontSize: 20, fontWeight: "700", marginTop: 6, marginBottom: 6 }}>{post.title}</Text> : null}
       <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} />
+        <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} postOwnerId={post.ownerId} />
         <View style={{ marginLeft: "auto" }}>
           <ShareMenu postId={post.id} title={post.title} />
         </View>

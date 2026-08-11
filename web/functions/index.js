@@ -2624,9 +2624,14 @@ exports.onPostCreated = onDocumentCreated("posts/{postId}", async (event) => {
 // directly by the client (a Firestore rule carve-out let anyone set a post's likeCount to
 // whatever they wanted), which meant the real-money Creative Prize leaderboard could be
 // trivially forged. That carve-out has been removed from firestore.rules — likeCount is now
-// derived purely from the actual number of documents in the likes subcollection, maintained
-// here with FieldValue.increment (atomic, and immune to lost updates from concurrent likes).
-
+// derived purely from the actual number of documents in the likes subcollection.
+//
+// Recomputed via a count() aggregation rather than a blind FieldValue.increment(±1): Cloud
+// Functions triggers are "at least once" delivery, so on the rare retry/double-fire, an
+// increment would double-count the same like/unlike forever with no way to detect the drift.
+// A count() read always reflects the true number of like docs regardless of how many times
+// this trigger happens to run for the same event, so it self-corrects instead of drifting —
+// worth the extra read for a number that feeds directly into a real cash payout.
 exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async (event) => {
   const { postId, userId } = event.params;
   const postRef = db.doc(`posts/${postId}`);
@@ -2634,7 +2639,8 @@ exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async
   if (!postSnap.exists) return;
 
   const post = postSnap.data();
-  await postRef.update({ likeCount: admin.firestore.FieldValue.increment(1) });
+  const countSnap = await postRef.collection("likes").count().get();
+  await postRef.update({ likeCount: countSnap.data().count });
 
   if (post.ownerId === userId) return;
 
@@ -2647,7 +2653,9 @@ exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async
 exports.onLikeDeleted = onDocumentDeleted("posts/{postId}/likes/{userId}", async (event) => {
   const { postId } = event.params;
   try {
-    await db.doc(`posts/${postId}`).update({ likeCount: admin.firestore.FieldValue.increment(-1) });
+    const postRef = db.doc(`posts/${postId}`);
+    const countSnap = await postRef.collection("likes").count().get();
+    await postRef.update({ likeCount: countSnap.data().count });
   } catch {
     // Post itself may have already been deleted (e.g. as part of account deletion) — nothing
     // to decrement in that case.

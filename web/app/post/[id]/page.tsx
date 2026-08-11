@@ -153,7 +153,7 @@ export default function PostPage() {
         </div>
         {post.title && <h1 className="font-display text-2xl font-semibold mb-2">{post.title}</h1>}
         <div className="flex items-center gap-4">
-          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} />
+          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} postOwnerId={post.ownerId} />
           <div className="ml-auto">
             <ShareMenu postId={post.id} title={post.title} />
           </div>

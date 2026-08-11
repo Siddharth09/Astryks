@@ -31,7 +31,12 @@ service cloud.firestore {
 
     match /profiles/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Allowlist, not a blanket allow — the client only ever legitimately sets these two
+      // fields (see signup/login). Same reasoning as the users/{userId} allowlist above:
+      // without this, anyone could write arbitrary fields onto their own publicly-readable
+      // profiles doc.
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'createdAt']);
     }
 
     // Home feed + Me tab posts: photos, user videos, and shared links
@@ -47,9 +52,15 @@ service cloud.firestore {
           request.auth.token.email in ['mehta.siddharth09@gmail.com']
         ));
 
+      // likeCount/commentCount must start at 0 (or be omitted) — without this, the *update*
+      // rule's protection below is moot, since anyone could just create a brand-new post with
+      // likeCount already set to whatever they want and instantly top the real-money Creative
+      // Prize leaderboard with zero genuine likes.
       allow create: if request.auth != null
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.type in ['photo', 'video', 'link', 'text'];
+        && request.resource.data.type in ['photo', 'video', 'link', 'text']
+        && (!('likeCount' in request.resource.data) || request.resource.data.likeCount == 0)
+        && (!('commentCount' in request.resource.data) || request.resource.data.commentCount == 0);
 
       // Was also carve-out-able by ANY signed-in user via hasOnly(['likeCount']) /
       // hasOnly(['commentCount']) — that let anyone set a post's likeCount/commentCount to
@@ -69,9 +80,19 @@ service cloud.firestore {
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
+      // The doc ID being the liker's own uid means Firestore itself makes a second like from
+      // the same account structurally impossible — creating over an existing doc ID is an
+      // update, not a create, and there's no update rule here, so it's denied outright.
       match /likes/{userId} {
         allow read: if true;
-        allow create, delete: if request.auth != null && request.auth.uid == userId;
+        // Can't like your own post — without this, liking your own post from your own account
+        // inflates your own real-money Creative Prize likeCount for free. (This can't stop
+        // someone liking their own post from a *different* account they also control — that's
+        // an identity problem no rule can see through — but it closes the free, one-click
+        // version of it.)
+        allow create: if request.auth != null && request.auth.uid == userId
+          && userId != get(/databases/$(database)/documents/posts/$(postId)).data.ownerId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
       }
 
       match /comments/{commentId} {
@@ -124,7 +145,12 @@ service cloud.firestore {
     // Tracks which lessons a user has completed
     match /lessonProgress/{progressId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      // Was create-able directly by the client (only checking uid ownership) — that let anyone
+      // fabricate "completed" lessons they never watched, including enough fake completions to
+      // trigger completeLesson's own "mastered a subject" XP bonus for real. No client code
+      // actually writes here directly (grep confirms it); completeLesson (Admin SDK, bypasses
+      // this rule) is the only legitimate writer, so this can just be denied outright.
+      allow write: if false;
     }
 
     // Follow graph

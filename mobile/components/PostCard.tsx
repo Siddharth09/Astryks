@@ -177,7 +177,7 @@ export default function PostCard({
         </View>
         {post.title ? <Text style={s.title}>{post.title}</Text> : null}
         <View style={s.row}>
-          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={currentUserId} />
+          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={currentUserId} postOwnerId={post.ownerId} />
           <TouchableOpacity onPress={() => router.push(`/post/${post.id}`)}>
             <Text style={s.meta}>💬 {post.commentCount ?? 0}</Text>
           </TouchableOpacity>

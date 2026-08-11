@@ -189,7 +189,7 @@ export default function PostCard({
           </Link>
         )}
         <div className="flex items-center gap-4 text-sm text-ink/50">
-          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={currentUserId} />
+          <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={currentUserId} postOwnerId={post.ownerId} />
           <Link href={`/post/${post.id}`} className="hover:text-ink">
             💬 {post.commentCount ?? 0}
           </Link>
