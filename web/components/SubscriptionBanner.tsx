@@ -47,10 +47,10 @@ export default function SubscriptionBanner() {
           <p className="text-sm font-medium">
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </p>
-          <p className="text-xs text-ink/60">7 days free, then {pricing.display} · cancel anytime</p>
+          <p className="text-xs text-ink/60">{pricing.display} · cancel anytime · 15 min free preview in Learn</p>
         </div>
         <button onClick={() => handleSubscribe("weekly")} disabled={loading} className="btn-primary text-xs px-4 py-2">
-          {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Start free trial"}
+          {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
         </button>
       </div>
       <TrailersSection compact />
@@ -59,7 +59,7 @@ export default function SubscriptionBanner() {
         <button onClick={() => handleSubscribe("annual")} disabled={loading} className="underline">
           save with annual — {pricing.annualDisplay}
         </button>{" "}
-        (also starts with 7 days free) · full refunds within 90 days, no questions asked
+        · full refunds within 90 days, no questions asked
       </p>
     </div>
   );

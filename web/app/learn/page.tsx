@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -12,6 +13,13 @@ import { SubjectsSkeleton } from "@/components/Skeleton";
 
 const completeLessonFn = httpsCallable(functions, "completeLesson");
 const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
+const reportPreviewProgressFn = httpsCallable(functions, "reportPreviewProgress");
+
+function formatMinutesSeconds(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.max(0, totalSeconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
 
@@ -56,11 +64,21 @@ function LearnPageContent() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string } | null>>({});
+  const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string; subjectId: string | null } | null>>({});
   const [playbackLoading, setPlaybackLoading] = useState<string | null>(null);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [justMastered, setJustMastered] = useState<string | null>(null);
+  // Keyed by subjectId (not a single flat number) — each subject gets its OWN 15 minutes, so
+  // Music running out doesn't affect Art. Every value here comes straight from the server's own
+  // count (getLessonPlayback/reportPreviewProgress responses), never computed purely
+  // client-side, so a page refresh or a second tab can't reset it.
+  const [previewRemainingBySubject, setPreviewRemainingBySubject] = useState<Record<string, number>>({});
+  const [playbackError, setPlaybackError] = useState<Record<string, string | null>>({});
+  // Which subject's free preview just ran out — drives the subscribe popup. Separate from
+  // playbackError (which is the small inline message under that specific lesson) so the popup
+  // can appear once, clearly, instead of relying on someone noticing inline text.
+  const [previewExhaustedSubject, setPreviewExhaustedSubject] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -121,21 +139,40 @@ function LearnPageContent() {
   }
 
   async function playLesson(lessonId: string) {
-    if (!subscribed) return;
+    // No subscription gate here anymore — non-subscribers can open a lesson too, they just get
+    // capped at 15 minutes of free preview PER SUBJECT (enforced server-side by
+    // getLessonPlayback, not by anything client-side). Once a subject's allowance is gone, the
+    // callable below throws and we show a paywall popup instead of a player.
     const opening = playingId !== lessonId;
     setPlayingId((prev) => (prev === lessonId ? null : lessonId));
 
     // The actual video credentials aren't in the lesson doc anymore (see functions/index.js —
     // moving them out of the publicly-readable lessons collection is what makes this
-    // subscription check actually mean something, instead of the paywall being purely
+    // subscription/preview check actually mean something, instead of the paywall being purely
     // cosmetic). Fetch them from the gated callable each time a lesson is opened.
     if (opening && !playback[lessonId]) {
       setPlaybackLoading(lessonId);
+      setPlaybackError((prev) => ({ ...prev, [lessonId]: null }));
       try {
         const result = await getLessonPlaybackFn({ lessonId });
-        setPlayback((prev) => ({ ...prev, [lessonId]: result.data as { bunnyVideoId: string; bunnyLibraryId: string } }));
-      } catch {
+        const data = result.data as {
+          bunnyVideoId: string;
+          bunnyLibraryId: string;
+          subjectId: string | null;
+          freePreviewSecondsRemaining: number | null;
+        };
+        setPlayback((prev) => ({ ...prev, [lessonId]: data }));
+        if (data.subjectId && data.freePreviewSecondsRemaining != null) {
+          setPreviewRemainingBySubject((prev) => ({ ...prev, [data.subjectId as string]: data.freePreviewSecondsRemaining as number }));
+        }
+      } catch (err: any) {
         setPlayback((prev) => ({ ...prev, [lessonId]: null }));
+        if (err?.code === "functions/permission-denied" && activeSubject) {
+          setPreviewRemainingBySubject((prev) => ({ ...prev, [activeSubject.id]: 0 }));
+          setPreviewExhaustedSubject({ id: activeSubject.id, name: activeSubject.name });
+        } else {
+          setPlaybackError((prev) => ({ ...prev, [lessonId]: "Couldn't load this video — please try again." }));
+        }
       }
       setPlaybackLoading(null);
     }
@@ -146,6 +183,37 @@ function LearnPageContent() {
       setLessons((prev) => prev.map((l) => (l.id === lessonId ? { ...l, viewCount: (l.viewCount ?? 0) + 1 } : l)));
     }
   }
+
+  // While a non-subscriber has a lesson open, report ~10s of watch time to the server every 10s
+  // so the free-preview allowance is backed by a real counter — see reportPreviewProgress in
+  // functions/index.js. Stops the moment that SUBJECT's allowance hits 0 (pausing playback and
+  // popping up the subscribe prompt) rather than letting the iframe keep playing past the cap.
+  useEffect(() => {
+    const currentSubjectId = playback[playingId ?? ""]?.subjectId as string | undefined;
+    if (!playingId || !currentSubjectId || previewRemainingBySubject[currentSubjectId] == null) return;
+    const interval = setInterval(async () => {
+      try {
+        const result = await reportPreviewProgressFn({ lessonId: playingId, seconds: 10 });
+        const { secondsUsed, secondsAllowed, subjectId } = result.data as {
+          secondsUsed: number;
+          secondsAllowed: number;
+          subjectId: string | null;
+        };
+        if (!subjectId) return;
+        const remaining = secondsAllowed - secondsUsed;
+        setPreviewRemainingBySubject((prev) => ({ ...prev, [subjectId]: remaining }));
+        if (remaining <= 0) {
+          setPlayingId(null);
+          const subject = (subjects ?? []).find((s) => s.id === subjectId);
+          setPreviewExhaustedSubject({ id: subjectId, name: subject?.name || "this subject" });
+        }
+      } catch {
+        // Not fatal — worst case the cap is enforced a little late next time getLessonPlayback
+        // is called, not that it never gets enforced at all.
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [playingId, previewRemainingBySubject, playback, subjects]);
 
   if (authLoading || !user) {
     return <p className="text-ink/50 text-center py-16">Loading…</p>;
@@ -159,6 +227,15 @@ function LearnPageContent() {
           ← Subjects
         </button>
         <SubscriptionBanner />
+        {!subscribed && previewRemainingBySubject[activeSubject.id] != null && (
+          <div className="rounded-xl p-3 mb-4 text-xs flex items-center justify-between" style={{ background: "#FFF6F1" }}>
+            <span className="text-ink/70">
+              {previewRemainingBySubject[activeSubject.id] > 0
+                ? `Free preview of ${activeSubject.name}: ${formatMinutesSeconds(previewRemainingBySubject[activeSubject.id])} left`
+                : `Free preview of ${activeSubject.name} used up`}
+            </span>
+          </div>
+        )}
         {justMastered && (
           <div className="mb-4 rounded-xl p-3 text-sm font-medium text-white text-center" style={{ background: "#E85D5D" }}>
             🏆 You&apos;ve mastered {justMastered}! +50 bonus xp
@@ -277,6 +354,9 @@ function LearnPageContent() {
                     allowFullScreen
                   />
                 )}
+                {playbackError[lesson.id] && (
+                  <p className="text-sm text-red-600 mt-3">{playbackError[lesson.id]}</p>
+                )}
               </div>
             );
           })}
@@ -284,6 +364,42 @@ function LearnPageContent() {
             <p className="text-ink/50 text-sm">No lessons added yet for this subject.</p>
           )}
         </div>
+
+        {/* Subscribe popup — shown the moment a subject's 15-minute free preview runs out,
+            rather than relying on someone noticing a small inline message. Dismissable (closing
+            it doesn't grant more preview time — the allowance is already spent server-side —
+            it just lets someone browse other subjects, each with their own separate allowance,
+            without subscribing yet). */}
+        {previewExhaustedSubject && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(23,19,15,0.5)" }}
+            onClick={() => setPreviewExhaustedSubject(null)}
+          >
+            <div
+              className="bg-white rounded-2xl p-6 max-w-sm w-full text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-3xl mb-3">🔒</p>
+              <h3 className="font-display text-xl font-bold mb-2">
+                That's your free preview of {previewExhaustedSubject.name}
+              </h3>
+              <p className="text-sm text-ink/60 mb-5">
+                You've used your 15 free minutes for {previewExhaustedSubject.name}. Subscribe to keep
+                watching — every subject, every lesson, cancel any time.
+              </p>
+              <Link href="/me" className="btn-primary w-full mb-2">
+                Subscribe
+              </Link>
+              <button
+                onClick={() => setPreviewExhaustedSubject(null)}
+                className="text-xs text-ink/50 underline w-full py-2"
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

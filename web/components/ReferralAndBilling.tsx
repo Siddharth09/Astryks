@@ -176,7 +176,7 @@ export default function ReferralAndBilling() {
                   : `Active — ${pricing.display}`
                 : status === "canceled"
                 ? "Canceled — resubscribe any time"
-                : "Not subscribed — 7 days free to try"}
+                : "Not subscribed — 15 min free preview in Learn"}
             </p>
           </div>
           {status === "active" ? (
@@ -196,7 +196,7 @@ export default function ReferralAndBilling() {
             </div>
           ) : (
             <button onClick={subscribe} disabled={loading} className="btn-primary text-xs px-3 py-2">
-              {status === "canceled" ? "Resubscribe" : "Start free trial"}
+              {status === "canceled" ? "Resubscribe" : "Subscribe"}
             </button>
           )}
         </div>

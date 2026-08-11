@@ -12,7 +12,8 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-          ['subscriptionStatus', 'stripeCustomerId', 'payoutOwed', 'referralCode', 'xp', 'streakCount']
+          ['subscriptionStatus', 'stripeCustomerId', 'payoutOwed', 'referralCode', 'xp', 'streakCount',
+           'canceledAt', 'freePreviewSecondsUsed']
         );
     }
 

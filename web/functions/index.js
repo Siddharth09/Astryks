@@ -567,8 +567,23 @@ exports.backfillLessonPlayback = onCall(async (request) => {
   return { migrated };
 });
 
+// ---------- Free preview: 15 minutes of REAL lesson content per SUBJECT, no card required ----------
+// Deliberately a total watch-time cap, not a day-based trial — a day-based trial (7 days of
+// unrestricted access) lets someone binge the entire library and cancel before ever being
+// charged. A metered allowance doesn't have that failure mode: however long someone takes to use
+// their 15 minutes, once it's gone, it's gone — but the cap resets PER SUBJECT (15 min of Music,
+// separately 15 min of Art, etc.), not one shared pool, so trying a second subject isn't
+// penalized by time already spent on the first. Tracked server-side as
+// users/{uid}.freePreviewSecondsUsed.{subjectId} — see reportPreviewProgress below for how that
+// counter actually gets incremented, and firestore.rules for why a client can't just reset it
+// itself (same protected-fields pattern as subscriptionStatus/xp). The subject is always looked
+// up server-side from the lesson doc's own subjectId, never trusted from the client — otherwise
+// a client could just claim a different fake subjectId on every call and get unlimited preview.
+const FREE_PREVIEW_SECONDS_ALLOWED = 15 * 60;
+
 // Callable: the ONLY legitimate way to get a lesson's actual playback credentials now — gated
-// on an active subscription (or admin), unlike reading them straight off the public lessons doc.
+// on an active subscription, the free preview allowance for that lesson's subject, or admin,
+// unlike reading them straight off the public lessons doc.
 exports.getLessonPlayback = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -578,24 +593,88 @@ exports.getLessonPlayback = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "lessonId is required.");
   }
 
+  // Fetched once up front — used both for the subject-scoped preview check below AND as the
+  // playback-credentials fallback for any lesson not yet migrated to lessonPlayback/{lessonId}.
+  const lessonDocSnap = await db.doc(`lessons/${lessonId}`).get();
+  const subjectId = lessonDocSnap.data()?.subjectId || null;
+
   const isAdmin = ADMIN_EMAILS.includes(request.auth.token.email ?? "");
+  let freePreviewSecondsRemaining = null;
   if (!isAdmin) {
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
-    if (userSnap.data()?.subscriptionStatus !== "active") {
-      throw new HttpsError("permission-denied", "An active subscription is required to watch lessons.");
+    const isActive = userSnap.data()?.subscriptionStatus === "active";
+    if (!isActive) {
+      const usedBySubject = userSnap.data()?.freePreviewSecondsUsed || {};
+      const secondsUsed = (subjectId && usedBySubject[subjectId]) || 0;
+      freePreviewSecondsRemaining = FREE_PREVIEW_SECONDS_ALLOWED - secondsUsed;
+      if (freePreviewSecondsRemaining <= 0) {
+        throw new HttpsError(
+          "permission-denied",
+          "You've used up your 15 minutes of free preview for this subject — subscribe to keep watching."
+        );
+      }
     }
   }
 
   const playbackSnap = await db.doc(`lessonPlayback/${lessonId}`).get();
-  // Fall back to the lesson doc itself for any lesson not yet migrated (shouldn't happen once
-  // backfillLessonPlayback has been run once, but keeps this callable working either way).
-  const lessonSnap = playbackSnap.exists ? null : await db.doc(`lessons/${lessonId}`).get();
-  const data = playbackSnap.exists ? playbackSnap.data() : lessonSnap?.data();
+  const data = playbackSnap.exists ? playbackSnap.data() : lessonDocSnap.data();
 
   if (!data?.bunnyVideoId) {
     throw new HttpsError("not-found", "This lesson doesn't have a video yet.");
   }
-  return { bunnyVideoId: data.bunnyVideoId, bunnyLibraryId: data.bunnyLibraryId };
+  return {
+    bunnyVideoId: data.bunnyVideoId,
+    bunnyLibraryId: data.bunnyLibraryId,
+    subjectId,
+    // null for subscribers/admins (no cap to show); a number of seconds for everyone else.
+    freePreviewSecondsRemaining,
+  };
+});
+
+// Callable: the client calls this every ~10s while a NON-subscriber is actually playing a lesson
+// video, so the free-preview allowance above is backed by a real server-side counter instead of
+// something a client could just ignore. Capped per call (max 30s) so a modified client can't
+// report one giant jump and skip the limit outright — worst case, someone pads a few extra
+// seconds per call, not unlimited free viewing. Silently a no-op for subscribers/admins (nothing
+// to meter), so the client doesn't need to know its own status to call this safely. Takes
+// lessonId (not subjectId) — the subject is always resolved server-side from the lesson doc, so
+// a client can't lie about which subject's allowance it's spending.
+exports.reportPreviewProgress = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const lessonId = request.data?.lessonId;
+  const seconds = Math.max(0, Math.min(30, Number(request.data?.seconds) || 0));
+  if (!lessonId || seconds <= 0) {
+    return { secondsUsed: 0, secondsAllowed: FREE_PREVIEW_SECONDS_ALLOWED, subjectId: null };
+  }
+
+  const lessonSnap = await db.doc(`lessons/${lessonId}`).get();
+  const subjectId = lessonSnap.data()?.subjectId || null;
+  if (!subjectId) {
+    return { secondsUsed: 0, secondsAllowed: FREE_PREVIEW_SECONDS_ALLOWED, subjectId: null };
+  }
+
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+  if (userSnap.data()?.subscriptionStatus === "active") {
+    // Subscribers have nothing to meter — report back as unused so the client never shows a
+    // countdown for someone who doesn't need one.
+    return { secondsUsed: 0, secondsAllowed: FREE_PREVIEW_SECONDS_ALLOWED, subjectId };
+  }
+
+  const fieldPath = `freePreviewSecondsUsed.${subjectId}`;
+  try {
+    await userRef.update({ [fieldPath]: admin.firestore.FieldValue.increment(seconds) });
+  } catch {
+    // users/{uid} doc (or the freePreviewSecondsUsed map on it) doesn't exist yet — update()
+    // requires an existing doc, set()+merge creates whatever's missing.
+    await userRef.set({ freePreviewSecondsUsed: { [subjectId]: seconds } }, { merge: true });
+  }
+  const current = (userSnap.data()?.freePreviewSecondsUsed || {})[subjectId] || 0;
+  const secondsUsed = current + seconds;
+
+  return { secondsUsed, secondsAllowed: FREE_PREVIEW_SECONDS_ALLOWED, subjectId };
 });
 
 // ---------- Callable: delete a post (owner or admin), cleaning up Bunny/Storage too ----------
@@ -1786,20 +1865,17 @@ exports.sendTestWelcomeEmail = onCall(
 // independently without worrying about breaking a shared template). All three are sent
 // automatically — see the trigger comments on each sendX function for exactly what fires them.
 
-function buildSubscriptionConfirmationEmail(displayName, priceDisplay, trialEndDisplay) {
+function buildSubscriptionConfirmationEmail(displayName, priceDisplay) {
   const name = displayName || "there";
-  const subject = trialEndDisplay ? "You're in — your 7 free days start now 🎉" : "You're subscribed — welcome to full access 🎉";
-  const billingLine = trialEndDisplay
-    ? `Your 7-day free trial has started — you have full access to every lesson in the library right now, and you won't be charged anything until ${trialEndDisplay} (${priceDisplay} from then on).`
-    : `You now have full access to every lesson in the library, billed at ${priceDisplay}.`;
+  const subject = "You're subscribed — welcome to full access 🎉";
 
   const text = `Hi ${name},
 
-Thanks for subscribing to Astryks! ${billingLine}
+Thanks for subscribing to Astryks! You now have full access to every lesson in the library, billed at ${priceDisplay}.
 
 A few things worth knowing:
-- Cancel any time from astryks.com/me — no phone calls, no retention pitch, just a button. Cancel during your free trial and you're never charged at all.
-- Once you are billed, you're covered by our 90-day money-back guarantee: if it's not for you, request a full refund within 90 days, no questions asked.
+- Cancel any time from astryks.com/me — no phone calls, no retention pitch, just a button.
+- You're covered by our 90-day money-back guarantee: if it's not for you, request a full refund within 90 days of subscribing, no questions asked.
 - New lessons get added regularly, all included in your subscription.
 
 If anything's unclear or not working right, just reply to this email — a real person reads it.
@@ -1817,7 +1893,7 @@ The Astryks team`;
             <tr>
               <td style="background-color:#DCE6F2;padding:36px 32px 28px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
-                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">${trialEndDisplay ? "Your free trial has started" : "You're subscribed"}</p>
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">You're subscribed</p>
               </td>
             </tr>
             <tr>
@@ -1826,24 +1902,19 @@ The Astryks team`;
                   Hi ${name},
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Thanks for subscribing! ${
-                    trialEndDisplay
-                      ? `Your <strong>7-day free trial</strong> has started — full access to every lesson right now, and you won't be charged until <strong>${trialEndDisplay}</strong> (${priceDisplay} from then on).`
-                      : `You now have full access to every lesson in the library, billed at <strong>${priceDisplay}</strong>.`
-                  }
+                  Thanks for subscribing! You now have full access to every lesson in the library, billed at
+                  <strong>${priceDisplay}</strong>.
                 </p>
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      🔓 Cancel any time from <strong>astryks.com/me</strong> — no phone calls, no retention pitch${
-                        trialEndDisplay ? ", and canceling during your trial means you're never charged" : ""
-                      }.
+                      🔓 Cancel any time from <strong>astryks.com/me</strong> — no phone calls, no retention pitch.
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      💛 Once you're billed, you're covered by our <strong>90-day money-back guarantee</strong> — a
-                      full refund, no questions asked.
+                      💛 You're covered by our <strong>90-day money-back guarantee</strong> — a full refund, no
+                      questions asked, any time within 90 days of subscribing.
                     </td>
                   </tr>
                   <tr>
@@ -2028,8 +2099,8 @@ You signed up a couple of days ago — welcome again! We noticed you haven't sta
 here's a nudge in case you weren't sure where to begin.
 
 Astryks has lessons across Music, Art, and more, taught by people who actually do this for a living.
-You can preview lessons for free before deciding whether to subscribe, so there's no pressure — just
-pick whatever looks interesting and see how it feels.
+You get 15 minutes of free preview across any real lessons — no card required — so there's no
+pressure, just pick whatever looks interesting and see how it feels.
 
 Head to astryks.com/learn whenever you've got a few minutes.
 
@@ -2060,8 +2131,8 @@ The Astryks team`;
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Astryks has lessons across Music, Art, and more, taught by people who actually do this
-                  for a living. You can preview lessons for free before deciding whether to subscribe —
-                  no pressure, just pick whatever looks interesting.
+                  for a living. You get <strong>15 minutes of free preview</strong> across any real lessons —
+                  no card required — so there's no pressure, just pick whatever looks interesting.
                 </p>
                 <div style="text-align:center;margin:4px 0 8px;">
                   <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
@@ -2100,9 +2171,10 @@ You've been exploring Astryks for a few days now, so we thought it's worth spell
 what subscribing gets you, in case anything was unclear:
 
 - Every lesson in the library, across every subject, for ${priceDisplay}.
-- A 7-day free trial — you won't be charged a cent until day 7, and you can cancel any time before
-  then with nothing on your card.
-- After that, a 90-day money-back guarantee — a full refund, no questions asked, if it's not for you.
+- Not sure yet? You get 15 minutes of free preview across any real lessons — no card required —
+  so you can get an actual feel for it before deciding.
+- A 90-day money-back guarantee once you do subscribe — a full refund, no questions asked, if
+  it's not for you.
 - Cancelling later takes one click from astryks.com/me, any time, no calls or forms.
 
 No pressure either way — posting, browsing, and the monthly Creative Prize all stay free forever,
@@ -2143,12 +2215,12 @@ The Astryks team`;
                   </tr>
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      🎁 A <strong>7-day free trial</strong> — nothing charged until day 7, cancel free any time before then.
+                      🎁 <strong>15 minutes of free preview</strong> across any real lessons — no card required.
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      💛 After that, a <strong>90-day money-back guarantee</strong> — no questions asked.
+                      💛 Once you subscribe, a <strong>90-day money-back guarantee</strong> — no questions asked.
                     </td>
                   </tr>
                   <tr>
@@ -2159,7 +2231,7 @@ The Astryks team`;
                 </table>
                 <div style="text-align:center;margin:4px 0 8px;">
                   <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
-                    Start your free trial
+                    Get free preview
                   </a>
                 </div>
               </td>
@@ -2263,9 +2335,8 @@ function buildWinBackEmail(displayName) {
   const text = `Hi ${name},
 
 It's been a few weeks since your Astryks subscription ended, and we genuinely hope it was useful
-while it lasted. New lessons have gone up since then, and if you resubscribe, you'll get another
-7-day free trial plus the same 90-day money-back guarantee — so there's no risk in giving it
-another look.
+while it lasted. New lessons have gone up since then, and if you resubscribe, the same 90-day
+money-back guarantee applies — so there's no risk in giving it another look.
 
 Your account, posts, and Creative Prize entries are all exactly as you left them, whether or not
 you come back.
@@ -2298,9 +2369,9 @@ The Astryks team`;
                   was useful while it lasted. New lessons have gone up since then.
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  If you resubscribe, you'll get another <strong>7-day free trial</strong> plus the same
-                  <strong>90-day money-back guarantee</strong> — so there's no risk in giving it another look.
-                  Your account, posts, and Creative Prize entries are all exactly as you left them either way.
+                  If you resubscribe, the same <strong>90-day money-back guarantee</strong> applies — so there's
+                  no risk in giving it another look. Your account, posts, and Creative Prize entries are all
+                  exactly as you left them either way.
                 </p>
                 <div style="text-align:center;margin:4px 0 8px;">
                   <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
@@ -2602,12 +2673,11 @@ exports.validateReferralCode = onCall(async (request) => {
 
 // ---------- Callable: start a Stripe Checkout session (subscribe) ----------
 
-// 7 days free before the first charge — lets someone try a full lesson (or several) before
-// committing a card, closing the biggest gap vs. MasterClass's own free-preview-then-trial
-// flow. Applies to both plans below; someone who cancels during these 7 days is never charged
-// at all (Stripe handles that automatically — no separate refund needed for a trial cancel).
-const SUBSCRIPTION_TRIAL_DAYS = 7;
-
+// No Stripe trial here on purpose — the "try before you buy" mechanic is the free preview
+// (FREE_PREVIEW_SECONDS_ALLOWED, see getLessonPlayback/reportPreviewProgress below) instead: a
+// capped 15 minutes of REAL lesson content, no card required. A day-based Stripe trial would let
+// someone binge the entire library in the free window and cancel before ever being charged —
+// a time-boxed watch allowance doesn't have that failure mode.
 exports.createCheckoutSession = onCall(
   { secrets: [stripeSecret, stripePriceId, stripeAnnualPriceId] },
   async (request) => {
@@ -2647,7 +2717,6 @@ exports.createCheckoutSession = onCall(
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
       discounts,
-      subscription_data: { trial_period_days: SUBSCRIPTION_TRIAL_DAYS },
       client_reference_id: uid,
       metadata: { uid, referrerUid: referrerUid || "", plan },
       success_url: safeRedirectUrl(request.data?.successUrl, "/home"),
@@ -3254,34 +3323,19 @@ exports.stripeWebhook = onRequest(
         });
       }
 
-      // Automatic "thanks for subscribing" email — fires the moment checkout completes. With
-      // the 7-day trial, session.amount_total is 0 at this point (nothing's been charged yet),
-      // so it's no longer a usable source for "what will I be billed" — read the real recurring
-      // price straight off the subscription's line item instead, which is correct whether
-      // they're in a trial or not, and also surface the actual first-charge date from
-      // sub.trial_end so the email never has to guess or say something vague.
+      // Automatic "thanks for subscribing" email — fires the moment Stripe confirms the first
+      // payment, using the actual charged amount/currency (session.amount_total/currency) rather
+      // than the client-side geo-guessed price, so the number in the email always matches what
+      // was really billed (including any referral discount applied at checkout). The interval
+      // label (/week vs /year) comes from the plan we stashed in session.metadata at checkout.
       try {
         const email = session.customer_details?.email;
         if (email) {
-          let priceDisplay = "your subscription price";
-          let trialEndDisplay = null;
-          try {
-            const sub = await stripe.subscriptions.retrieve(session.subscription);
-            const item = sub.items?.data?.[0];
-            if (item?.price?.unit_amount != null) {
-              const interval = item.price.recurring?.interval === "year" ? "year" : "week";
-              priceDisplay = `${formatCents(item.price.unit_amount, item.price.currency || subscriptionCurrency || "usd")}/${interval}`;
-            }
-            if (sub.trial_end) {
-              trialEndDisplay = new Date(sub.trial_end * 1000).toLocaleDateString("en-AU", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              });
-            }
-          } catch (err) {
-            console.error("stripeWebhook: couldn't read subscription price for confirmation email", uid, err);
-          }
+          const interval = session.metadata?.plan === "annual" ? "year" : "week";
+          const priceDisplay =
+            session.amount_total != null
+              ? `${formatCents(session.amount_total, subscriptionCurrency || "usd")}/${interval}`
+              : "your subscription price";
           let displayName = session.customer_details?.name || "there";
           try {
             const userRecord = await admin.auth().getUser(uid);
@@ -3289,7 +3343,7 @@ exports.stripeWebhook = onRequest(
           } catch {
             // Fall back to the name Stripe collected at checkout — not fatal either way.
           }
-          await sendBrandedEmail(email, buildSubscriptionConfirmationEmail(displayName, priceDisplay, trialEndDisplay));
+          await sendBrandedEmail(email, buildSubscriptionConfirmationEmail(displayName, priceDisplay));
         }
       } catch (err) {
         console.error("stripeWebhook: failed to send subscription confirmation email", uid, err);
