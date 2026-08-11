@@ -199,7 +199,13 @@ export default function MeScreen() {
     try {
       const response = await fetch(mediaAsset.uri);
       const blob = await response.blob();
-      const path = `posts/${user.uid}/${Date.now()}`;
+      // Same fix as home.tsx: the postId has to be embedded in the storage path *before*
+      // upload, not after, so storage.rules' postIsPrivate() check has something to look up.
+      // This upload path used to write to the old flat posts/{uid}/{fileName} layout, which
+      // storage.rules keeps world-readable for backward compatibility — so a post marked
+      // "Private" here still had a fully public, unauthenticated file URL underneath it.
+      const postRef = doc(collection(db, "posts"));
+      const path = `posts/${user.uid}/${postRef.id}/${Date.now()}`;
       const storageRef = ref(storage, path);
       await new Promise<void>((resolve, reject) => {
         const task = uploadBytesResumable(storageRef, blob);
@@ -207,7 +213,7 @@ export default function MeScreen() {
       });
       const mediaUrl = await getDownloadURL(storageRef);
 
-      await addDoc(collection(db, "posts"), {
+      await setDoc(postRef, {
         type: mediaAsset.type,
         title: mediaTitle || null,
         mediaUrl,

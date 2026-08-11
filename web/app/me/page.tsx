@@ -196,7 +196,13 @@ export default function MePage() {
     setMediaError(null);
     try {
       const type = mediaFile.type.startsWith("video") ? "video" : "photo";
-      const path = `posts/${user.uid}/${crypto.randomUUID()}-${mediaFile.name}`;
+      // Same fix as ShareComposer.tsx: the postId has to be embedded in the storage path
+      // *before* upload, not after, so storage.rules' postIsPrivate() check has something to
+      // look up. This upload path used to write to the old flat posts/{uid}/{fileName} layout,
+      // which storage.rules keeps world-readable for backward compatibility — so a post marked
+      // "Private" here still had a fully public, unauthenticated file URL underneath it.
+      const postRef = doc(collection(db, "posts"));
+      const path = `posts/${user.uid}/${postRef.id}/${crypto.randomUUID()}-${mediaFile.name}`;
       const storageRef = ref(storage, path);
       await new Promise<void>((resolve, reject) => {
         const task = uploadBytesResumable(storageRef, mediaFile);
@@ -204,7 +210,7 @@ export default function MePage() {
       });
       const mediaUrl = await getDownloadURL(storageRef);
 
-      await addDoc(collection(db, "posts"), {
+      await setDoc(postRef, {
         type,
         title: mediaTitle || null,
         mediaUrl,
