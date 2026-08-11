@@ -19,6 +19,28 @@ import { colors } from "@/lib/styles";
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const getFeed = httpsCallable(functions, "getFeed");
 
+// Same public/private choice for every post type (text, link, photo/video) — shared here since
+// it's now shown in three different composer steps below instead of duplicating the same
+// buttons three times.
+function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsPublic: (v: boolean) => void }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      <TouchableOpacity
+        onPress={() => setIsPublic(true)}
+        style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: isPublic ? colors.ink : "white", borderWidth: isPublic ? 0 : 1, borderColor: colors.line }}
+      >
+        <Text style={{ color: isPublic ? "white" : colors.ink, fontSize: 12, fontWeight: "600" }}>🌍 Public</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setIsPublic(false)}
+        style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: !isPublic ? colors.ink : "white", borderWidth: !isPublic ? 0 : 1, borderColor: colors.line }}
+      >
+        <Text style={{ color: !isPublic ? "white" : colors.ink, fontSize: 12, fontWeight: "600" }}>🔒 Private</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
   const [allPosts, setAllPosts] = useState<any[] | null>(null);
@@ -26,6 +48,12 @@ export default function HomeScreen() {
   const [scope, setScope] = useState<"everyone" | "following">("everyone");
   const [linkInput, setLinkInput] = useState<string | null>(null);
   const [textInput, setTextInput] = useState<string | null>(null);
+  // A picked-but-not-yet-posted photo/video, waiting on the public/private choice below before
+  // it actually uploads — previously shareMedia() uploaded and posted the instant something was
+  // picked, with no chance to choose visibility at all (unlike web, which always showed this
+  // choice for photo/video posts).
+  const [pendingMedia, setPendingMedia] = useState<{ uri: string; type: "photo" | "video" } | null>(null);
+  const [isPublic, setIsPublic] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,16 +100,21 @@ export default function HomeScreen() {
     })();
   }, [scope, allPosts, user]);
 
-  async function shareMedia() {
+  async function pickMedia() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 1,
     });
     if (result.canceled || !user) return;
-
     const asset = result.assets[0];
-    const type = asset.type === "video" ? "video" : "photo";
-    const response = await fetch(asset.uri);
+    setPendingMedia({ uri: asset.uri, type: asset.type === "video" ? "video" : "photo" });
+    setIsPublic(true);
+  }
+
+  async function postMedia() {
+    if (!pendingMedia || !user) return;
+    const { uri, type } = pendingMedia;
+    const response = await fetch(uri);
     const blob = await response.blob();
     const path = `posts/${user.uid}/${Date.now()}`;
     const storageRef = ref(storage, path);
@@ -97,13 +130,14 @@ export default function HomeScreen() {
       title: null,
       mediaUrl,
       mediaPath: path,
-      visibility: "public",
+      visibility: isPublic ? "public" : "private",
       ownerId: user.uid,
       ownerName: user.displayName ?? "Member",
       createdAt: serverTimestamp(),
       likeCount: 0,
       commentCount: 0,
     });
+    setPendingMedia(null);
     load();
   }
 
@@ -112,6 +146,7 @@ export default function HomeScreen() {
     await addDoc(collection(db, "posts"), {
       type: "text",
       body: textInput,
+      visibility: isPublic ? "public" : "private",
       ownerId: user.uid,
       ownerName: user.displayName ?? "Member",
       createdAt: serverTimestamp(),
@@ -133,6 +168,7 @@ export default function HomeScreen() {
       linkTitle: preview.title,
       linkImage: preview.image,
       linkDomain: preview.domain,
+      visibility: isPublic ? "public" : "private",
       ownerId: user.uid,
       ownerName: user.displayName ?? "Member",
       createdAt: serverTimestamp(),
@@ -197,6 +233,7 @@ export default function HomeScreen() {
             multiline
             autoFocus
           />
+          <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity onPress={() => setTextInput(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
@@ -207,19 +244,37 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : linkInput !== null ? (
-        <View style={{ flexDirection: "row", gap: 8, padding: 12 }}>
-          <TextInput
-            style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, backgroundColor: "white" }}
-            placeholder="Paste a link"
-            value={linkInput}
-            onChangeText={setLinkInput}
-          />
-          <TouchableOpacity onPress={() => setLinkInput(null)} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
-            <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={shareLink} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" }}>
-            <Text style={{ color: "white", fontWeight: "600" }}>Share</Text>
-          </TouchableOpacity>
+        <View style={{ padding: 12, gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, backgroundColor: "white" }}
+              placeholder="Paste a link"
+              value={linkInput}
+              onChangeText={setLinkInput}
+            />
+            <TouchableOpacity onPress={() => setLinkInput(null)} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
+              <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={shareLink} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" }}>
+              <Text style={{ color: "white", fontWeight: "600" }}>Share</Text>
+            </TouchableOpacity>
+          </View>
+          <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
+        </View>
+      ) : pendingMedia !== null ? (
+        <View style={{ padding: 12, gap: 8 }}>
+          <Text style={{ fontSize: 13, color: colors.muted }}>
+            {pendingMedia.type === "video" ? "🎥 Video ready to post" : "🖼️ Photo ready to post"}
+          </Text>
+          <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity onPress={() => setPendingMedia(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
+              <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={postMedia} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
+              <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <View
@@ -228,7 +283,7 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={() => setTextInput("")} style={{ flex: 1 }}>
             <Text style={{ color: colors.muted, fontSize: 13 }}>Share something…</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={shareMedia}><Text style={{ fontSize: 16 }}>📷</Text></TouchableOpacity>
+          <TouchableOpacity onPress={pickMedia}><Text style={{ fontSize: 16 }}>📷</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setLinkInput("")}><Text style={{ fontSize: 16 }}>🔗</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setPrizeInfoOpen(true)} accessibilityLabel="About the creative prize">
             <Text style={{ fontSize: 16 }}>🏆</Text>

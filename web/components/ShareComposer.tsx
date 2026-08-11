@@ -35,6 +35,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
       await addDoc(collection(db, "posts"), {
         type: "text",
         body,
+        visibility: isPublic ? "public" : "private",
         ownerId: user.uid,
         ownerName: user.displayName ?? "Member",
         createdAt: serverTimestamp(),
@@ -104,6 +105,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
         linkTitle: preview.title,
         linkImage: preview.image,
         linkDomain: preview.domain,
+        visibility: isPublic ? "public" : "private",
         ownerId: user.uid,
         ownerName: user.displayName ?? "Member",
         createdAt: serverTimestamp(),
@@ -157,6 +159,29 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
     );
   }
 
+  // Same public/private choice for every post type — this used to only exist for photo/video
+  // posts, which meant a text post or a shared link could never be made private no matter what
+  // someone picked (there was nothing to pick), even though the backend (firestore.rules) has
+  // always supported a private posts/{postId}.visibility value for any post type.
+  const visibilityToggle = (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => setIsPublic(true)}
+        className={isPublic ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}
+      >
+        🌍 Public
+      </button>
+      <button
+        type="button"
+        onClick={() => setIsPublic(false)}
+        className={!isPublic ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}
+      >
+        🔒 Private
+      </button>
+    </div>
+  );
+
   return (
     <div className="card p-4 mb-4">
       <PrizeInfoModal open={prizeInfoOpen} onClose={() => setPrizeInfoOpen(false)} generic />
@@ -169,6 +194,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
             onChange={(e) => setBody(e.target.value)}
             autoFocus
           />
+          {visibilityToggle}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={reset} className="btn-secondary flex-1">Cancel</button>
@@ -193,20 +219,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
           >
             🏆 This could win the AU$1,000 creative prize — learn how
           </button>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsPublic(true)}
-              className={isPublic ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}
-            >
-              🌍 Public
-            </button>
-            <button
-              onClick={() => setIsPublic(false)}
-              className={!isPublic ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}
-            >
-              🔒 Private
-            </button>
-          </div>
+          {visibilityToggle}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={reset} className="btn-secondary flex-1">Cancel</button>
@@ -223,6 +236,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
           />
+          {visibilityToggle}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={reset} className="btn-secondary flex-1">Cancel</button>

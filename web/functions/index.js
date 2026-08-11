@@ -11,6 +11,12 @@ const db = admin.firestore();
 
 const BUNNY_API_KEY = defineSecret("BUNNY_API_KEY");
 const BUNNY_LIBRARY_ID = defineSecret("BUNNY_LIBRARY_ID");
+// Declared here (rather than down by the other Stripe secrets, where it originally lived)
+// because deleteUserAccount/deleteMyAccount reference it in their onCall({ secrets: [...] })
+// config objects, which run immediately at module load — declaring it later as a `const` meant
+// this line ran before that declaration executed, throwing "Cannot access 'stripeSecret' before
+// initialization" and crashing the entire functions deploy, not just these two functions.
+const stripeSecret = defineSecret("STRIPE_SECRET_KEY");
 
 // Update with the email(s) allowed to do admin-only things: delete anyone's post,
 // upload lessons/trailers.
@@ -2613,7 +2619,6 @@ exports.onMessageCreated = onDocumentCreated(
 );
 
 const Stripe = require("stripe");
-const stripeSecret = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 const stripePriceId = defineSecret("STRIPE_PRICE_ID");
 // A second, separate recurring Price on the SAME Stripe Product as STRIPE_PRICE_ID, just with

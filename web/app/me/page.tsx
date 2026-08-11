@@ -354,8 +354,8 @@ export default function MePage() {
             <p className="font-medium mb-1">Permanently delete your account?</p>
             <p className="mb-3">
               This deletes your posts, saved items, lesson progress, and login — it can't be undone.
-              {" "}If you have an active subscription, cancel it separately first (this doesn't stop
-              billing on its own).
+              {" "}If you have an active Stripe subscription, it's canceled automatically as part of
+              deleting your account, so you won't be billed again.
             </p>
             {deleteError && <p className="text-red-700 mb-2">{deleteError}</p>}
             <div className="flex gap-2">

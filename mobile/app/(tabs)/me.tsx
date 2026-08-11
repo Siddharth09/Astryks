@@ -341,9 +341,10 @@ export default function MeScreen() {
             Permanently delete your account?
           </Text>
           <Text style={{ fontSize: 12, color: "#7F1D1D", marginBottom: 10 }}>
-            This deletes your posts, saved items, lesson progress, and login — it can't be undone. If
-            you have an active subscription, cancel it separately first (this doesn't stop billing on
-            its own).
+            This deletes your posts, saved items, lesson progress, and login — it can't be undone.
+            {"\n\n"}Mobile subscriptions go through Apple/Google, not Astryks directly, so this can't
+            cancel them for you — cancel first in your iPhone/Android subscription settings, or you'll
+            keep being charged even after your account is gone.
           </Text>
           {deleteError && <Text style={{ fontSize: 12, color: "#B91C1C", marginBottom: 8 }}>{deleteError}</Text>}
           <View style={{ flexDirection: "row", gap: 8 }}>
