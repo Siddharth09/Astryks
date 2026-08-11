@@ -36,7 +36,7 @@ export default function SaveButton({ postId, currentUserId }: { postId: string; 
 
   return (
     <TouchableOpacity onPress={toggle} disabled={!checked || !currentUserId}>
-      <Text style={{ fontSize: 15 }}>{saved ? "🔖" : "📑"}</Text>
+      <Text style={{ fontSize: 17 }}>{saved ? "🔖" : "📑"}</Text>
     </TouchableOpacity>
   );
 }

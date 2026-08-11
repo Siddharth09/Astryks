@@ -34,7 +34,7 @@ export default function TrailersSection({ compact = false }: { compact?: boolean
 
   return (
     <View style={{ marginHorizontal: compact ? 0 : 16, marginTop: compact ? 10 : 0, marginBottom: compact ? 0 : 16 }}>
-      {!compact && <Text style={{ fontSize: 13, fontWeight: "600", marginBottom: 8 }}>Watch a trailer</Text>}
+      {!compact && <Text style={{ fontSize: 15, fontWeight: "600", marginBottom: 8 }}>Watch a trailer</Text>}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {trailers.map((t) => {
           const style = SUBJECT_STYLE[t.subjectTag] ?? SUBJECT_STYLE.music;
@@ -71,9 +71,9 @@ export default function TrailersSection({ compact = false }: { compact?: boolean
               )}
               <View style={{ padding: 10 }}>
                 <View style={{ alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: style.tagBg, marginBottom: 4 }}>
-                  <Text style={{ fontSize: 10, fontWeight: "600", color: style.tagText }}>{style.label}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: style.tagText }}>{style.label}</Text>
                 </View>
-                <Text numberOfLines={2} style={{ fontSize: 12, fontWeight: "600", color: colors.ink }}>
+                <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: "600", color: colors.ink }}>
                   {t.title}
                 </Text>
               </View>

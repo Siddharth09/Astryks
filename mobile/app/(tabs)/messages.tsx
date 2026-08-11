@@ -81,14 +81,14 @@ export default function MessagesScreen() {
         <Text style={{ fontSize: 20, fontWeight: "700" }}>Messages</Text>
         {showSearch ? (
           <TouchableOpacity onPress={() => setShowSearch(false)}>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+            <Text style={{ color: colors.muted, fontSize: 15 }}>Cancel</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             onPress={openSearch}
             style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
           >
-            <Text style={{ fontSize: 12 }}>+ New message</Text>
+            <Text style={{ fontSize: 14 }}>+ New message</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -100,7 +100,7 @@ export default function MessagesScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search people by name…"
-            style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 12 }}
+            style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, marginBottom: 12 }}
           />
           <FlatList
             data={matches.slice(0, 30)}
@@ -125,8 +125,8 @@ export default function MessagesScreen() {
                     <Text style={{ color: "white", fontWeight: "600" }}>{(item.displayName ?? "M")[0]}</Text>
                   </View>
                 )}
-                <Text style={{ fontWeight: "600", fontSize: 14 }}>{item.displayName ?? "Member"}</Text>
-                {starting === item.id && <Text style={{ marginLeft: "auto", color: colors.muted, fontSize: 12 }}>Opening…</Text>}
+                <Text style={{ fontWeight: "600", fontSize: 16 }}>{item.displayName ?? "Member"}</Text>
+                {starting === item.id && <Text style={{ marginLeft: "auto", color: colors.muted, fontSize: 14 }}>Opening…</Text>}
               </TouchableOpacity>
             )}
           />
@@ -139,7 +139,7 @@ export default function MessagesScreen() {
           ListHeaderComponent={
             suggestions !== null && suggestions.length > 0 ? (
               <View style={{ marginBottom: 18 }}>
-                <Text style={{ fontSize: 13, fontWeight: "600", marginBottom: 8 }}>✨ People you may want to message</Text>
+                <Text style={{ fontSize: 15, fontWeight: "600", marginBottom: 8 }}>✨ People you may want to message</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {suggestions.map((s) => {
                     const topSubject = s.sharedSubjects?.[0];
@@ -157,13 +157,13 @@ export default function MessagesScreen() {
                             <Text style={{ color: "white", fontWeight: "600" }}>{(s.displayName ?? "M")[0]}</Text>
                           </View>
                         )}
-                        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600" }}>{s.displayName ?? "Member"}</Text>
-                        <Text numberOfLines={2} style={{ fontSize: 10, color: colors.muted, textAlign: "center" }}>
+                        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "600" }}>{s.displayName ?? "Member"}</Text>
+                        <Text numberOfLines={2} style={{ fontSize: 12, color: colors.muted, textAlign: "center" }}>
                           {topSubject
                             ? `${SUBJECT_ICONS[topSubject] ?? "⭐"} Also learning ${SUBJECT_NAMES[topSubject] ?? topSubject}`
                             : "Suggested for you"}
                         </Text>
-                        {starting === s.id && <Text style={{ fontSize: 10, color: colors.muted }}>Opening…</Text>}
+                        {starting === s.id && <Text style={{ fontSize: 12, color: colors.muted }}>Opening…</Text>}
                       </TouchableOpacity>
                     );
                   })}
@@ -188,8 +188,8 @@ export default function MessagesScreen() {
                   <Text style={{ color: "white", fontWeight: "600" }}>{otherName[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: "600", fontSize: 14 }}>{otherName}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{item.lastMessage}</Text>
+                  <Text style={{ fontWeight: "600", fontSize: 16 }}>{otherName}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>{item.lastMessage}</Text>
                 </View>
               </TouchableOpacity>
             );

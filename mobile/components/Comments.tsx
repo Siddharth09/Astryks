@@ -47,15 +47,15 @@ export default function Comments({ postId, initialComments }: { postId: string; 
   return (
     <View style={{ marginTop: 20 }}>
       <Text style={{ fontWeight: "600", marginBottom: 10 }}>Comments</Text>
-      {comments.length === 0 && <Text style={{ color: colors.muted, fontSize: 13 }}>No comments yet.</Text>}
+      {comments.length === 0 && <Text style={{ color: colors.muted, fontSize: 15 }}>No comments yet.</Text>}
       {comments.map((c) => (
         <View key={c.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-          <Text style={{ fontSize: 13, flex: 1 }}>
+          <Text style={{ fontSize: 15, flex: 1 }}>
             <Text style={{ fontWeight: "600" }}>{c.userName}</Text> <Text>{c.body}</Text>
           </Text>
           {user && user.uid !== c.userId && (
             <TouchableOpacity onPress={() => setReportingComment({ id: c.id, userId: c.userId })}>
-              <Text style={{ fontSize: 11, color: colors.muted }}>Report</Text>
+              <Text style={{ fontSize: 13, color: colors.muted }}>Report</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -68,7 +68,7 @@ export default function Comments({ postId, initialComments }: { postId: string; 
           </TouchableOpacity>
         </View>
       ) : (
-        <Text style={{ color: colors.muted, fontSize: 13 }}>Log in to comment.</Text>
+        <Text style={{ color: colors.muted, fontSize: 15 }}>Log in to comment.</Text>
       )}
       <ReportModal
         visible={reportingComment !== null}

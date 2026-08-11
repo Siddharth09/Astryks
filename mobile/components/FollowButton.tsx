@@ -57,7 +57,7 @@ export default function FollowButton({
         style,
       ]}
     >
-      <Text style={[{ fontSize: 10, color: following ? "#666" : "white" }, textStyle]}>
+      <Text style={[{ fontSize: 12, color: following ? "#666" : "white" }, textStyle]}>
         {following ? "Following" : "Follow"}
       </Text>
     </TouchableOpacity>

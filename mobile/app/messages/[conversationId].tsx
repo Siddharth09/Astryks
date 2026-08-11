@@ -90,7 +90,7 @@ export default function ChatThreadScreen() {
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Text style={{ fontSize: 20 }}>←</Text>
-        <Text style={{ fontSize: 15, color: colors.ink }}>Back</Text>
+        <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
       </TouchableOpacity>
       <FlatList
         ref={listRef}
@@ -109,18 +109,18 @@ export default function ChatThreadScreen() {
               paddingVertical: 8,
             }}
           >
-            <Text style={{ color: item.senderId === user?.uid ? "white" : colors.ink, fontSize: 14 }}>{item.text}</Text>
+            <Text style={{ color: item.senderId === user?.uid ? "white" : colors.ink, fontSize: 16 }}>{item.text}</Text>
             {item.type === "prizeNomination" && item.senderId !== user?.uid && item.postId && (
               <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.line, gap: 8 }}>
                 {optOutState[item.id] === "done" || item.prizeOptOutHandled ? (
-                  <Text style={{ fontSize: 12, color: colors.muted }}>You've opted this post out.</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>You've opted this post out.</Text>
                 ) : (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
                     <TouchableOpacity
                       onPress={() => handleOptOut(item.id, item.postId)}
                       disabled={optOutState[item.id] === "loading"}
                     >
-                      <Text style={{ fontSize: 12, color: colors.ink, textDecorationLine: "underline", opacity: optOutState[item.id] === "loading" ? 0.5 : 1 }}>
+                      <Text style={{ fontSize: 14, color: colors.ink, textDecorationLine: "underline", opacity: optOutState[item.id] === "loading" ? 0.5 : 1 }}>
                         {optOutState[item.id] === "loading" ? "Opting out…" : "Opt out of this nomination"}
                       </Text>
                     </TouchableOpacity>
@@ -128,7 +128,7 @@ export default function ChatThreadScreen() {
                       <TouchableOpacity
                         onPress={() => setPayoutOpen((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
                       >
-                        <Text style={{ fontSize: 12, color: colors.ink, textDecorationLine: "underline" }}>
+                        <Text style={{ fontSize: 14, color: colors.ink, textDecorationLine: "underline" }}>
                           {payoutOpen[item.id] ? "Cancel" : "Share payout details"}
                         </Text>
                       </TouchableOpacity>
@@ -137,7 +137,7 @@ export default function ChatThreadScreen() {
                 )}
 
                 {payoutState[item.id] === "done" && (
-                  <Text style={{ fontSize: 12, color: colors.muted }}>Payout details saved — thanks!</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>Payout details saved — thanks!</Text>
                 )}
 
                 {payoutOpen[item.id] && payoutState[item.id] !== "done" && (
@@ -156,7 +156,7 @@ export default function ChatThreadScreen() {
                             borderColor: colors.line,
                           }}
                         >
-                          <Text style={{ fontSize: 11, color: (payoutMethod[item.id] ?? "bank") === m ? "white" : colors.ink }}>
+                          <Text style={{ fontSize: 13, color: (payoutMethod[item.id] ?? "bank") === m ? "white" : colors.ink }}>
                             {m === "bank" ? "Bank transfer" : "PayID"}
                           </Text>
                         </TouchableOpacity>
@@ -177,7 +177,7 @@ export default function ChatThreadScreen() {
                         paddingHorizontal: 10,
                         paddingVertical: 8,
                         backgroundColor: "white",
-                        fontSize: 12,
+                        fontSize: 14,
                       }}
                     />
                     <TouchableOpacity
@@ -191,7 +191,7 @@ export default function ChatThreadScreen() {
                         opacity: payoutState[item.id] === "loading" || !(payoutDetails[item.id] ?? "").trim() ? 0.5 : 1,
                       }}
                     >
-                      <Text style={{ fontSize: 12, color: "white", fontWeight: "600" }}>
+                      <Text style={{ fontSize: 14, color: "white", fontWeight: "600" }}>
                         {payoutState[item.id] === "loading" ? "Saving…" : "Save payout details"}
                       </Text>
                     </TouchableOpacity>
@@ -223,7 +223,7 @@ export default function ChatThreadScreen() {
             paddingHorizontal: 16,
             paddingVertical: 10,
             backgroundColor: "white",
-            fontSize: 15,
+            fontSize: 17,
             minHeight: 44,
             maxHeight: 120,
           }}

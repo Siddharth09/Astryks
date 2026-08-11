@@ -87,7 +87,7 @@ export default function UserProfileScreen() {
       style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
     >
       <Text style={{ fontSize: 20 }}>←</Text>
-      <Text style={{ fontSize: 15, color: colors.ink }}>Back</Text>
+      <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
     </TouchableOpacity>
   );
 
@@ -127,15 +127,15 @@ export default function UserProfileScreen() {
         <View style={{ flex: 1, flexDirection: "row", justifyContent: "space-around" }}>
           <View style={{ alignItems: "center" }}>
             <Text style={{ fontSize: 17, fontWeight: "700" }}>{posts.length}</Text>
-            <Text style={{ fontSize: 11, color: colors.muted }}>Posts</Text>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Posts</Text>
           </View>
           <View style={{ alignItems: "center" }}>
             <Text style={{ fontSize: 17, fontWeight: "700" }}>{followerCount}</Text>
-            <Text style={{ fontSize: 11, color: colors.muted }}>Followers</Text>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Followers</Text>
           </View>
           <View style={{ alignItems: "center" }}>
             <Text style={{ fontSize: 17, fontWeight: "700" }}>{followingCount}</Text>
-            <Text style={{ fontSize: 11, color: colors.muted }}>Following</Text>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Following</Text>
           </View>
         </View>
       </View>
@@ -143,7 +143,7 @@ export default function UserProfileScreen() {
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <Text style={{ fontSize: 17, fontWeight: "700" }}>{profile.displayName ?? "Member"}</Text>
         <TouchableOpacity onPress={() => setReportOpen(true)}>
-          <Text style={{ fontSize: 12, color: colors.muted }}>Report</Text>
+          <Text style={{ fontSize: 14, color: colors.muted }}>Report</Text>
         </TouchableOpacity>
       </View>
 
@@ -152,14 +152,14 @@ export default function UserProfileScreen() {
           targetUserId={userId}
           currentUserId={currentUser?.uid ?? null}
           style={{ flex: 1, paddingVertical: 9, alignItems: "center" }}
-          textStyle={{ fontSize: 13, fontWeight: "600" }}
+          textStyle={{ fontSize: 15, fontWeight: "600" }}
         />
         <TouchableOpacity
           onPress={openConversation}
           disabled={messaging}
           style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingVertical: 9, alignItems: "center" }}
         >
-          <Text style={{ fontSize: 13, fontWeight: "600" }}>{messaging ? "Opening…" : "Message"}</Text>
+          <Text style={{ fontSize: 15, fontWeight: "600" }}>{messaging ? "Opening…" : "Message"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -169,7 +169,7 @@ export default function UserProfileScreen() {
             <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(0,0,0,0.12)", alignItems: "center", justifyContent: "center" }}>
               <Text style={{ fontSize: 26, opacity: 0.4 }}>📷</Text>
             </View>
-            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>No shared posts</Text>
+            <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "600" }}>No shared posts</Text>
           </View>
         ) : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>

@@ -48,7 +48,7 @@ export default function ReportModal({
           {done ? (
             <>
               <Text style={{ fontSize: 17, fontWeight: "700", marginBottom: 8 }}>Report submitted</Text>
-              <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 16 }}>
+              <Text style={{ color: colors.muted, fontSize: 15, marginBottom: 16 }}>
                 Thanks — our team will take a look.
               </Text>
               <TouchableOpacity
@@ -82,7 +82,7 @@ export default function ReportModal({
                       <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.ink }} />
                     )}
                   </View>
-                  <Text style={{ fontSize: 14 }}>{r}</Text>
+                  <Text style={{ fontSize: 16 }}>{r}</Text>
                 </TouchableOpacity>
               ))}
               <TextInput
@@ -98,7 +98,7 @@ export default function ReportModal({
                   minHeight: 60,
                   textAlignVertical: "top",
                   marginVertical: 10,
-                  fontSize: 13,
+                  fontSize: 15,
                 }}
               />
               <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>

@@ -280,7 +280,7 @@ export default function MeScreen() {
             {avatarUploading ? (
               <ActivityIndicator size="small" color="white" />
             ) : (
-              <Text style={{ color: "white", fontSize: 10 }}>✎</Text>
+              <Text style={{ color: "white", fontSize: 12 }}>✎</Text>
             )}
           </View>
         </TouchableOpacity>
@@ -292,13 +292,13 @@ export default function MeScreen() {
                 value={nameInput}
                 onChangeText={setNameInput}
                 maxLength={40}
-                style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 14 }}
+                style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 16 }}
               />
               <TouchableOpacity onPress={handleSaveName} disabled={nameSaving}>
-                <Text style={{ color: "#E85D5D", fontWeight: "600", fontSize: 13 }}>{nameSaving ? "…" : "Save"}</Text>
+                <Text style={{ color: "#E85D5D", fontWeight: "600", fontSize: 15 }}>{nameSaving ? "…" : "Save"}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setEditingName(false)}>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+                <Text style={{ color: colors.muted, fontSize: 15 }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -310,20 +310,20 @@ export default function MeScreen() {
               style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
               <Text style={{ fontWeight: "600" }}>{nameOverride ?? user.displayName ?? "Member"}</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>✎</Text>
+              <Text style={{ color: colors.muted, fontSize: 14 }}>✎</Text>
             </TouchableOpacity>
           )}
-          {nameError && <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 2 }}>{nameError}</Text>}
+          {nameError && <Text style={{ color: "#DC2626", fontSize: 14, marginTop: 2 }}>{nameError}</Text>}
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ color: colors.muted, fontSize: 14 }}>
               {posts.length + links.length} posts
             </Text>
             <View style={{ backgroundColor: "#FBF0D9", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.ink }}>⭐ {profile.xp ?? 0} xp</Text>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: colors.ink }}>⭐ {profile.xp ?? 0} xp</Text>
             </View>
             {(profile.streakCount ?? 0) > 0 && (
               <View style={{ backgroundColor: colors.brandLight, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.brandDark }}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.brandDark }}>
                   🔥 {profile.streakCount} day{profile.streakCount === 1 ? "" : "s"}
                 </Text>
               </View>
@@ -331,29 +331,29 @@ export default function MeScreen() {
           </View>
         </View>
         <TouchableOpacity onPress={() => signOut(auth)}>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>Log out</Text>
+          <Text style={{ color: colors.muted, fontSize: 15 }}>Log out</Text>
         </TouchableOpacity>
       </View>
 
       {showDeleteConfirm ? (
         <View style={{ borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <Text style={{ fontSize: 13, fontWeight: "600", color: "#7F1D1D", marginBottom: 4 }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: "#7F1D1D", marginBottom: 4 }}>
             Permanently delete your account?
           </Text>
-          <Text style={{ fontSize: 12, color: "#7F1D1D", marginBottom: 10 }}>
+          <Text style={{ fontSize: 14, color: "#7F1D1D", marginBottom: 10 }}>
             This deletes your posts, saved items, lesson progress, and login — it can't be undone.
             {"\n\n"}Mobile subscriptions go through Apple/Google, not Astryks directly, so this can't
             cancel them for you — cancel first in your iPhone/Android subscription settings, or you'll
             keep being charged even after your account is gone.
           </Text>
-          {deleteError && <Text style={{ fontSize: 12, color: "#B91C1C", marginBottom: 8 }}>{deleteError}</Text>}
+          {deleteError && <Text style={{ fontSize: 14, color: "#B91C1C", marginBottom: 8 }}>{deleteError}</Text>}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity
               onPress={handleDeleteAccount}
               disabled={deleting}
               style={{ backgroundColor: "#DC2626", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
             >
-              <Text style={{ color: "white", fontSize: 12, fontWeight: "600" }}>
+              <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
                 {deleting ? "Deleting…" : "Yes, permanently delete"}
               </Text>
             </TouchableOpacity>
@@ -362,21 +362,21 @@ export default function MeScreen() {
               disabled={deleting}
               style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
             >
-              <Text style={{ fontSize: 12 }}>Cancel</Text>
+              <Text style={{ fontSize: 14 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <TouchableOpacity onPress={() => setShowDeleteConfirm(true)} style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
+          <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
         </TouchableOpacity>
       )}
 
       {lessons.length > 0 && (
         <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 16 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <Text style={{ fontSize: 13, fontWeight: "600" }}>🎓 Learning</Text>
-            <Text style={{ fontSize: 11, color: colors.muted }}>
+            <Text style={{ fontSize: 15, fontWeight: "600" }}>🎓 Learning</Text>
+            <Text style={{ fontSize: 13, color: colors.muted }}>
               {lessons.filter((l) => completedLessonIds.has(l.id)).length} of {lessons.length} complete
             </Text>
           </View>
@@ -395,8 +395,8 @@ export default function MeScreen() {
                 >
                   <Text style={{ fontSize: 16 }}>{SUBJECT_ICONS[s.id] ?? "⭐"}</Text>
                   <View>
-                    <Text style={{ fontSize: 12, fontWeight: "600" }}>{s.name}</Text>
-                    <Text style={{ fontSize: 10, color: colors.muted }}>
+                    <Text style={{ fontSize: 14, fontWeight: "600" }}>{s.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>
                       {tier ? `${tier.emoji} ${tier.label}` : `${done}/${subjectLessons.length}`}
                     </Text>
                   </View>
@@ -414,36 +414,36 @@ export default function MeScreen() {
           onPress={() => setTab("posts")}
           style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: tab === "posts" ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
         >
-          <Text style={{ color: tab === "posts" ? "white" : colors.ink, fontSize: 12 }}>My posts</Text>
+          <Text style={{ color: tab === "posts" ? "white" : colors.ink, fontSize: 14 }}>My posts</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setTab("links")}
           style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: tab === "links" ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
         >
-          <Text style={{ color: tab === "links" ? "white" : colors.ink, fontSize: 12 }}>Shared links</Text>
+          <Text style={{ color: tab === "links" ? "white" : colors.ink, fontSize: 14 }}>Shared links</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setTab("saved")}
           style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: tab === "saved" ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
         >
-          <Text style={{ color: tab === "saved" ? "white" : colors.ink, fontSize: 12 }}>Saved</Text>
+          <Text style={{ color: tab === "saved" ? "white" : colors.ink, fontSize: 14 }}>Saved</Text>
         </TouchableOpacity>
       </View>
 
       {tab === "posts" ? (
         <View>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{posts.length} photos &amp; videos</Text>
+            <Text style={{ color: colors.muted, fontSize: 14 }}>{posts.length} photos &amp; videos</Text>
             {showAddMedia ? (
               <TouchableOpacity onPress={() => setShowAddMedia(false)}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Cancel</Text>
+                <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 onPress={() => setShowAddMedia(true)}
                 style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "white", fontSize: 15 }}>+</Text>
+                <Text style={{ color: "white", fontSize: 17 }}>+</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -453,7 +453,7 @@ export default function MeScreen() {
                 onPress={pickMedia}
                 style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingVertical: 10, alignItems: "center" }}
               >
-                <Text style={{ fontSize: 13 }}>{mediaAsset ? "Change photo/video" : "Choose a photo or video"}</Text>
+                <Text style={{ fontSize: 15 }}>{mediaAsset ? "Change photo/video" : "Choose a photo or video"}</Text>
               </TouchableOpacity>
               {mediaAsset?.type === "photo" && (
                 <Image source={{ uri: mediaAsset.uri }} style={{ width: "100%", height: 140, borderRadius: 8 }} />
@@ -462,29 +462,29 @@ export default function MeScreen() {
                 placeholder="Title (optional)"
                 value={mediaTitle}
                 onChangeText={setMediaTitle}
-                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 }}
+                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 }}
               />
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => setMediaPublic(true)}
                   style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: mediaPublic ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
                 >
-                  <Text style={{ color: mediaPublic ? "white" : colors.ink, fontSize: 12 }}>🌍 Public</Text>
+                  <Text style={{ color: mediaPublic ? "white" : colors.ink, fontSize: 14 }}>🌍 Public</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setMediaPublic(false)}
                   style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: !mediaPublic ? colors.ink : "white", borderWidth: 1, borderColor: colors.line }}
                 >
-                  <Text style={{ color: !mediaPublic ? "white" : colors.ink, fontSize: 12 }}>🔒 Private</Text>
+                  <Text style={{ color: !mediaPublic ? "white" : colors.ink, fontSize: 14 }}>🔒 Private</Text>
                 </TouchableOpacity>
               </View>
-              {mediaError && <Text style={{ color: "#DC2626", fontSize: 12 }}>{mediaError}</Text>}
+              {mediaError && <Text style={{ color: "#DC2626", fontSize: 14 }}>{mediaError}</Text>}
               <TouchableOpacity
                 onPress={handleAddMedia}
                 disabled={mediaUploading || !mediaAsset}
                 style={{ backgroundColor: "#E85D5D", borderRadius: 8, paddingVertical: 10, alignItems: "center", opacity: mediaUploading || !mediaAsset ? 0.5 : 1 }}
               >
-                <Text style={{ color: "white", fontWeight: "600", fontSize: 13 }}>{mediaUploading ? "Posting…" : "Post"}</Text>
+                <Text style={{ color: "white", fontWeight: "600", fontSize: 15 }}>{mediaUploading ? "Posting…" : "Post"}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -504,7 +504,7 @@ export default function MeScreen() {
                 )}
                 {p.visibility === "private" && (
                   <View style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ fontSize: 9 }}>🔒</Text>
+                    <Text style={{ fontSize: 11 }}>🔒</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -515,17 +515,17 @@ export default function MeScreen() {
       ) : tab === "links" ? (
         <View>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{links.length} shared links</Text>
+            <Text style={{ color: colors.muted, fontSize: 14 }}>{links.length} shared links</Text>
             {showAddLink ? (
               <TouchableOpacity onPress={() => setShowAddLink(false)}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Cancel</Text>
+                <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 onPress={() => setShowAddLink(true)}
                 style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "white", fontSize: 15 }}>+</Text>
+                <Text style={{ color: "white", fontSize: 17 }}>+</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -536,15 +536,15 @@ export default function MeScreen() {
                 placeholder="Paste a YouTube or other link"
                 value={linkInput}
                 onChangeText={setLinkInput}
-                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 }}
+                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 }}
               />
-              {linkError && <Text style={{ color: "#DC2626", fontSize: 12 }}>{linkError}</Text>}
+              {linkError && <Text style={{ color: "#DC2626", fontSize: 14 }}>{linkError}</Text>}
               <TouchableOpacity
                 onPress={handleAddLink}
                 disabled={linkSaving || !linkInput.trim()}
                 style={{ backgroundColor: "#E85D5D", borderRadius: 8, paddingVertical: 10, alignItems: "center", opacity: linkSaving || !linkInput.trim() ? 0.5 : 1 }}
               >
-                <Text style={{ color: "white", fontWeight: "600", fontSize: 13 }}>{linkSaving ? "Sharing…" : "Share"}</Text>
+                <Text style={{ color: "white", fontWeight: "600", fontSize: 15 }}>{linkSaving ? "Sharing…" : "Share"}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -557,8 +557,8 @@ export default function MeScreen() {
               >
                 <Text style={{ fontSize: 18 }}>🔗</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>{l.linkDomain}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{l.linkTitle}</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>{l.linkDomain}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "600" }} numberOfLines={1}>{l.linkTitle}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -586,23 +586,23 @@ export default function MeScreen() {
 
       <View style={{ marginTop: 32, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center" }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
-          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/privacy")}>
+          <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/privacy")}>
             Privacy
           </Text>
-          <Text style={{ fontSize: 11, color: colors.muted }}> · </Text>
-          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/terms")}>
+          <Text style={{ fontSize: 13, color: colors.muted }}> · </Text>
+          <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/terms")}>
             Terms
           </Text>
-          <Text style={{ fontSize: 11, color: colors.muted }}> · </Text>
-          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/prize-rules")}>
+          <Text style={{ fontSize: 13, color: colors.muted }}> · </Text>
+          <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/prize-rules")}>
             Prize Rules
           </Text>
-          <Text style={{ fontSize: 11, color: colors.muted }}> · </Text>
-          <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/support")}>
+          <Text style={{ fontSize: 13, color: colors.muted }}> · </Text>
+          <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/support")}>
             Support
           </Text>
         </View>
-        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>© 2026 Astryks. All rights reserved.</Text>
+        <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6 }}>© 2026 Astryks. All rights reserved.</Text>
       </View>
     </ScrollView>
   );

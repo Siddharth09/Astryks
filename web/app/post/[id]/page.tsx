@@ -117,13 +117,15 @@ export default function PostPage() {
           href={post.linkUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 border border-line/15 rounded-2xl p-4"
+          className="block border border-line/15 rounded-2xl overflow-hidden"
         >
-          {post.linkImage && (
+          {post.linkImage ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.linkImage} alt="" className="w-16 h-16 rounded-lg object-cover" />
+            <img src={post.linkImage} alt="" className="w-full aspect-video object-cover bg-ink" />
+          ) : (
+            <div className="w-full aspect-video bg-brandLight flex items-center justify-center text-4xl">🔗</div>
           )}
-          <div>
+          <div className="p-4">
             <p className="text-xs text-ink/50">{post.linkDomain}</p>
             <p className="font-medium">{post.linkTitle}</p>
           </div>

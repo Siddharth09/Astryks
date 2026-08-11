@@ -39,11 +39,11 @@ export default function PrizesScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
         Creative prize
       </Text>
       <Text style={{ fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>AU$1,000 a month</Text>
-      <Text style={{ fontSize: 13, color: colors.ink, opacity: 0.7, marginBottom: 4, lineHeight: 19 }}>
+      <Text style={{ fontSize: 15, color: colors.ink, opacity: 0.7, marginBottom: 4, lineHeight: 19 }}>
         In a small attempt to incentivise the arts, we give away AU$1,000 in cash every month to
         whoever's post the community loves most. Free to enter for every Astryks member — no
         subscription needed. One winner is picked each
@@ -53,28 +53,28 @@ export default function PrizesScreen() {
         likes in a given month, no winner is picked that month. We're running this every month through
         our first 6 months (through February 2027).
       </Text>
-      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand, marginBottom: 20 }}>
+      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.brand, marginBottom: 20 }}>
         {daysLeft} day{daysLeft === 1 ? "" : "s"} left this month
       </Text>
 
       {winner && (
         <View style={{ backgroundColor: colors.brandLight, borderRadius: 14, padding: 14, marginBottom: 24 }}>
-          <Text style={{ fontSize: 11, fontWeight: "700", color: colors.brand, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
             🏆 {winner.monthLabel} winner
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {winner.mediaUrl && <Image source={{ uri: winner.mediaUrl }} style={{ width: 52, height: 52, borderRadius: 10 }} />}
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.ink }}>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.ink }}>
                 {winner.ownerName} {flagEmoji(winner.countryCode)}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.muted }}>
+              <Text style={{ fontSize: 14, color: colors.muted }}>
                 {winner.likeCount} likes{winner.title ? ` · "${winner.title}"` : ""}
               </Text>
             </View>
             {winner.postId && (
               <TouchableOpacity onPress={() => router.push(`/post/${winner.postId}`)}>
-                <Text style={{ fontSize: 12, color: colors.ink, textDecorationLine: "underline" }}>View</Text>
+                <Text style={{ fontSize: 14, color: colors.ink, textDecorationLine: "underline" }}>View</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -82,7 +82,7 @@ export default function PrizesScreen() {
       )}
       {winner === null && (
         <View style={{ backgroundColor: "white", borderRadius: 14, padding: 14, marginBottom: 24, borderWidth: 1, borderColor: colors.line }}>
-          <Text style={{ fontSize: 13, color: colors.muted }}>
+          <Text style={{ fontSize: 15, color: colors.muted }}>
             No winner announced yet — check back after the end of the month.
           </Text>
         </View>
@@ -93,7 +93,7 @@ export default function PrizesScreen() {
       {leaderboard === null ? (
         <ActivityIndicator />
       ) : leaderboard.length === 0 ? (
-        <Text style={{ fontSize: 13, color: colors.muted }}>No creative posts yet this month — be the first!</Text>
+        <Text style={{ fontSize: 15, color: colors.muted }}>No creative posts yet this month — be the first!</Text>
       ) : (
         <View style={{ gap: 8 }}>
           {(() => {
@@ -118,14 +118,14 @@ export default function PrizesScreen() {
                   <Text style={{ width: 20, textAlign: "center", fontWeight: "800", color: colors.muted }}>{i + 1}</Text>
                   {entry.mediaUrl && <Image source={{ uri: entry.mediaUrl }} style={{ width: 40, height: 40, borderRadius: 8 }} />}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.ink }} numberOfLines={1}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.ink }} numberOfLines={1}>
                       {entry.ownerName} {flagEmoji(entry.countryCode)}
                     </Text>
                     <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: "hidden", marginTop: 5 }}>
                       <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.brand, borderRadius: 3 }} />
                     </View>
                   </View>
-                  <Text style={{ fontSize: 11, color: colors.muted, flexShrink: 0, textAlign: "right" }}>
+                  <Text style={{ fontSize: 13, color: colors.muted, flexShrink: 0, textAlign: "right" }}>
                     {entry.likeCount} likes{"\n"}
                     <Text style={{ color: entry.meetsLikeThreshold ? colors.brand : colors.muted }}>
                       {entry.meetsLikeThreshold ? "✓ qualifies" : `${Math.max(0, (entry.likeThreshold ?? 30) - entry.likeCount)} to qualify`}

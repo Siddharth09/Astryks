@@ -51,7 +51,7 @@ export default function LikeButton({
 
   return (
     <TouchableOpacity onPress={toggle} disabled={!checked}>
-      <Text style={{ color: liked ? "#E85D5D" : colors.muted, fontSize: 13 }}>{liked ? "♥" : "♡"} {count}</Text>
+      <Text style={{ color: liked ? "#E85D5D" : colors.muted, fontSize: 15 }}>{liked ? "♥" : "♡"} {count}</Text>
     </TouchableOpacity>
   );
 }

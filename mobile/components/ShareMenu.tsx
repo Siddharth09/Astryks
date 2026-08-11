@@ -69,5 +69,5 @@ const s = StyleSheet.create({
   sheet: { backgroundColor: "white", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 28 },
   option: { paddingVertical: 16, paddingHorizontal: 20 },
   optionBorder: { borderTopWidth: 1, borderTopColor: colors.line },
-  optionText: { fontSize: 15, color: colors.ink },
+  optionText: { fontSize: 17, color: colors.ink },
 });

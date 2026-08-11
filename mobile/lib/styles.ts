@@ -47,7 +47,7 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
+    fontSize: 17,
     marginBottom: 12,
     backgroundColor: "white",
     color: colors.ink,
@@ -62,7 +62,7 @@ export const styles = StyleSheet.create({
   buttonPrimaryText: {
     color: "white",
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: 17,
   },
   buttonSecondary: {
     borderWidth: 1,
@@ -76,22 +76,22 @@ export const styles = StyleSheet.create({
   buttonSecondaryText: {
     color: colors.ink,
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: 17,
   },
   link: {
     color: colors.brand,
     fontWeight: "600",
     textAlign: "center",
     marginTop: 20,
-    fontSize: 14,
+    fontSize: 16,
   },
   error: {
     color: "#DC2626",
-    fontSize: 13,
+    fontSize: 15,
     marginBottom: 8,
   },
   muted: {
     color: colors.muted,
-    fontSize: 13,
+    fontSize: 15,
   },
 });

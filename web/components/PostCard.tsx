@@ -134,18 +134,23 @@ export default function PostCard({
           <p className="font-display text-lg font-bold p-4 whitespace-pre-wrap">{post.body}</p>
         )}
         {post.type === "link" && (
-          <div className="flex items-center gap-3 p-3">
+          // Full-width preview banner (same aspect ratio as photo/video posts) instead of a
+          // small 56px thumbnail crammed next to the title — this is what makes a shared YouTube
+          // link actually read as a proper preview card rather than a bookmark-list row.
+          <div>
             {post.linkImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.linkImage} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+              <img src={post.linkImage} alt="" className="w-full aspect-video object-cover bg-ink" />
             ) : (
-              <div className="w-14 h-14 rounded-lg bg-brandLight flex items-center justify-center flex-shrink-0 text-xl">
+              <div className="w-full aspect-video bg-brandLight flex items-center justify-center text-4xl">
                 🔗
               </div>
             )}
-            <div className="min-w-0">
-              <p className="text-xs text-ink/50">{post.linkDomain}</p>
-              <p className="text-sm font-medium truncate">{post.linkTitle || post.linkUrl}</p>
+            <div className="flex items-center gap-2 px-3 py-2 border-t border-line/10">
+              <div className="min-w-0">
+                <p className="text-xs text-ink/50 truncate">{post.linkDomain}</p>
+                <p className="text-sm font-medium truncate">{post.linkTitle || post.linkUrl}</p>
+              </div>
             </div>
           </div>
         )}

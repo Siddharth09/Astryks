@@ -132,7 +132,7 @@ export default function LoginScreen() {
           Learn real life skills from{" "}
           <Text style={{ backgroundColor: colors.highlight }}>experts in their field</Text>
         </Text>
-        <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 20 }}>
+        <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center", marginBottom: 20 }}>
           Music. Art. Finance. Learn from real working professionals and build skills that last a lifetime.
         </Text>
 
@@ -146,10 +146,10 @@ export default function LoginScreen() {
                 </View>
               </View>
               <View style={{ position: "absolute", left: 8, top: 8, borderRadius: 999, backgroundColor: colors.musicLight, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.music, textTransform: "uppercase" }}>Music</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.music, textTransform: "uppercase" }}>Music</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 11, fontWeight: "500", padding: 8, lineHeight: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: "500", padding: 8, lineHeight: 14 }}>
               Create an original song from scratch for free on GarageBand
             </Text>
           </View>
@@ -162,10 +162,10 @@ export default function LoginScreen() {
                 </View>
               </View>
               <View style={{ position: "absolute", left: 8, top: 8, borderRadius: 999, backgroundColor: colors.artLight, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.art, textTransform: "uppercase" }}>Art</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.art, textTransform: "uppercase" }}>Art</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 11, fontWeight: "500", padding: 8, lineHeight: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: "500", padding: 8, lineHeight: 14 }}>
               Drawing a portrait with oil on canvas — from scratch
             </Text>
           </View>
@@ -190,12 +190,12 @@ export default function LoginScreen() {
       />
 
       {resetSent ? (
-        <Text style={{ color: "#15803D", fontSize: 12, textAlign: "right", marginTop: -6, marginBottom: 8 }}>
+        <Text style={{ color: "#15803D", fontSize: 14, textAlign: "right", marginTop: -6, marginBottom: 8 }}>
           Check your inbox at {email} for a reset link.
         </Text>
       ) : (
         <TouchableOpacity onPress={handleForgotPassword} disabled={resetLoading} style={{ alignSelf: "flex-end", marginTop: -6, marginBottom: 8 }}>
-          <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>
+          <Text style={{ color: colors.brand, fontSize: 14, fontWeight: "600" }}>
             {resetLoading ? "Sending…" : "Forgot password?"}
           </Text>
         </TouchableOpacity>
@@ -214,13 +214,13 @@ export default function LoginScreen() {
       <View style={{ height: 1, backgroundColor: colors.line, marginVertical: 32 }} />
 
       {/* Subjects */}
-      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
         What you&apos;ll learn
       </Text>
       <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>
         3 subjects. Build real world skills.
       </Text>
-      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16, lineHeight: 18 }}>
+      <Text style={{ fontSize: 15, color: colors.muted, marginBottom: 16, lineHeight: 18 }}>
         Each subject is taught by real experts who do it professionally — not just talk about it.
       </Text>
       {SUBJECT_DETAILS.map((s) => (
@@ -229,61 +229,61 @@ export default function LoginScreen() {
           style={{ backgroundColor: "white", borderRadius: 16, borderTopWidth: 4, borderTopColor: s.color, padding: 16, marginBottom: 12 }}
         >
           <Text style={{ fontSize: 22, marginBottom: 8 }}>{s.icon}</Text>
-          <Text style={{ fontSize: 15, fontWeight: "800", color: colors.ink, marginBottom: 8 }}>
+          <Text style={{ fontSize: 17, fontWeight: "800", color: colors.ink, marginBottom: 8 }}>
             {s.name}
-            {s.soon && <Text style={{ color: colors.muted, fontWeight: "400", fontSize: 13 }}> (coming soon)</Text>}
+            {s.soon && <Text style={{ color: colors.muted, fontWeight: "400", fontSize: 15 }}> (coming soon)</Text>}
           </Text>
           {s.items.map((item) => (
-            <Text key={item} style={{ fontSize: 12, color: colors.muted, marginBottom: 4, lineHeight: 16 }}>
+            <Text key={item} style={{ fontSize: 14, color: colors.muted, marginBottom: 4, lineHeight: 16 }}>
               → {item}
             </Text>
           ))}
           <View style={{ alignSelf: "flex-start", backgroundColor: s.tagBg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginTop: 8 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: s.tagText }}>{s.tag}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: s.tagText }}>{s.tag}</Text>
           </View>
         </View>
       ))}
       <View style={{ backgroundColor: "white", borderRadius: 16, borderTopWidth: 4, borderTopColor: colors.highlight, padding: 16, marginBottom: 28 }}>
-        <Text style={{ fontSize: 13, color: colors.ink, lineHeight: 19 }}>
+        <Text style={{ fontSize: 15, color: colors.ink, lineHeight: 19 }}>
           💛 We&apos;re just getting started — we&apos;ll keep adding to Music and Art, and we&apos;re bringing new
           subjects like investing in the share market, and others, in the coming months.
         </Text>
       </View>
 
       {/* How it works */}
-      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
         How it works
       </Text>
       <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>Simple as 1, 2, 3</Text>
-      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16, lineHeight: 18 }}>
+      <Text style={{ fontSize: 15, color: colors.muted, marginBottom: 16, lineHeight: 18 }}>
         Get started in minutes, and keep building new skills over time.
       </Text>
       {STEPS.map((step) => (
         <View key={step.n} style={{ marginBottom: 16 }}>
           <Text style={{ fontSize: 28, fontWeight: "900", color: "rgba(23,19,15,0.15)", marginBottom: 2 }}>{step.n}</Text>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.ink, marginBottom: 2 }}>{step.title}</Text>
-          <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17 }}>{step.blurb}</Text>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.ink, marginBottom: 2 }}>{step.title}</Text>
+          <Text style={{ fontSize: 14, color: colors.muted, lineHeight: 17 }}>{step.blurb}</Text>
         </View>
       ))}
 
       {/* Pricing */}
       <View style={{ backgroundColor: colors.sectionLavender, borderRadius: 20, padding: 20, marginBottom: 24, marginTop: 8 }}>
         <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>Unlock the full lesson library</Text>
-        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 14, lineHeight: 18 }}>
+        <Text style={{ fontSize: 15, color: colors.muted, marginBottom: 14, lineHeight: 18 }}>
           Signing up, posting, and entering the Creative Prize are always free. Subscribe whenever you&apos;re
           ready to unlock every lesson.
         </Text>
         <View style={{ backgroundColor: "white", borderRadius: 16, padding: 18 }}>
-          <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
             Weekly subscription
           </Text>
           <Text style={{ fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: 14 }}>
-            {pricing.symbol}{pricing.amount} <Text style={{ fontSize: 13, fontWeight: "400", color: colors.muted }}>per week</Text>
+            {pricing.symbol}{pricing.amount} <Text style={{ fontSize: 15, fontWeight: "400", color: colors.muted }}>per week</Text>
           </Text>
           {PRICING_FEATURES.map((f) => (
             <View key={f} style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
               <Text style={{ color: colors.finance }}>✓</Text>
-              <Text style={{ fontSize: 13, color: colors.ink, flex: 1 }}>{f}</Text>
+              <Text style={{ fontSize: 15, color: colors.ink, flex: 1 }}>{f}</Text>
             </View>
           ))}
           <TouchableOpacity onPress={() => router.push("/signup")} style={[styles.buttonPrimary, { marginTop: 6 }]}>
@@ -294,17 +294,17 @@ export default function LoginScreen() {
 
       {/* Creative prize */}
       <View style={{ backgroundColor: colors.sectionMint, borderRadius: 20, padding: 20, marginBottom: 24 }}>
-        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
           Creative prize
         </Text>
         <Text style={{ fontSize: 34, fontWeight: "900", color: colors.ink, marginBottom: 4 }}>AU$1,000</Text>
         <Text style={{ fontSize: 17, fontWeight: "800", color: colors.ink, marginBottom: 6, lineHeight: 22 }}>
           Every month, for the community&apos;s most-loved post
         </Text>
-        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.brand, backgroundColor: "white", alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10, overflow: "hidden" }}>
+        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand, backgroundColor: "white", alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10, overflow: "hidden" }}>
           Running every month through our first 6 months
         </Text>
-        <Text style={{ fontSize: 13, color: colors.ink, lineHeight: 19, marginBottom: 10 }}>
+        <Text style={{ fontSize: 15, color: colors.ink, lineHeight: 19, marginBottom: 10 }}>
           We want every creative student — subscriber or not — to be able to post, get discovered, and
           compete for real cash, so entering is completely free for anyone with an Astryks account. At
           the end of each calendar month, whoever&apos;s single creative post — across music, art, or any
@@ -314,7 +314,7 @@ export default function LoginScreen() {
           reaches 30 likes in a given month, no winner is picked that month. We started Astryks because
           real creative work deserves real recognition, and we genuinely can&apos;t wait to see what you make.
         </Text>
-        <Text style={{ fontSize: 11, color: colors.muted, lineHeight: 15, marginBottom: 16 }}>
+        <Text style={{ fontSize: 13, color: colors.muted, lineHeight: 15, marginBottom: 16 }}>
           AU$1,000 (Australian dollars), funded from Astryks subscription revenue. International
           transfers from Australia may be subject to market foreign exchange rates and other overseas
           transfer considerations.
@@ -322,11 +322,11 @@ export default function LoginScreen() {
         {PRIZE_STEPS.map((step) => (
           <View key={step.n} style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
             <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ color: "white", fontSize: 11, fontWeight: "700" }}>{step.n}</Text>
+              <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>{step.n}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.ink, marginBottom: 1 }}>{step.t}</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 16 }}>{step.d}</Text>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink, marginBottom: 1 }}>{step.t}</Text>
+              <Text style={{ fontSize: 14, color: colors.muted, lineHeight: 16 }}>{step.d}</Text>
             </View>
           </View>
         ))}
@@ -341,11 +341,11 @@ export default function LoginScreen() {
               onPress={() => setOpenFaq(openFaq === i ? null : i)}
               style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, gap: 12 }}
             >
-              <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: colors.ink }}>{f.q}</Text>
+              <Text style={{ flex: 1, fontSize: 16, fontWeight: "700", color: colors.ink }}>{f.q}</Text>
               <Text style={{ fontSize: 18, color: colors.muted }}>{openFaq === i ? "−" : "+"}</Text>
             </TouchableOpacity>
             {openFaq === i && (
-              <Text style={{ paddingHorizontal: 16, paddingBottom: 16, fontSize: 13, color: colors.muted, lineHeight: 18 }}>
+              <Text style={{ paddingHorizontal: 16, paddingBottom: 16, fontSize: 15, color: colors.muted, lineHeight: 18 }}>
                 {f.a}
               </Text>
             )}
@@ -353,7 +353,7 @@ export default function LoginScreen() {
         ))}
       </View>
 
-      <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", marginBottom: 8 }}>
+      <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", marginBottom: 8 }}>
         © 2026 Astryks. All rights reserved.
       </Text>
       </ScrollView>

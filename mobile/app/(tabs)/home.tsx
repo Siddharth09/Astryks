@@ -29,13 +29,13 @@ function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsP
         onPress={() => setIsPublic(true)}
         style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: isPublic ? colors.ink : "white", borderWidth: isPublic ? 0 : 1, borderColor: colors.line }}
       >
-        <Text style={{ color: isPublic ? "white" : colors.ink, fontSize: 12, fontWeight: "600" }}>🌍 Public</Text>
+        <Text style={{ color: isPublic ? "white" : colors.ink, fontSize: 14, fontWeight: "600" }}>🌍 Public</Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() => setIsPublic(false)}
         style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: !isPublic ? colors.ink : "white", borderWidth: !isPublic ? 0 : 1, borderColor: colors.line }}
       >
-        <Text style={{ color: !isPublic ? "white" : colors.ink, fontSize: 12, fontWeight: "600" }}>🔒 Private</Text>
+        <Text style={{ color: !isPublic ? "white" : colors.ink, fontSize: 14, fontWeight: "600" }}>🔒 Private</Text>
       </TouchableOpacity>
     </View>
   );
@@ -263,7 +263,7 @@ export default function HomeScreen() {
         </View>
       ) : pendingMedia !== null ? (
         <View style={{ padding: 12, gap: 8 }}>
-          <Text style={{ fontSize: 13, color: colors.muted }}>
+          <Text style={{ fontSize: 15, color: colors.muted }}>
             {pendingMedia.type === "video" ? "🎥 Video ready to post" : "🖼️ Photo ready to post"}
           </Text>
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
@@ -281,7 +281,7 @@ export default function HomeScreen() {
           style={{ flexDirection: "row", alignItems: "center", gap: 8, margin: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "white" }}
         >
           <TouchableOpacity onPress={() => setTextInput("")} style={{ flex: 1 }}>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>Share something…</Text>
+            <Text style={{ color: colors.muted, fontSize: 15 }}>Share something…</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={pickMedia}><Text style={{ fontSize: 16 }}>📷</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setLinkInput("")}><Text style={{ fontSize: 16 }}>🔗</Text></TouchableOpacity>
@@ -298,7 +298,7 @@ export default function HomeScreen() {
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search posts by person, text, or link…"
-          style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", fontSize: 13 }}
+          style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", fontSize: 15 }}
         />
       </View>
 
@@ -307,13 +307,13 @@ export default function HomeScreen() {
           onPress={() => setScope("everyone")}
           style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: scope === "everyone" ? colors.ink : "transparent", borderWidth: scope === "everyone" ? 0 : 1, borderColor: colors.line }}
         >
-          <Text style={{ fontSize: 12, color: scope === "everyone" ? "white" : colors.ink }}>Everyone</Text>
+          <Text style={{ fontSize: 14, color: scope === "everyone" ? "white" : colors.ink }}>Everyone</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setScope("following")}
           style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: scope === "following" ? colors.ink : "transparent", borderWidth: scope === "following" ? 0 : 1, borderColor: colors.line }}
         >
-          <Text style={{ fontSize: 12, color: scope === "following" ? "white" : colors.ink }}>Following</Text>
+          <Text style={{ fontSize: 14, color: scope === "following" ? "white" : colors.ink }}>Following</Text>
         </TouchableOpacity>
       </View>
 

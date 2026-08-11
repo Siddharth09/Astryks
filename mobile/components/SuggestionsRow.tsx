@@ -89,7 +89,7 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
 
   return (
     <View style={{ marginTop: 12, marginBottom: 4 }}>
-      <Text style={{ fontSize: 13, fontWeight: "600", marginBottom: 8, paddingHorizontal: 16 }}>✨ Suggested for you</Text>
+      <Text style={{ fontSize: 15, fontWeight: "600", marginBottom: 8, paddingHorizontal: 16 }}>✨ Suggested for you</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
         {cards === null
           ? Array.from({ length: 3 }).map((_, i) => (
@@ -103,8 +103,8 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
                   style={{ width: 140, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: "white", padding: 12 }}
                 >
                   <Text style={{ fontSize: 18 }}>{SUBJECT_ICONS[c.subjectId] ?? "⭐"}</Text>
-                  <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: "600", marginTop: 6 }}>{c.title}</Text>
-                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Continue {c.subjectName}</Text>
+                  <Text numberOfLines={2} style={{ fontSize: 15, fontWeight: "600", marginTop: 6 }}>{c.title}</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>Continue {c.subjectName}</Text>
                 </TouchableOpacity>
               ) : (
                 <View
@@ -122,7 +122,7 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
                         <Text style={{ color: "white", fontWeight: "600" }}>{c.displayName[0]}</Text>
                       </View>
                     )}
-                    <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600" }}>{c.displayName}</Text>
+                    <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "600" }}>{c.displayName}</Text>
                   </TouchableOpacity>
                   <FollowButton targetUserId={c.id} currentUserId={currentUserId} />
                 </View>

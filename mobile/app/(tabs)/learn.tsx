@@ -202,7 +202,7 @@ export default function LearnScreen() {
         <SubscriptionBanner />
         {!subscribed && previewRemainingBySubject[active.id] != null && (
           <View style={{ backgroundColor: "#FFF6F1", borderRadius: 12, padding: 10, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, color: colors.muted, textAlign: "center" }}>
+            <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center" }}>
               {previewRemainingBySubject[active.id] > 0
                 ? `Free preview of ${active.name}: ${formatMinutesSeconds(previewRemainingBySubject[active.id])} left`
                 : `Free preview of ${active.name} used up`}
@@ -211,7 +211,7 @@ export default function LearnScreen() {
         )}
         {justMastered && (
           <View style={{ backgroundColor: "#E85D5D", borderRadius: 12, padding: 12, marginBottom: 16 }}>
-            <Text style={{ color: "white", fontWeight: "600", fontSize: 13, textAlign: "center" }}>
+            <Text style={{ color: "white", fontWeight: "600", fontSize: 15, textAlign: "center" }}>
               🏆 You&apos;ve mastered {justMastered}! +50 bonus xp
             </Text>
           </View>
@@ -219,7 +219,7 @@ export default function LearnScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <Text style={{ fontSize: 22, fontWeight: "700" }}>{active.name}</Text>
           {lessons.length > 0 && (
-            <Text style={{ fontSize: 11, color: colors.muted }}>{lessons.length} lesson{lessons.length === 1 ? "" : "s"}</Text>
+            <Text style={{ fontSize: 13, color: colors.muted }}>{lessons.length} lesson{lessons.length === 1 ? "" : "s"}</Text>
           )}
         </View>
         {lessons.length > 0 && (() => {
@@ -229,14 +229,14 @@ export default function LearnScreen() {
           return (
             <View style={{ marginBottom: 20 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                <Text style={{ fontSize: 11, color: colors.muted }}>{done} of {lessons.length} complete</Text>
-                <Text style={{ fontSize: 11, color: colors.muted }}>{pct}%</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>{done} of {lessons.length} complete</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>{pct}%</Text>
               </View>
               <View style={{ height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
                 <View style={{ height: "100%", width: `${pct}%`, backgroundColor: "#E85D5D" }} />
               </View>
               {tier && (
-                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6 }}>
                   {tier.emoji} {tier.label}
                 </Text>
               )}
@@ -290,15 +290,15 @@ export default function LearnScreen() {
                     </Text>
                     {isCurrent && (
                       <View style={{ backgroundColor: "#FFF6F1", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#C94A4A", textTransform: "uppercase" }}>Up next</Text>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#C94A4A", textTransform: "uppercase" }}>Up next</Text>
                       </View>
                     )}
                   </View>
-                  <Text style={{ fontSize: 11, color: colors.muted }}>Lesson {i + 1} · {lesson.viewCount ?? 0} views</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>Lesson {i + 1} · {lesson.viewCount ?? 0} views</Text>
                 </View>
                 {!locked && !done && (
                   <TouchableOpacity onPress={() => markComplete(lesson.id)}>
-                    <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>
+                    <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>
                       Mark done <Text style={{ color: "rgba(0,0,0,0.3)" }}>+10xp</Text>
                     </Text>
                   </TouchableOpacity>
@@ -314,7 +314,7 @@ export default function LearnScreen() {
                 />
               )}
               {playbackError[lesson.id] && (
-                <Text style={{ color: "#C94A4A", marginTop: 10, fontSize: 13 }}>{playbackError[lesson.id]}</Text>
+                <Text style={{ color: "#C94A4A", marginTop: 10, fontSize: 15 }}>{playbackError[lesson.id]}</Text>
               )}
             </View>
           );
@@ -336,7 +336,7 @@ export default function LearnScreen() {
               <Text style={{ fontSize: 18, fontWeight: "700", textAlign: "center", marginBottom: 8 }}>
                 That's your free preview of {previewExhaustedSubject?.name}
               </Text>
-              <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", marginBottom: 18 }}>
+              <Text style={{ fontSize: 15, color: colors.muted, textAlign: "center", marginBottom: 18 }}>
                 You've used your 15 free minutes for {previewExhaustedSubject?.name}. Subscribe to keep
                 watching — every subject, every lesson, cancel any time.
               </Text>
@@ -350,7 +350,7 @@ export default function LearnScreen() {
                 <Text style={{ color: "white", fontWeight: "600" }}>Subscribe</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setPreviewExhaustedSubject(null)} style={{ paddingVertical: 8 }}>
-                <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>Maybe later</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>Maybe later</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -382,7 +382,7 @@ export default function LearnScreen() {
     >
       {pinnedLessons.length > 0 && !q && (
         <View style={{ marginBottom: 18 }}>
-          <Text style={{ fontSize: 13, fontWeight: "600", marginBottom: 8 }}>📌 Pinned lessons</Text>
+          <Text style={{ fontSize: 15, fontWeight: "600", marginBottom: 8 }}>📌 Pinned lessons</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {pinnedLessons.map((l) => (
               <TouchableOpacity
@@ -391,8 +391,8 @@ export default function LearnScreen() {
                 style={{ width: 152, marginRight: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: "white", padding: 12 }}
               >
                 <Text style={{ fontSize: 18 }}>{ICONS[l.subjectId] ?? "⭐"}</Text>
-                <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: "600", marginTop: 6 }}>{l.title}</Text>
-                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{subjectNameById[l.subjectId] ?? "Lesson"}</Text>
+                <Text numberOfLines={2} style={{ fontSize: 15, fontWeight: "600", marginTop: 6 }}>{l.title}</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{subjectNameById[l.subjectId] ?? "Lesson"}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -403,7 +403,7 @@ export default function LearnScreen() {
         value={searchQuery}
         onChangeText={setSearchQuery}
         placeholder="Search lessons — try “music” or “art”…"
-        style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "white", marginBottom: 14, fontSize: 14 }}
+        style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "white", marginBottom: 14, fontSize: 16 }}
       />
       {q ? (
         matches.length === 0 ? (
@@ -418,8 +418,8 @@ export default function LearnScreen() {
               >
                 <Text style={{ fontSize: 20 }}>{ICONS[l.subjectId] ?? "⭐"}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{l.title}</Text>
-                  <Text style={{ fontSize: 11, color: colors.muted }}>{subjectNameById[l.subjectId] ?? "Lesson"}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "600" }} numberOfLines={1}>{l.title}</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>{subjectNameById[l.subjectId] ?? "Lesson"}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -442,9 +442,9 @@ export default function LearnScreen() {
                     <Text style={{ fontSize: 30 }}>{ICONS[card.id] ?? "⭐"}</Text>
                   </View>
                   <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontWeight: "700", fontSize: 15 }}>{card.name}</Text>
-                    <Text style={{ fontSize: 13, color: colors.muted }}>{card.tagline}</Text>
-                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Coming soon</Text>
+                    <Text style={{ fontWeight: "700", fontSize: 17 }}>{card.name}</Text>
+                    <Text style={{ fontSize: 15, color: colors.muted }}>{card.tagline}</Text>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>Coming soon</Text>
                   </View>
                 </View>
               );
@@ -461,13 +461,13 @@ export default function LearnScreen() {
                         shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 3, elevation: 2,
                       }}
                     >
-                      <Text style={{ fontSize: 14 }}>{subjectTier[card.id]!.emoji}</Text>
+                      <Text style={{ fontSize: 16 }}>{subjectTier[card.id]!.emoji}</Text>
                     </View>
                   )}
                 </View>
                 <View style={{ alignItems: "center" }}>
                   <Text style={{ fontWeight: "700", fontSize: 17 }}>{card.name}</Text>
-                  <Text style={{ fontSize: 13, color: colors.muted }}>{card.tagline}</Text>
+                  <Text style={{ fontSize: 15, color: colors.muted }}>{card.tagline}</Text>
                 </View>
               </TouchableOpacity>
             );

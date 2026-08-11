@@ -119,7 +119,7 @@ export default function PostCard({
               onPress={() => setMuted((m) => !m)}
               style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(0,0,0,0.5)", width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" }}
             >
-              <Text style={{ color: "white", fontSize: 12 }}>{muted ? "🔇" : "🔊"}</Text>
+              <Text style={{ color: "white", fontSize: 14 }}>{muted ? "🔇" : "🔊"}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -130,17 +130,19 @@ export default function PostCard({
           </View>
         )}
         {post.type === "link" && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12 }}>
+          // Full-width preview banner, same size as photo/video posts (s.media) — matches web
+          // and reads as a proper link-preview card instead of a small bookmark-list row.
+          <View>
             {post.linkImage ? (
-              <Image source={{ uri: post.linkImage }} style={{ width: 56, height: 56, borderRadius: 10 }} />
+              <Image source={{ uri: post.linkImage }} style={s.media} />
             ) : (
-              <View style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: colors.brandLight, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 20 }}>🔗</Text>
+              <View style={[s.media, { alignItems: "center", justifyContent: "center", backgroundColor: colors.brandLight }]}>
+                <Text style={{ fontSize: 32 }}>🔗</Text>
               </View>
             )}
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: colors.muted }}>{post.linkDomain}</Text>
-              <Text style={{ fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{post.linkTitle}</Text>
+            <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
+              <Text style={{ fontSize: 14, color: colors.muted }}>{post.linkDomain}</Text>
+              <Text style={{ fontSize: 16, fontWeight: "600" }} numberOfLines={1}>{post.linkTitle}</Text>
             </View>
           </View>
         )}
@@ -158,17 +160,17 @@ export default function PostCard({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginLeft: "auto" }}>
             {currentUserId && currentUserId !== post.ownerId && (
               <TouchableOpacity onPress={openConversation}>
-                <Text style={{ fontSize: 11, color: colors.muted }}>Message</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>Message</Text>
               </TouchableOpacity>
             )}
             {currentUserId && currentUserId !== post.ownerId && (
               <TouchableOpacity onPress={() => setReportOpen(true)}>
-                <Text style={{ fontSize: 11, color: colors.muted }}>Report</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>Report</Text>
               </TouchableOpacity>
             )}
             {canDelete && (
               <TouchableOpacity onPress={confirmDelete} disabled={deleting}>
-                <Text style={{ fontSize: 11, color: "#B91C1C" }}>{deleting ? "Deleting…" : "Delete"}</Text>
+                <Text style={{ fontSize: 13, color: "#B91C1C" }}>{deleting ? "Deleting…" : "Delete"}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -182,7 +184,7 @@ export default function PostCard({
           <SaveButton postId={post.id} currentUserId={currentUserId} />
           {(post.type === "photo" || post.type === "video") && (
             <TouchableOpacity onPress={() => setPrizeOpen(true)}>
-              <Text style={{ fontSize: 15 }}>🏆</Text>
+              <Text style={{ fontSize: 17 }}>🏆</Text>
             </TouchableOpacity>
           )}
           <ShareMenu postId={post.id} title={post.title} />
@@ -204,7 +206,7 @@ const s = StyleSheet.create({
   card: { backgroundColor: "white", borderRadius: 16, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: colors.line },
   media: { width: "100%", height: 220, backgroundColor: colors.ink },
   body: { padding: 14 },
-  meta: { color: colors.muted, fontSize: 12, marginBottom: 6 },
+  meta: { color: colors.muted, fontSize: 14, marginBottom: 6 },
   title: { fontSize: 16, fontWeight: "600", color: colors.ink, marginBottom: 8 },
   row: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
 });
