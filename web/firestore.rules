@@ -231,5 +231,13 @@ service cloud.firestore {
     match /refundRequests/{requestId} {
       allow read, write: if false;
     }
+
+    // Per-account call counters backing enforceRateLimit in functions/index.js (submitReport,
+    // requestRefund, fetchLinkPreview, etc). Only ever touched by the Admin SDK inside those
+    // functions — a client read would leak nothing sensitive, but a client WRITE would let anyone
+    // reset or forge their own counter and bypass the very limits this exists to enforce.
+    match /rateLimits/{limitId} {
+      allow read, write: if false;
+    }
   }
 }

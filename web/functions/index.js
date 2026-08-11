@@ -3,11 +3,49 @@ const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("fir
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const crypto = require("crypto");
+const dns = require("dns").promises;
+const https = require("https");
+const http = require("http");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// ---------- Rate limiting ----------
+//
+// A handful of callables are expensive (they fan out into several Firestore reads), send email/
+// SMS-adjacent side effects, or — in fetchLinkPreview's case — make an outbound HTTP request on
+// Astryks's behalf to a URL the caller chooses. None of that is normally dangerous from a single
+// signed-in account, but nothing before this stopped one compromised or malicious account from
+// calling any of them thousands of times a minute: unbounded Firestore read/write costs, an open
+// spam-reporting/refund-request firehose, or turning fetchLinkPreview into a free proxy for
+// hammering some other site. This is a lightweight per-account counter stored in Firestore itself
+// (one extra read+write per call) rather than a separate rate-limiting service — good enough to
+// stop single-account abuse without adding new infrastructure. It can't stop someone spreading
+// the same abuse across many different accounts; that's what fetchLinkPreview's SSRF/private-IP
+// checks and Firebase App Check (see lib/firebase.ts) are for instead.
+async function enforceRateLimit(uid, action, { max, windowMs }) {
+  const ref = db.collection("rateLimits").doc(`${uid}_${action}`);
+  const now = Date.now();
+  let limited = false;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : null;
+    if (!data || now - data.windowStart > windowMs) {
+      tx.set(ref, { windowStart: now, count: 1 });
+      return;
+    }
+    if (data.count >= max) {
+      limited = true;
+      return;
+    }
+    tx.update(ref, { count: admin.firestore.FieldValue.increment(1) });
+  });
+  if (limited) {
+    throw new HttpsError("resource-exhausted", "You're doing that too often — please try again in a few minutes.");
+  }
+}
 
 const BUNNY_API_KEY = defineSecret("BUNNY_API_KEY");
 const BUNNY_LIBRARY_ID = defineSecret("BUNNY_LIBRARY_ID");
@@ -321,10 +359,91 @@ function isPrivateOrLoopbackHostname(hostname) {
   return false;
 }
 
+// Resolves `hostname` and rejects if ANY of its addresses are private/loopback/link-local, then
+// returns one validated address to connect to.
+//
+// isPrivateOrLoopbackHostname above only ever looked at the literal hostname string — it catches
+// someone typing "http://127.0.0.1/..." directly, but it does nothing if "totally-normal-site.com"
+// is a domain the attacker controls and has simply pointed at an internal IP with a plain DNS A
+// record (no "rebinding" trickery needed at all — that's just what its DNS says). This closes
+// that off by resolving the hostname ourselves and checking the actual resolved address.
+//
+// It also closes the narrower DNS-rebinding race: even after this check passes, letting fetch()
+// do its own DNS lookup right before connecting would open a window where a malicious, very-low-
+// TTL DNS record could answer "public IP" here and "private IP" a moment later. fetchPinned below
+// connects directly to the exact IP validated here (while still sending the correct Host header
+// and TLS servername) instead of letting anything re-resolve the hostname, so there's no second
+// lookup left to race.
+async function resolveAndValidateHostname(hostname) {
+  let addresses;
+  try {
+    addresses = await dns.lookup(hostname, { all: true, verbatim: true });
+  } catch {
+    return null;
+  }
+  if (!addresses.length || addresses.some((a) => isPrivateOrLoopbackHostname(a.address))) {
+    return null;
+  }
+  return addresses[0].address;
+}
+
+// Fetches `parsedUrl` by connecting directly to `ip` (see resolveAndValidateHostname above)
+// instead of letting Node re-resolve the hostname itself. `redirect: manual`-equivalent: any 3xx
+// response is reported back as `redirected: true` rather than followed, since a redirect target
+// could point at a private address and hasn't been through the checks above.
+function fetchPinned(parsedUrl, ip, { timeoutMs = 5000, maxBytes = 1024 * 1024 } = {}) {
+  const lib = parsedUrl.protocol === "https:" ? https : http;
+  const port = parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80);
+  return new Promise((resolve, reject) => {
+    const req = lib.request(
+      {
+        host: ip,
+        port,
+        path: `${parsedUrl.pathname}${parsedUrl.search}`,
+        method: "GET",
+        headers: {
+          Host: parsedUrl.host,
+          "User-Agent": "Mozilla/5.0 (compatible; AstryksBot/1.0)",
+        },
+        // TLS still validates the certificate against the real hostname (via SNI), so dialing the
+        // IP directly can't be tricked into trusting some other server that happens to sit at it.
+        servername: parsedUrl.protocol === "https:" ? parsedUrl.hostname : undefined,
+        timeout: timeoutMs,
+      },
+      (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400) {
+          res.resume();
+          resolve({ redirected: true });
+          return;
+        }
+        const chunks = [];
+        let total = 0;
+        res.on("data", (chunk) => {
+          if (total >= maxBytes) return; // already over the cap — just drain silently below
+          total += chunk.length;
+          chunks.push(chunk);
+        });
+        // A malicious server could otherwise stream gigabytes at this function — stop reading
+        // (but don't tear down the socket mid-response) once we've got plenty for <head> metadata.
+        res.on("end", () => resolve({ html: Buffer.concat(chunks).toString("utf-8") }));
+        res.on("error", reject);
+      }
+    );
+    req.on("timeout", () => req.destroy(new Error("Request timed out")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 exports.fetchLinkPreview = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
+
+  // fetchLinkPreview makes an outbound request on Astryks's own behalf to a URL the caller
+  // chooses — cap how often one account can trigger that so it can't be turned into a free
+  // proxy for hammering someone else's site.
+  await enforceRateLimit(request.auth.uid, "fetchLinkPreview", { max: 20, windowMs: 5 * 60 * 1000 });
 
   const url = request.data?.url;
   if (!url || !/^https?:\/\//.test(url)) {
@@ -341,40 +460,21 @@ exports.fetchLinkPreview = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "This URL can't be previewed.");
   }
 
+  const pinnedIp = await resolveAndValidateHostname(parsedUrl.hostname);
+  if (!pinnedIp) {
+    // Either the hostname didn't resolve, or one of its addresses is private/loopback/
+    // link-local — treat both the same as the literal-hostname check above.
+    throw new HttpsError("invalid-argument", "This URL can't be previewed.");
+  }
+
   let html = "";
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    let res;
-    try {
-      res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; AstryksBot/1.0)" },
-        redirect: "manual", // don't auto-follow redirects — a redirect to a private address would bypass the check above
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-    if (res.status >= 300 && res.status < 400) {
+    const result = await fetchPinned(parsedUrl, pinnedIp);
+    if (result.redirected) {
       // Refuse to blindly follow the redirect — return a plain fallback instead of risking SSRF.
       return { title: url, image: null, domain: parsedUrl.hostname };
     }
-    // Cap how much we read — a malicious server could otherwise stream gigabytes at this function.
-    const reader = res.body?.getReader ? res.body.getReader() : null;
-    if (reader) {
-      const chunks = [];
-      let total = 0;
-      const MAX_BYTES = 1024 * 1024; // 1MB is plenty for <head> metadata
-      while (total < MAX_BYTES) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        total += value.length;
-      }
-      html = Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
-    } else {
-      html = (await res.text()).slice(0, 1024 * 1024);
-    }
+    html = result.html || "";
   } catch {
     return { title: url, image: null, domain: parsedUrl.hostname };
   }
@@ -781,6 +881,9 @@ exports.submitReport = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
     }
+    // Reports trigger an email to the Astryks team (see the secrets above) — cap how many one
+    // account can fire off so this can't be turned into a spam/inbox-flooding vector.
+    await enforceRateLimit(request.auth.uid, "submitReport", { max: 15, windowMs: 60 * 60 * 1000 });
     const { targetType, targetId, postId, reason, details } = request.data ?? {};
     if (!["post", "comment", "user"].includes(targetType)) {
       throw new HttpsError("invalid-argument", "targetType must be post, comment, or user.");
@@ -1068,6 +1171,7 @@ exports.submitPrizePayoutDetails = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
     }
+    await enforceRateLimit(request.auth.uid, "submitPrizePayoutDetails", { max: 20, windowMs: 60 * 60 * 1000 });
     const { postId, method, details } = request.data ?? {};
     if (!postId || !["bank", "payid"].includes(method) || !details || typeof details !== "string") {
       throw new HttpsError("invalid-argument", "postId, a method of 'bank' or 'payid', and details are required.");
@@ -1690,6 +1794,10 @@ exports.getMessageSuggestions = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
+  // Reads every lesson, every lessonProgress doc, and up to 200 users on every call — cheap once,
+  // expensive if hammered. Cap it well above any real usage pattern (the UI only needs this once
+  // per visit to the Messages tab).
+  await enforceRateLimit(request.auth.uid, "getMessageSuggestions", { max: 30, windowMs: 60 * 60 * 1000 });
   const uid = request.auth.uid;
 
   const [lessonsSnap, progressSnap, convosSnap, usersSnap] = await Promise.all([
@@ -2804,6 +2912,13 @@ exports.getOrCreateReferralCode = onCall(async (request) => {
 // ---------- Callable: check a referral code is real before applying it ----------
 
 exports.validateReferralCode = onCall(async (request) => {
+  // Callable without being signed in (referral codes get checked during signup, before an
+  // account exists) — so there's no uid to key a rate limit on. Fall back to the caller's IP,
+  // which is enough to stop one machine from brute-forcing the referral-code space; it can't stop
+  // the same abuse spread across many IPs, but that's a much higher bar for anyone bothering.
+  const limitKey = request.auth?.uid || request.rawRequest?.ip || "anon";
+  await enforceRateLimit(limitKey, "validateReferralCode", { max: 30, windowMs: 10 * 60 * 1000 });
+
   const code = (request.data?.code || "").toUpperCase().trim();
   if (!code) return { valid: false };
 
@@ -2826,6 +2941,10 @@ exports.createCheckoutSession = onCall(
   { secrets: [stripeSecret, stripePriceId, stripeAnnualPriceId] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+    // Every call hits the Stripe API (a real, metered, rate-limited dependency) — keep one
+    // account from being able to hammer it. A genuine subscriber never needs more than a
+    // handful of checkout attempts in an hour.
+    await enforceRateLimit(request.auth.uid, "createCheckoutSession", { max: 10, windowMs: 60 * 60 * 1000 });
     const stripe = Stripe(stripeSecret.value());
     const uid = request.auth.uid;
     const referralCode = (request.data?.referralCode || "").toUpperCase().trim() || null;
@@ -3026,6 +3145,7 @@ exports.requestRefund = onCall(
   { secrets: [stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+    await enforceRateLimit(request.auth.uid, "requestRefund", { max: 5, windowMs: 24 * 60 * 60 * 1000 });
     const uid = request.auth.uid;
 
     const userSnap = await db.doc(`users/${uid}`).get();
