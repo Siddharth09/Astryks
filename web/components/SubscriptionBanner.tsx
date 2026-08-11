@@ -26,9 +26,10 @@ export default function SubscriptionBanner() {
     });
   }, [user]);
 
-  async function handleSubscribe() {
+  async function handleSubscribe(plan: "weekly" | "annual") {
     setLoading(true);
     const result = await createCheckoutSession({
+      plan,
       successUrl: `${location.origin}/home`,
       cancelUrl: `${location.origin}/home`,
     });
@@ -46,15 +47,19 @@ export default function SubscriptionBanner() {
           <p className="text-sm font-medium">
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </p>
-          <p className="text-xs text-ink/60">{pricing.display} · cancel anytime</p>
+          <p className="text-xs text-ink/60">7 days free, then {pricing.display} · cancel anytime</p>
         </div>
-        <button onClick={handleSubscribe} disabled={loading} className="btn-primary text-xs px-4 py-2">
-          {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
+        <button onClick={() => handleSubscribe("weekly")} disabled={loading} className="btn-primary text-xs px-4 py-2">
+          {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Start free trial"}
         </button>
       </div>
       <TrailersSection compact />
       <p className="text-[11px] text-ink/50 mt-2">
-        Free refunds, no questions asked — unless you used a promo code.
+        or{" "}
+        <button onClick={() => handleSubscribe("annual")} disabled={loading} className="underline">
+          save with annual — {pricing.annualDisplay}
+        </button>{" "}
+        (also starts with 7 days free) · full refunds within 90 days, no questions asked
       </p>
     </div>
   );

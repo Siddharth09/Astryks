@@ -32,6 +32,14 @@
         { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "requestedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subscriptionStatus", "order": "ASCENDING" },
+        { "fieldPath": "canceledAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

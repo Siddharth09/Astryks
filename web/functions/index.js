@@ -1786,17 +1786,20 @@ exports.sendTestWelcomeEmail = onCall(
 // independently without worrying about breaking a shared template). All three are sent
 // automatically — see the trigger comments on each sendX function for exactly what fires them.
 
-function buildSubscriptionConfirmationEmail(displayName, priceDisplay) {
+function buildSubscriptionConfirmationEmail(displayName, priceDisplay, trialEndDisplay) {
   const name = displayName || "there";
-  const subject = "You're subscribed — welcome to full access 🎉";
+  const subject = trialEndDisplay ? "You're in — your 7 free days start now 🎉" : "You're subscribed — welcome to full access 🎉";
+  const billingLine = trialEndDisplay
+    ? `Your 7-day free trial has started — you have full access to every lesson in the library right now, and you won't be charged anything until ${trialEndDisplay} (${priceDisplay} from then on).`
+    : `You now have full access to every lesson in the library, billed at ${priceDisplay}.`;
 
   const text = `Hi ${name},
 
-Thanks for subscribing to Astryks! You now have full access to every lesson in the library, billed at ${priceDisplay}.
+Thanks for subscribing to Astryks! ${billingLine}
 
 A few things worth knowing:
-- Cancel any time from astryks.com/me — no phone calls, no retention pitch, just a button.
-- You're covered by our 90-day money-back guarantee: if it's not for you, request a full refund within 90 days of subscribing, no questions asked.
+- Cancel any time from astryks.com/me — no phone calls, no retention pitch, just a button. Cancel during your free trial and you're never charged at all.
+- Once you are billed, you're covered by our 90-day money-back guarantee: if it's not for you, request a full refund within 90 days, no questions asked.
 - New lessons get added regularly, all included in your subscription.
 
 If anything's unclear or not working right, just reply to this email — a real person reads it.
@@ -1814,7 +1817,7 @@ The Astryks team`;
             <tr>
               <td style="background-color:#DCE6F2;padding:36px 32px 28px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
-                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">You're subscribed</p>
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">${trialEndDisplay ? "Your free trial has started" : "You're subscribed"}</p>
               </td>
             </tr>
             <tr>
@@ -1823,19 +1826,24 @@ The Astryks team`;
                   Hi ${name},
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Thanks for subscribing! You now have full access to every lesson in the library, billed at
-                  <strong>${priceDisplay}</strong>.
+                  Thanks for subscribing! ${
+                    trialEndDisplay
+                      ? `Your <strong>7-day free trial</strong> has started — full access to every lesson right now, and you won't be charged until <strong>${trialEndDisplay}</strong> (${priceDisplay} from then on).`
+                      : `You now have full access to every lesson in the library, billed at <strong>${priceDisplay}</strong>.`
+                  }
                 </p>
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      🔓 Cancel any time from <strong>astryks.com/me</strong> — no phone calls, no retention pitch.
+                      🔓 Cancel any time from <strong>astryks.com/me</strong> — no phone calls, no retention pitch${
+                        trialEndDisplay ? ", and canceling during your trial means you're never charged" : ""
+                      }.
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      💛 You're covered by our <strong>90-day money-back guarantee</strong> — a full refund, no
-                      questions asked, any time within 90 days of subscribing.
+                      💛 Once you're billed, you're covered by our <strong>90-day money-back guarantee</strong> — a
+                      full refund, no questions asked.
                     </td>
                   </tr>
                   <tr>
@@ -2005,6 +2013,322 @@ The Astryks team`;
   return { subject, text, html };
 }
 
+// ---------- "Don't go cold" lifecycle emails: onboarding drip, re-engagement, win-back ----------
+// Same visual pattern as the templates above. Each fires from a scheduled function further down
+// rather than a webhook/callable, since these are all about *time passing without something
+// happening* (no lesson started, no activity, no resubscribe) rather than a discrete event.
+
+function buildTryLessonEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "Haven't picked a lesson yet? Here's where to start";
+
+  const text = `Hi ${name},
+
+You signed up a couple of days ago — welcome again! We noticed you haven't started a lesson yet, so
+here's a nudge in case you weren't sure where to begin.
+
+Astryks has lessons across Music, Art, and more, taught by people who actually do this for a living.
+You can preview lessons for free before deciding whether to subscribe, so there's no pressure — just
+pick whatever looks interesting and see how it feels.
+
+Head to astryks.com/learn whenever you've got a few minutes.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#F7DEDB;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Where should you start?</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  You signed up a couple of days ago — welcome again! We noticed you haven't started a
+                  lesson yet, so here's a nudge in case you weren't sure where to begin.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Astryks has lessons across Music, Art, and more, taught by people who actually do this
+                  for a living. You can preview lessons for free before deciding whether to subscribe —
+                  no pressure, just pick whatever looks interesting.
+                </p>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Browse lessons
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+function buildSubscribeNudgeEmail(displayName, priceDisplay) {
+  const name = displayName || "there";
+  const subject = "Still deciding? Here's exactly what you get";
+
+  const text = `Hi ${name},
+
+You've been exploring Astryks for a few days now, so we thought it's worth spelling out exactly
+what subscribing gets you, in case anything was unclear:
+
+- Every lesson in the library, across every subject, for ${priceDisplay}.
+- A 7-day free trial — you won't be charged a cent until day 7, and you can cancel any time before
+  then with nothing on your card.
+- After that, a 90-day money-back guarantee — a full refund, no questions asked, if it's not for you.
+- Cancelling later takes one click from astryks.com/me, any time, no calls or forms.
+
+No pressure either way — posting, browsing, and the monthly Creative Prize all stay free forever,
+subscription or not. But if you've been on the fence, this is about as risk-free as it gets.
+
+astryks.com/learn
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#E4DEF3;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Here's exactly what you get</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  You've been exploring Astryks for a few days now, so here's exactly what subscribing
+                  gets you, in case anything was unclear.
+                </p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      📚 Every lesson in the library, across every subject, for <strong>${priceDisplay}</strong>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      🎁 A <strong>7-day free trial</strong> — nothing charged until day 7, cancel free any time before then.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      💛 After that, a <strong>90-day money-back guarantee</strong> — no questions asked.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      🔓 Cancel any time from <strong>astryks.com/me</strong> — one click, no calls.
+                    </td>
+                  </tr>
+                </table>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Start your free trial
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+function buildWeMissYouEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "We miss you at Astryks";
+
+  const text = `Hi ${name},
+
+It's been a couple of weeks since we've seen you around — no big deal, life gets busy. Just wanted
+to let you know new lessons have gone up since you last visited, and the monthly Creative Prize
+(AU$1,000, completely free to enter) is still running.
+
+If you left off partway through a lesson or a streak, it's all still there waiting whenever you're
+ready to pick it back up.
+
+astryks.com
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#DCE6F2;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">We miss you</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  It's been a couple of weeks since we've seen you around — no big deal, life gets busy.
+                  Just wanted to let you know new lessons have gone up since you last visited, and the
+                  monthly <strong>Creative Prize</strong> (AU$1,000, free to enter) is still running.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  If you left off partway through a lesson or a streak, it's all still there waiting
+                  whenever you're ready to pick it back up.
+                </p>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="https://astryks.com/home" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Jump back in
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+function buildWinBackEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "Come back any time — here's what's new";
+
+  const text = `Hi ${name},
+
+It's been a few weeks since your Astryks subscription ended, and we genuinely hope it was useful
+while it lasted. New lessons have gone up since then, and if you resubscribe, you'll get another
+7-day free trial plus the same 90-day money-back guarantee — so there's no risk in giving it
+another look.
+
+Your account, posts, and Creative Prize entries are all exactly as you left them, whether or not
+you come back.
+
+astryks.com/learn
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#DEF0E3;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Come back any time</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  It's been a few weeks since your Astryks subscription ended, and we genuinely hope it
+                  was useful while it lasted. New lessons have gone up since then.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  If you resubscribe, you'll get another <strong>7-day free trial</strong> plus the same
+                  <strong>90-day money-back guarantee</strong> — so there's no risk in giving it another look.
+                  Your account, posts, and Creative Prize entries are all exactly as you left them either way.
+                </p>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    See what's new
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
 async function sendBrandedEmail(email, { subject, text, html }) {
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -2052,6 +2376,26 @@ exports.sendTestRefundEmail = onCall(
       buildRefundConfirmationEmail(request.auth.token.name || "there", "AU$45.00")
     );
     return { sentTo: request.auth.token.email };
+  }
+);
+
+// Sends all four "don't go cold" nudges (try-a-lesson, subscribe-nudge, we-miss-you, win-back)
+// to your own inbox in one go — these don't have individual triggers you can fire on demand
+// the way a webhook event does, so this is how you preview them before trusting the scheduled
+// functions below to send them to real members.
+exports.sendTestLifecycleNudgeEmails = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    const name = request.auth.token.name || "there";
+    const email = request.auth.token.email;
+    await sendBrandedEmail(email, buildTryLessonEmail(name));
+    await sendBrandedEmail(email, buildSubscribeNudgeEmail(name, "AU$5/week"));
+    await sendBrandedEmail(email, buildWeMissYouEmail(name));
+    await sendBrandedEmail(email, buildWinBackEmail(name));
+    return { sentTo: email, count: 4 };
   }
 );
 
@@ -2177,6 +2521,15 @@ const Stripe = require("stripe");
 const stripeSecret = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 const stripePriceId = defineSecret("STRIPE_PRICE_ID");
+// A second, separate recurring Price on the SAME Stripe Product as STRIPE_PRICE_ID, just with
+// `interval: year` instead of `interval: week` — create it once in the Stripe dashboard
+// (Product catalog -> your product -> "Add another price"), copy its price ID, then run
+// `firebase functions:secrets:set STRIPE_ANNUAL_PRICE_ID`. Give it the same per-currency amounts
+// as the weekly price (Product -> Price -> "Add another currency"), just annualized — e.g. if
+// weekly is configured as amount*1 per currency, price the annual one at roughly amount*50 (a
+// "2 weeks free" framing) so it actually undercuts paying weekly all year. Until this secret is
+// set, requests with plan: "annual" fail clearly rather than silently charging the weekly price.
+const stripeAnnualPriceId = defineSecret("STRIPE_ANNUAL_PRICE_ID");
 
 // Shared secret you set in the Qonversion dashboard (Project Settings > Integrations >
 // Webhooks > "Header Authorization-Token Value") so we can confirm a webhook call really came
@@ -2249,13 +2602,33 @@ exports.validateReferralCode = onCall(async (request) => {
 
 // ---------- Callable: start a Stripe Checkout session (subscribe) ----------
 
+// 7 days free before the first charge — lets someone try a full lesson (or several) before
+// committing a card, closing the biggest gap vs. MasterClass's own free-preview-then-trial
+// flow. Applies to both plans below; someone who cancels during these 7 days is never charged
+// at all (Stripe handles that automatically — no separate refund needed for a trial cancel).
+const SUBSCRIPTION_TRIAL_DAYS = 7;
+
 exports.createCheckoutSession = onCall(
-  { secrets: [stripeSecret, stripePriceId] },
+  { secrets: [stripeSecret, stripePriceId, stripeAnnualPriceId] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
     const stripe = Stripe(stripeSecret.value());
     const uid = request.auth.uid;
     const referralCode = (request.data?.referralCode || "").toUpperCase().trim() || null;
+    const plan = request.data?.plan === "annual" ? "annual" : "weekly";
+
+    let priceId;
+    if (plan === "annual") {
+      priceId = stripeAnnualPriceId.value();
+      if (!priceId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Annual billing isn't set up yet — subscribe weekly for now, or ask the Astryks team."
+        );
+      }
+    } else {
+      priceId = stripePriceId.value();
+    }
 
     let discounts = [];
     let referrerUid = null;
@@ -2272,10 +2645,11 @@ exports.createCheckoutSession = onCall(
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      line_items: [{ price: stripePriceId.value(), quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       discounts,
+      subscription_data: { trial_period_days: SUBSCRIPTION_TRIAL_DAYS },
       client_reference_id: uid,
-      metadata: { uid, referrerUid: referrerUid || "" },
+      metadata: { uid, referrerUid: referrerUid || "", plan },
       success_url: safeRedirectUrl(request.data?.successUrl, "/home"),
       cancel_url: safeRedirectUrl(request.data?.cancelUrl, "/home"),
       // Required (not just "auto") so every subscriber's billing country is captured —
@@ -2602,7 +2976,10 @@ exports.approveRefund = onCall(
       }
     }
 
-    await db.doc(`users/${refundRequest.uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
+    await db.doc(`users/${refundRequest.uid}`).set(
+      { subscriptionStatus: "canceled", canceledAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
 
     const amountDisplay = formatCents(refundedCents, currency);
     await reqRef.set(
@@ -2877,17 +3254,34 @@ exports.stripeWebhook = onRequest(
         });
       }
 
-      // Automatic "thanks for subscribing" email — fires the moment Stripe confirms the first
-      // payment, using the actual charged amount/currency (session.amount_total/currency) rather
-      // than the client-side geo-guessed price, so the number in the email always matches what
-      // was really billed.
+      // Automatic "thanks for subscribing" email — fires the moment checkout completes. With
+      // the 7-day trial, session.amount_total is 0 at this point (nothing's been charged yet),
+      // so it's no longer a usable source for "what will I be billed" — read the real recurring
+      // price straight off the subscription's line item instead, which is correct whether
+      // they're in a trial or not, and also surface the actual first-charge date from
+      // sub.trial_end so the email never has to guess or say something vague.
       try {
         const email = session.customer_details?.email;
         if (email) {
-          const priceDisplay =
-            session.amount_total != null
-              ? `${formatCents(session.amount_total, subscriptionCurrency || "usd")}/week`
-              : "your subscription price";
+          let priceDisplay = "your subscription price";
+          let trialEndDisplay = null;
+          try {
+            const sub = await stripe.subscriptions.retrieve(session.subscription);
+            const item = sub.items?.data?.[0];
+            if (item?.price?.unit_amount != null) {
+              const interval = item.price.recurring?.interval === "year" ? "year" : "week";
+              priceDisplay = `${formatCents(item.price.unit_amount, item.price.currency || subscriptionCurrency || "usd")}/${interval}`;
+            }
+            if (sub.trial_end) {
+              trialEndDisplay = new Date(sub.trial_end * 1000).toLocaleDateString("en-AU", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              });
+            }
+          } catch (err) {
+            console.error("stripeWebhook: couldn't read subscription price for confirmation email", uid, err);
+          }
           let displayName = session.customer_details?.name || "there";
           try {
             const userRecord = await admin.auth().getUser(uid);
@@ -2895,7 +3289,7 @@ exports.stripeWebhook = onRequest(
           } catch {
             // Fall back to the name Stripe collected at checkout — not fatal either way.
           }
-          await sendBrandedEmail(email, buildSubscriptionConfirmationEmail(displayName, priceDisplay));
+          await sendBrandedEmail(email, buildSubscriptionConfirmationEmail(displayName, priceDisplay, trialEndDisplay));
         }
       } catch (err) {
         console.error("stripeWebhook: failed to send subscription confirmation email", uid, err);
@@ -2909,7 +3303,13 @@ exports.stripeWebhook = onRequest(
       if (!usersSnap.empty) {
         const userDoc = usersSnap.docs[0];
         const wasActive = userDoc.data()?.subscriptionStatus === "active";
-        await userDoc.ref.set({ subscriptionStatus: isActive ? "active" : "canceled" }, { merge: true });
+        await userDoc.ref.set(
+          {
+            subscriptionStatus: isActive ? "active" : "canceled",
+            ...(isActive ? {} : { canceledAt: admin.firestore.FieldValue.serverTimestamp() }),
+          },
+          { merge: true }
+        );
 
         // Only email the moment a subscription actually TRANSITIONS from active to canceled —
         // Stripe fires "customer.subscription.updated" for lots of things unrelated to
@@ -3002,7 +3402,10 @@ exports.qonversionWebhook = onRequest({ secrets: [qonversionWebhookAuth] }, asyn
       // period the same way RevenueCat's CANCELLATION-vs-EXPIRATION distinction did — Qonversion
       // keeps `active: true` until the period actually lapses even after the user cancels
       // auto-renew, so we don't need separate cancellation-vs-expiration handling here.
-      await db.doc(`users/${uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
+      await db.doc(`users/${uid}`).set(
+        { subscriptionStatus: "canceled", canceledAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
     }
 
     res.json({ received: true });
@@ -3043,6 +3446,150 @@ exports.dailyStreakReminder = onSchedule("every day 18:00", async () => {
     )
   );
 });
+
+// Cosmetic-only display price for the onboarding nudge emails below — NOT the source of truth
+// for what anyone is actually charged (same caveat as web/lib/geo.ts's PRICING_BY_COUNTRY,
+// which this intentionally mirrors — keep the two in sync if prices ever change; a real Cloud
+// Function can't import a Next.js app's .ts file directly, hence the small duplicate here
+// rather than a shared import).
+const NUDGE_PRICE_BY_COUNTRY = { AU: "AU$5/week", US: "$5/week", GB: "£5/week", IN: "₹400/week", PH: "₱250/week" };
+function nudgePriceDisplay(countryCode) {
+  return NUDGE_PRICE_BY_COUNTRY[countryCode] || "$5/week";
+}
+
+// ---------- Scheduled: onboarding drip — the two nudges for signups who've gone quiet ----------
+// Both are purely time-since-signup based (profiles/{uid}.createdAt), each gated so it can only
+// ever fire once per account:
+//  - ~2 days in, if they haven't started a single lesson yet
+//  - ~5 days in, if they still haven't subscribed
+// Each query uses a wide (16-hour) window so a single missed/delayed run doesn't skip anyone —
+// they just get caught by the next day's run instead of falling through a narrow slot.
+exports.sendOnboardingNudges = onSchedule(
+  { schedule: "every day 10:00", timeZone: "Australia/Sydney", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async () => {
+    const now = Date.now();
+    const hoursAgo = (h) => new Date(now - h * 60 * 60 * 1000);
+
+    const day2Snap = await db
+      .collection("profiles")
+      .where("createdAt", ">=", hoursAgo(56))
+      .where("createdAt", "<=", hoursAgo(40))
+      .get();
+
+    for (const doc of day2Snap.docs) {
+      const data = doc.data();
+      if (data.onboarding?.day2SentAt) continue;
+      try {
+        const progressSnap = await db.collection("lessonProgress").where("uid", "==", doc.id).limit(1).get();
+        if (!progressSnap.empty) continue; // already started a lesson — no nudge needed
+
+        const userRecord = await admin.auth().getUser(doc.id);
+        if (!userRecord.email) continue;
+        await sendBrandedEmail(userRecord.email, buildTryLessonEmail(userRecord.displayName || data.displayName));
+        await doc.ref.set(
+          { onboarding: { ...data.onboarding, day2SentAt: admin.firestore.FieldValue.serverTimestamp() } },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("sendOnboardingNudges: day2 nudge failed for", doc.id, err);
+      }
+    }
+
+    const day5Snap = await db
+      .collection("profiles")
+      .where("createdAt", ">=", hoursAgo(128))
+      .where("createdAt", "<=", hoursAgo(112))
+      .get();
+
+    for (const doc of day5Snap.docs) {
+      const data = doc.data();
+      if (data.onboarding?.day5SentAt) continue;
+      try {
+        const userSnap = await db.doc(`users/${doc.id}`).get();
+        if (userSnap.data()?.subscriptionStatus === "active") continue;
+
+        const userRecord = await admin.auth().getUser(doc.id);
+        if (!userRecord.email) continue;
+        const priceDisplay = nudgePriceDisplay(userSnap.data()?.countryCode);
+        await sendBrandedEmail(
+          userRecord.email,
+          buildSubscribeNudgeEmail(userRecord.displayName || data.displayName, priceDisplay)
+        );
+        await doc.ref.set(
+          { onboarding: { ...data.onboarding, day5SentAt: admin.firestore.FieldValue.serverTimestamp() } },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("sendOnboardingNudges: day5 nudge failed for", doc.id, err);
+      }
+    }
+  }
+);
+
+// ---------- Scheduled: re-engagement — nudge accounts that have gone quiet 2+ weeks ----------
+// lastActiveDate is the plain "YYYY-MM-DD" string bumpStreakInternal already maintains (updated
+// on every lesson completion) — ISO date strings compare correctly as plain strings, so this is
+// a single-field range query, same pattern as the existing dailyStreakReminder above. Sends at
+// most once every 30 days per account (checked in JS against reengagement.lastSentAt) so someone
+// who stays inactive doesn't get this every single day forever.
+exports.sendReengagementEmails = onSchedule(
+  { schedule: "every day 11:00", timeZone: "Australia/Sydney", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async () => {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const usersSnap = await db.collection("users").where("lastActiveDate", "<=", fourteenDaysAgo).get();
+
+    for (const doc of usersSnap.docs) {
+      const data = doc.data();
+      const lastSent = data.reengagement?.lastSentAt?.toDate?.();
+      if (lastSent && Date.now() - lastSent.getTime() < 30 * 24 * 60 * 60 * 1000) continue;
+
+      try {
+        const userRecord = await admin.auth().getUser(doc.id);
+        if (!userRecord.email) continue;
+        await sendBrandedEmail(userRecord.email, buildWeMissYouEmail(userRecord.displayName));
+        await doc.ref.set(
+          { reengagement: { lastSentAt: admin.firestore.FieldValue.serverTimestamp() } },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("sendReengagementEmails: failed for", doc.id, err);
+      }
+    }
+  }
+);
+
+// ---------- Scheduled: win-back — nudge accounts that canceled roughly 3 weeks ago ----------
+// canceledAt is set at the same moment subscriptionStatus flips to "canceled" (Stripe webhook,
+// Qonversion webhook, and the refund-approval flow all set it now — see those call sites).
+// Requires a composite index on users(subscriptionStatus ASC, canceledAt ASC) — already added to
+// firestore.indexes.json. Fires at most once per account (winBackSentAt flag).
+exports.sendWinBackEmails = onSchedule(
+  { schedule: "every day 12:00", timeZone: "Australia/Sydney", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async () => {
+    const now = Date.now();
+    const hoursAgo = (h) => new Date(now - h * 60 * 60 * 1000);
+
+    const snap = await db
+      .collection("users")
+      .where("subscriptionStatus", "==", "canceled")
+      .where("canceledAt", ">=", hoursAgo(23 * 24))
+      .where("canceledAt", "<=", hoursAgo(19 * 24))
+      .get();
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (data.winBackSentAt) continue;
+      try {
+        const userRecord = await admin.auth().getUser(doc.id);
+        if (!userRecord.email) continue;
+        await sendBrandedEmail(userRecord.email, buildWinBackEmail(userRecord.displayName));
+        await doc.ref.set({ winBackSentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      } catch (err) {
+        console.error("sendWinBackEmails: failed for", doc.id, err);
+      }
+    }
+  }
+);
 
 // ---------- Scheduled: email the admin the previous month's creative-prize nominees ----------
 //

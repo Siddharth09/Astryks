@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getCountFromServer, getDoc, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,14 +32,30 @@ export default function ReferralAndBilling() {
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
   const [showBilling, setShowBilling] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [plan, setPlan] = useState<"weekly" | "annual">("weekly");
+  const [progress, setProgress] = useState<{ streakCount: number; xp: number; masteredSubjects: string[]; lessonsCompleted: number } | null>(null);
 
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "users", user.uid)).then((snap) => {
-      setStatus(snap.data()?.subscriptionStatus ?? "none");
-      setHasStripeAccount(!!snap.data()?.stripeCustomerId);
-      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
+      const data = snap.data();
+      setStatus(data?.subscriptionStatus ?? "none");
+      setHasStripeAccount(!!data?.stripeCustomerId);
+      setPricing(getLocalizedPricing(data?.countryCode ?? detectCountryCode()));
+      setProgress({
+        streakCount: data?.streakCount || 0,
+        xp: data?.xp || 0,
+        masteredSubjects: data?.masteredSubjects || [],
+        lessonsCompleted: 0,
+      });
     });
+    getCountFromServer(query(collection(db, "lessonProgress"), where("uid", "==", user.uid)))
+      .then((countSnap) => {
+        setProgress((prev) => (prev ? { ...prev, lessonsCompleted: countSnap.data().count } : prev));
+      })
+      .catch(() => {
+        // Not fatal — the progress card just won't show a lesson count.
+      });
     getMyRefundStatusFn()
       .then((result) => {
         const data = result.data as { status: string | null; totalDisplay?: string };
@@ -83,6 +99,7 @@ export default function ReferralAndBilling() {
     setBillingError(null);
     try {
       const result = await createCheckoutSession({
+        plan,
         successUrl: `${location.origin}/me`,
         cancelUrl: `${location.origin}/me`,
       });
@@ -158,8 +175,8 @@ export default function ReferralAndBilling() {
                   ? `Active until ${currentPeriodEnd ? new Date(currentPeriodEnd).toLocaleDateString() : "period end"} — ${pricing.display}`
                   : `Active — ${pricing.display}`
                 : status === "canceled"
-                ? "Canceled"
-                : "Not subscribed"}
+                ? "Canceled — resubscribe any time"
+                : "Not subscribed — 7 days free to try"}
             </p>
           </div>
           {status === "active" ? (
@@ -179,10 +196,23 @@ export default function ReferralAndBilling() {
             </div>
           ) : (
             <button onClick={subscribe} disabled={loading} className="btn-primary text-xs px-3 py-2">
-              Subscribe
+              {status === "canceled" ? "Resubscribe" : "Start free trial"}
             </button>
           )}
         </div>
+        {status !== "active" && (
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ink/10">
+            <span className="text-xs text-ink/50">Plan:</span>
+            <label className="flex items-center gap-1.5 text-xs text-ink/70">
+              <input type="radio" name="plan" checked={plan === "weekly"} onChange={() => setPlan("weekly")} />
+              Weekly ({pricing.display})
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-ink/70">
+              <input type="radio" name="plan" checked={plan === "annual"} onChange={() => setPlan("annual")} />
+              Annual ({pricing.annualDisplay} — 2 weeks free)
+            </label>
+          </div>
+        )}
         {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}
         {cancelAtPeriodEnd && (
           <p className="text-xs text-ink/40 mt-2">
@@ -197,6 +227,26 @@ export default function ReferralAndBilling() {
           "Manage" opens Stripe's secure billing page to update your card. "Cancel" stops future billing right
           here — either way, you keep access until the end of what you've already paid for.
         </p>
+      )}
+
+      {progress && (progress.lessonsCompleted > 0 || progress.streakCount > 0 || progress.masteredSubjects.length > 0) && (
+        <div className="card p-4">
+          <p className="text-sm font-medium mb-2">Your progress</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="font-display text-2xl font-black">{progress.lessonsCompleted}</p>
+              <p className="text-[11px] text-ink/50">lessons done</p>
+            </div>
+            <div>
+              <p className="font-display text-2xl font-black">{progress.streakCount}</p>
+              <p className="text-[11px] text-ink/50">day streak</p>
+            </div>
+            <div>
+              <p className="font-display text-2xl font-black">{progress.masteredSubjects.length}</p>
+              <p className="text-[11px] text-ink/50">subjects mastered</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {hasStripeAccount && charges && charges.length > 0 && (

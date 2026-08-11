@@ -56,21 +56,32 @@ const EUROZONE = new Set([
   "FR", "DE", "ES", "IT", "NL", "BE", "IE", "PT", "AT", "FI", "GR", "LU", "SI", "SK", "EE", "LV", "LT", "MT", "CY",
 ]);
 
-export type PriceInfo = { currency: string; symbol: string; amount: number; display: string };
+export type PriceInfo = {
+  currency: string;
+  symbol: string;
+  amount: number;
+  display: string;
+  // Illustrative annual price only (weekly amount * 50 — "2 weeks free" vs. paying weekly all
+  // year). The actual amount charged is whatever the STRIPE_ANNUAL_PRICE_ID Price is configured
+  // for in the dashboard — keep that set to match this multiplier per currency, or this display
+  // number and the real charge will drift apart.
+  annualAmount: number;
+  annualDisplay: string;
+};
 
 // Sid's fixed weekly prices per market — deliberately NOT a literal FX conversion. Weak
 // currencies (INR, PHP) are rounded well above the raw conversion of AU$5 so the price still
 // reflects real value rather than reading as "basically free." Update this table (and the
 // matching currency_options on the Stripe Price in the dashboard) together if prices change.
 const PRICING_BY_COUNTRY: Record<string, PriceInfo> = {
-  AU: { currency: "AUD", symbol: "AU$", amount: 5, display: "AU$5/week" },
-  US: { currency: "USD", symbol: "$", amount: 5, display: "$5/week" },
-  GB: { currency: "GBP", symbol: "£", amount: 5, display: "£5/week" },
-  IN: { currency: "INR", symbol: "₹", amount: 400, display: "₹400/week" },
-  PH: { currency: "PHP", symbol: "₱", amount: 250, display: "₱250/week" },
+  AU: { currency: "AUD", symbol: "AU$", amount: 5, display: "AU$5/week", annualAmount: 250, annualDisplay: "AU$250/year" },
+  US: { currency: "USD", symbol: "$", amount: 5, display: "$5/week", annualAmount: 250, annualDisplay: "$250/year" },
+  GB: { currency: "GBP", symbol: "£", amount: 5, display: "£5/week", annualAmount: 250, annualDisplay: "£250/year" },
+  IN: { currency: "INR", symbol: "₹", amount: 400, display: "₹400/week", annualAmount: 20000, annualDisplay: "₹20,000/year" },
+  PH: { currency: "PHP", symbol: "₱", amount: 250, display: "₱250/week", annualAmount: 12500, annualDisplay: "₱12,500/year" },
 };
-const EUR_PRICE: PriceInfo = { currency: "EUR", symbol: "€", amount: 5, display: "€5/week" };
-const DEFAULT_PRICE: PriceInfo = { currency: "USD", symbol: "$", amount: 5, display: "$5/week" };
+const EUR_PRICE: PriceInfo = { currency: "EUR", symbol: "€", amount: 5, display: "€5/week", annualAmount: 250, annualDisplay: "€250/year" };
+const DEFAULT_PRICE: PriceInfo = { currency: "USD", symbol: "$", amount: 5, display: "$5/week", annualAmount: 250, annualDisplay: "$250/year" };
 
 export function detectCountryCode(): string | null {
   try {
