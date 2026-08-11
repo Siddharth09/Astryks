@@ -52,8 +52,8 @@ env:
   # and the console steps to get a site key). Uncomment and fill in once you have one; until then
   # this stays unset in production the same way it's unset in local dev, and App Check just
   # doesn't run — nothing breaks either way.
-  # - variable: NEXT_PUBLIC_RECAPTCHA_SITE_KEY
-  #   value: "your-recaptcha-v3-site-key"
-  #   availability:
-  #     - BUILD
-  #     - RUNTIME
+  - variable: NEXT_PUBLIC_RECAPTCHA_SITE_KEY
+    value: "6LfVaIEtAAAAACBHzvQU2B-gkNaURfiHcoRxxJKe"
+    availability:
+      - BUILD
+      - RUNTIME
