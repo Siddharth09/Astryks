@@ -55,7 +55,7 @@ const PRIZE_STEPS = [
 
 const FAQS = [
   { q: "Who are the experts teaching on Astryks?", a: "Professional practitioners in their field — people who do this for a living, not just talk about it." },
-  { q: "Is Astryks meant for endless scrolling?", a: "Not at all — we'd rather you put your phone down and go make something. Just start! Take your time with each lesson, and try to finish one piece before starting the next: record one song from scratch even if you've never touched an instrument, or finish one drawing before jumping to another. Whether you share it or not doesn't matter — what matters is that you took the time to learn and create something that means something to you." },
+  { q: "Is Astryks meant for endless scrolling?", a: "Absolutely not — we'd rather you put your phone down and go make something. Anything, just start! Learning (like money) compounds over time. Start small, take your time with each lesson and try to finish one piece before starting the next. Record just one song from scratch, or create one painting. Learn the technical details, study other artists and then look out at the world and find what inspires you." },
   { q: "Do I need any experience to start?", a: "Absolutely not — remember there are no born experts. Everybody started somewhere. Astryks is designed for that first step when you have zero experience but are open to trying something new. Learn the basic techniques, and then look at existing work out there and try and recreate a song or a painting from a famous artist, or make your own, or do both! It's magical creating layers of paintings, like layers of music, just have fun with it!" },
   { q: "Can I post what I make?", a: "That's entirely up to you. Post it if you'd like feedback and to be part of the community, or keep it to yourself — either way is completely fine, and posting is never required." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
@@ -84,7 +84,7 @@ export default function LoginScreen() {
   // the visitor's localized pricing, same as the rest of the screen.
   const STEPS = [
     { n: "01", title: "Sign up", blurb: "Create your free account in under a minute." },
-    { n: "02", title: "Dive in", blurb: `Post your work, browse what others are creating, and enter the monthly Creative Prize — it's all free. Want our expert-led masterclasses too? Subscribe for ${pricing.display}, cancel anytime.` },
+    { n: "02", title: "Dive in", blurb: `Post your work, browse what others are creating, and enter the monthly Creative Prize — it's all free. If you want to learn from our expert-led masterclasses, subscribe at ${pricing.display} — 90-day refunds, cancel anytime.` },
     { n: "03", title: "Just create", blurb: "Whether it's with our experts or on your own, just start — record one song from scratch, paint one piece. Take your time, and make something that means something to you." },
   ];
 
