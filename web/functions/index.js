@@ -1562,9 +1562,9 @@ The Astryks team`;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
             <tr>
-              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+              <td style="background-color:#DEF0E3;padding:36px 32px 28px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
                 <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Welcome to Astryks</p>
               </td>
@@ -1657,9 +1657,9 @@ Astryks`;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
             <tr>
-              <td style="background-color:#FFF6F1;padding:40px 32px 30px;text-align:center;">
+              <td style="background-color:#F7DEDB;padding:40px 32px 30px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 16px;border-radius:14px;" />
                 <p style="margin:0 0 6px;font-size:34px;line-height:1;">🎉</p>
                 <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.35;color:#17130F;font-weight:600;">
@@ -1810,9 +1810,9 @@ The Astryks team`;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
             <tr>
-              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+              <td style="background-color:#DCE6F2;padding:36px 32px 28px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
                 <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">You're subscribed</p>
               </td>
@@ -1892,9 +1892,9 @@ The Astryks team`;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
             <tr>
-              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+              <td style="background-color:#E4DEF3;padding:36px 32px 28px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
                 <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Subscription canceled</p>
               </td>
@@ -1959,9 +1959,9 @@ The Astryks team`;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
             <tr>
-              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+              <td style="background-color:#DEF0E3;padding:36px 32px 28px;text-align:center;">
                 <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
                 <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Refund issued</p>
                 <p style="margin:10px 0 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#E85D5D;">
