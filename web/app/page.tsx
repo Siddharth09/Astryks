@@ -88,9 +88,16 @@ export default function Home() {
       {/* Hero */}
       <div className="px-4 py-14 md:py-24 text-center">
         <div className="max-w-2xl mx-auto">
-          <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-5 leading-[1.1]">
+          <h1 className="font-display text-3xl sm:text-5xl md:text-6xl font-black tracking-tight mb-5 leading-[1.15]">
             Learn real life skills from{" "}
-            <span className="bg-highlight px-1.5 box-decoration-clone">experts in their field</span>
+            {/* whitespace-nowrap keeps this phrase on one line — letting it wrap mid-highlight
+                produced a jagged, "cut"-looking highlight box (each line's box-decoration-clone
+                rectangle gets centered independently, so they don't line up edge to edge). The
+                base text size is dropped a step (4xl -> 3xl) so the phrase still fits without
+                overflowing on the narrowest phone screens. */}
+            <span className="bg-highlight px-1.5 py-0.5 box-decoration-clone whitespace-nowrap">
+              experts in their field
+            </span>
           </h1>
           <p className="text-ink/60 max-w-md mx-auto mb-8 md:text-lg">
             Music. Art. Finance. Learn from real working professionals and
@@ -117,7 +124,8 @@ export default function Home() {
             <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-3">Free preview</p>
             <h2 className="font-display text-3xl md:text-4xl font-bold mb-2 md:mb-4">See how Astryks works</h2>
             <p className="text-ink/60 text-sm mb-6 max-w-sm hidden md:block">
-              No account needed to watch — see a real lesson before you decide anything.
+              Sign up for free and share what you create, always free. If you'd like our
+              expert-led classes too, subscribe for {pricing.display} — cancel anytime.
             </p>
           </div>
           <div className="max-w-sm md:max-w-none">

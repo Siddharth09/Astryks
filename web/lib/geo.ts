@@ -75,9 +75,14 @@ const DEFAULT_PRICE: PriceInfo = { currency: "USD", symbol: "$", amount: 5, disp
 export function detectCountryCode(): string | null {
   try {
     const { locale, timeZone } = Intl.DateTimeFormat().resolvedOptions();
+    // Time zone first: it's a much more reliable signal for "where is this person" than
+    // the browser/OS locale, which just reflects a language/region preference (e.g. a
+    // UK-English macOS install used from Sydney reports locale "en-GB" but timeZone
+    // "Australia/Sydney" — we want AU pricing for that visitor, not GBP).
+    if (TIMEZONE_COUNTRY[timeZone]) return TIMEZONE_COUNTRY[timeZone];
     const region = locale?.split("-")[1]?.toUpperCase();
     if (region && region.length === 2) return region;
-    return TIMEZONE_COUNTRY[timeZone] || null;
+    return null;
   } catch {
     return null;
   }

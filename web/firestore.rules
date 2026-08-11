@@ -178,5 +178,14 @@ service cloud.firestore {
     match /payoutAccounts/{uid} {
       allow read, write: if false;
     }
+
+    // Refund requests — same reasoning as prizeWinners/payoutAccounts above: this holds a
+    // Stripe customer ID and billing totals, and "who's requested a refund" shouldn't be
+    // listable by anyone but an admin. All access goes through the requestRefund/
+    // getMyRefundStatus/getRefundRequests/approveRefund Cloud Functions instead (Admin SDK
+    // bypasses these rules).
+    match /refundRequests/{requestId} {
+      allow read, write: if false;
+    }
   }
 }

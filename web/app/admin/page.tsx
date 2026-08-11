@@ -11,6 +11,11 @@ const SECTIONS = [
     description: "Review and approve each month's Creative Prize winner, and mark payouts as sent.",
   },
   {
+    href: "/admin/refunds",
+    title: "Refund requests",
+    description: "Review refund requests and approve full, no-questions-asked refunds.",
+  },
+  {
     href: "/admin/reports",
     title: "Reports",
     description: "Pending content reports from members, plus the welcome-email preview tool.",

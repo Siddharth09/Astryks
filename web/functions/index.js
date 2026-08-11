@@ -152,6 +152,38 @@ async function sendPrizeBotMessage(ownerId, ownerName, text, extraFields) {
   );
 }
 
+// Sends an "Astryks Support" message into (or creating, if needed) the 1:1 conversation
+// between a member and the support pseudo-account — same reused conversations/messages
+// schema as sendPrizeBotMessage above. The existing onMessageCreated trigger push-notifies
+// the recipient automatically the moment this message is created, same as any real DM.
+const SUPPORT_NAME = "Astryks Support";
+async function sendSupportMessage(uid, userName, text) {
+  const conversationId = [uid, SUPPORT_UID].sort().join("_");
+  const convoRef = db.doc(`conversations/${conversationId}`);
+  const convoSnap = await convoRef.get();
+  if (!convoSnap.exists) {
+    await convoRef.set({
+      participants: [uid, SUPPORT_UID].sort(),
+      participantNames: [uid, SUPPORT_UID]
+        .sort()
+        .map((id) => (id === SUPPORT_UID ? SUPPORT_NAME : userName || "Member")),
+      lastMessage: "",
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  await convoRef.collection("messages").add({
+    senderId: SUPPORT_UID,
+    senderName: SUPPORT_NAME,
+    text,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await convoRef.set(
+    { lastMessage: text, lastMessageAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+}
+
 // Marks a brand-new photo/video post eligible for that month's creative prize the moment
 // it's posted, and notifies the owner with a way to opt themselves back out. To actually win,
 // a post needs at least PRIZE_LIKE_THRESHOLD likes by month end (see sendMonthlyPrizeReport) —
@@ -2000,6 +2032,239 @@ exports.createBillingPortalSession = onCall(
       return_url: safeRedirectUrl(request.data?.returnUrl, "/me"),
     });
     return { url: portal.url };
+  }
+);
+
+// ---------- Self-service refunds ("no questions asked") ----------
+// A member requests a refund (requestRefund) -> you get emailed + pushed (notifyAdmin) with
+// their entire lifetime billing total -> you review at astryks.com/admin/refunds and click
+// Approve (approveRefund), which refunds every charge Stripe has on file for them in full and
+// cancels their subscription immediately. There's no partial-refund path and no built-in
+// decline reason capture on purpose — "no questions asked" per how this was scoped. Web/Stripe
+// subscribers only: mobile App Store/Google Play subscribers pay through Apple/Google, and
+// only Apple/Google can refund those — requestRefund below explains that instead of accepting
+// a request it can't fulfill.
+
+// Sums every still-refundable dollar Stripe has ever captured from this customer — i.e. their
+// full lifetime billing total minus whatever's already been refunded — across every charge,
+// not just the current billing period. Walks all pages so a years-long subscriber (>100
+// charges) is still totalled correctly.
+async function getRefundableTotal(stripe, customerId) {
+  let totalCents = 0;
+  let currency = null;
+  let startingAfter;
+  for (;;) {
+    const page = await stripe.charges.list({ customer: customerId, limit: 100, starting_after: startingAfter });
+    for (const charge of page.data) {
+      if (!charge.paid || charge.status !== "succeeded") continue;
+      const refundable = charge.amount - charge.amount_refunded;
+      if (refundable <= 0) continue;
+      totalCents += refundable;
+      currency = currency || charge.currency;
+    }
+    if (!page.has_more) break;
+    startingAfter = page.data[page.data.length - 1].id;
+  }
+  return { totalCents, currency: currency || "usd" };
+}
+
+// Stripe amounts are always integer minor units (cents) — this turns 1234/"aud" into "AU$12.34"
+// for anything shown to a member or you, falling back to a plain "12.34 AUD" if Intl doesn't
+// recognize the currency code for some reason.
+function formatCents(cents, currency) {
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency: (currency || "usd").toUpperCase() }).format(
+      cents / 100
+    );
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${(currency || "usd").toUpperCase()}`;
+  }
+}
+
+// ---------- Callable: a member asks for a full refund ----------
+
+exports.requestRefund = onCall(
+  { secrets: [stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+    const uid = request.auth.uid;
+
+    const userSnap = await db.doc(`users/${uid}`).get();
+    const customerId = userSnap.data()?.stripeCustomerId;
+    if (!customerId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "No web subscription found on this account. If you subscribed through the iOS or Android app, refunds " +
+          "for that go through Apple's or Google's own refund request process, not Astryks directly."
+      );
+    }
+
+    const pendingSnap = await db
+      .collection("refundRequests")
+      .where("uid", "==", uid)
+      .where("status", "==", "pending")
+      .limit(1)
+      .get();
+    if (!pendingSnap.empty) {
+      throw new HttpsError("already-exists", "You already have a refund request awaiting review.");
+    }
+
+    const stripe = Stripe(stripeSecret.value());
+    const { totalCents, currency } = await getRefundableTotal(stripe, customerId);
+    if (totalCents <= 0) {
+      throw new HttpsError("failed-precondition", "There's nothing on this account to refund.");
+    }
+
+    const userName = userSnap.data()?.displayName || request.auth.token.name || "A member";
+    const userEmail = userSnap.data()?.email || request.auth.token.email || "";
+    const amountDisplay = formatCents(totalCents, currency);
+
+    const reqRef = await db.collection("refundRequests").add({
+      uid,
+      userName,
+      userEmail,
+      stripeCustomerId: customerId,
+      totalCents,
+      currency,
+      status: "pending",
+      requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await notifyAdmin(
+      `💸 Refund requested — ${amountDisplay}`,
+      `${userName} (${userEmail}) has requested a full refund of everything they've ever been billed — ` +
+        `${amountDisplay} across their account's lifetime.\n\n` +
+        `Go to https://astryks.com/admin/refunds to review and approve. Approving refunds every charge on file ` +
+        `and cancels their subscription immediately — no partial refunds, no questions asked.`
+    );
+
+    return { requestId: reqRef.id, totalDisplay: amountDisplay };
+  }
+);
+
+// ---------- Callable: a member checks their own most recent refund request ----------
+
+exports.getMyRefundStatus = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+
+  const snap = await db
+    .collection("refundRequests")
+    .where("uid", "==", request.auth.uid)
+    .orderBy("requestedAt", "desc")
+    .limit(1)
+    .get();
+  if (snap.empty) return { status: null };
+
+  const r = snap.docs[0].data();
+  return {
+    status: r.status,
+    totalDisplay: formatCents(r.totalCents, r.currency),
+    requestedAt: r.requestedAt ? r.requestedAt.toMillis() : null,
+  };
+});
+
+// ---------- Callable: admin lists every refund request ----------
+
+exports.getRefundRequests = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const snap = await db.collection("refundRequests").orderBy("requestedAt", "desc").limit(100).get();
+  return {
+    requests: snap.docs.map((d) => {
+      const r = d.data();
+      return {
+        id: d.id,
+        uid: r.uid,
+        userName: r.userName,
+        userEmail: r.userEmail,
+        status: r.status,
+        totalDisplay: formatCents(r.totalCents, r.currency),
+        refundedDisplay: r.refundedCents != null ? formatCents(r.refundedCents, r.refundedCurrency || r.currency) : null,
+        requestedAt: r.requestedAt ? r.requestedAt.toMillis() : null,
+        approvedAt: r.approvedAt ? r.approvedAt.toMillis() : null,
+      };
+    }),
+  };
+});
+
+// ---------- Callable: admin approves a refund request — refunds everything, no questions asked ----------
+
+exports.approveRefund = onCall(
+  { secrets: [stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "Admins only.");
+    }
+    const requestId = request.data?.requestId;
+    if (!requestId) throw new HttpsError("invalid-argument", "Missing requestId.");
+
+    const reqRef = db.doc(`refundRequests/${requestId}`);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) throw new HttpsError("not-found", "Refund request not found.");
+    const refundRequest = reqSnap.data();
+    if (refundRequest.status !== "pending") {
+      throw new HttpsError("failed-precondition", `This request has already been ${refundRequest.status}.`);
+    }
+
+    const stripe = Stripe(stripeSecret.value());
+    const customerId = refundRequest.stripeCustomerId;
+
+    // Refund every outstanding charge on file — their entire billing history, no partial
+    // amounts, no picking which charge. Walks all pages for long-tenured subscribers.
+    let refundedCents = 0;
+    let currency = refundRequest.currency || "usd";
+    let startingAfter;
+    for (;;) {
+      const page = await stripe.charges.list({ customer: customerId, limit: 100, starting_after: startingAfter });
+      for (const charge of page.data) {
+        const refundable = charge.amount - charge.amount_refunded;
+        if (!charge.paid || charge.status !== "succeeded" || refundable <= 0) continue;
+        const refund = await stripe.refunds.create({ charge: charge.id });
+        refundedCents += refund.amount;
+        currency = charge.currency || currency;
+      }
+      if (!page.has_more) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+
+    // A full refund shouldn't leave them still being billed — cancel immediately rather than
+    // "at period end" (Stripe SDK v16: subscriptions.cancel, not the deprecated .del()).
+    const subsList = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+    for (const sub of subsList.data) {
+      if (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due") {
+        await stripe.subscriptions.cancel(sub.id);
+      }
+    }
+
+    await db.doc(`users/${refundRequest.uid}`).set({ subscriptionStatus: "canceled" }, { merge: true });
+
+    const amountDisplay = formatCents(refundedCents, currency);
+    await reqRef.set(
+      {
+        status: "approved",
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        refundedCents,
+        refundedCurrency: currency,
+      },
+      { merge: true }
+    );
+
+    try {
+      await sendSupportMessage(
+        refundRequest.uid,
+        refundRequest.userName,
+        `Your refund of ${amountDisplay} has been approved and sent back to your original payment method — ` +
+          `it usually takes 5-10 business days to land, depending on your bank. Your subscription's been ` +
+          `canceled, so you won't be charged again. You're always welcome to keep posting and browsing for ` +
+          `free, and if you ever want the expert-led classes again, you can resubscribe any time.`
+      );
+    } catch (err) {
+      console.error("approveRefund: failed to message member", refundRequest.uid, err);
+    }
+
+    return { refundedTotal: amountDisplay };
   }
 );
 
