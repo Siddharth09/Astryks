@@ -91,12 +91,19 @@ export default function Home() {
       <div className="px-4 py-14 md:py-24 text-center">
         <div className="max-w-2xl mx-auto">
           <h1 className="font-display text-3xl sm:text-5xl md:text-6xl font-black tracking-tight mb-5 leading-[1.15]">
-            Learn real life skills from{" "}
-            {/* whitespace-nowrap keeps this phrase on one line — letting it wrap mid-highlight
-                produced a jagged, "cut"-looking highlight box (each line's box-decoration-clone
-                rectangle gets centered independently, so they don't line up edge to edge). The
-                base text size is dropped a step (4xl -> 3xl) so the phrase still fits without
-                overflowing on the narrowest phone screens. */}
+            Learn real life skills
+            <br />
+            {/* A regular breakable space here let "from" get orphaned onto its own line, with
+                the highlighted phrase pushed to a third line by itself — a hard line break plus
+                a non-breaking space glue "from" to "experts in their field" as one guaranteed
+                two-line layout: "Learn real life skills" / "from experts in their field".
+                whitespace-nowrap on the span keeps the highlight itself on one line — letting it
+                wrap mid-highlight produced a jagged, "cut"-looking box (each line's
+                box-decoration-clone rectangle gets centered independently, so they don't line up
+                edge to edge). The base text size is dropped a step (4xl -> 3xl) so the whole
+                "from experts in their field" line still fits without overflowing on the
+                narrowest phone screens. */}
+            from{" "}
             <span className="bg-highlight px-1.5 py-0.5 box-decoration-clone whitespace-nowrap">
               experts in their field
             </span>

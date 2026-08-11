@@ -1780,6 +1780,281 @@ exports.sendTestWelcomeEmail = onCall(
   }
 );
 
+// ---------- Subscription lifecycle emails: subscribed / canceled / refunded ----------
+// Same visual template as the welcome email above (kept inline rather than factored into a
+// shared helper, matching how buildWinnerCongratsEmail was done, so each stays easy to tweak
+// independently without worrying about breaking a shared template). All three are sent
+// automatically — see the trigger comments on each sendX function for exactly what fires them.
+
+function buildSubscriptionConfirmationEmail(displayName, priceDisplay) {
+  const name = displayName || "there";
+  const subject = "You're subscribed — welcome to full access 🎉";
+
+  const text = `Hi ${name},
+
+Thanks for subscribing to Astryks! You now have full access to every lesson in the library, billed at ${priceDisplay}.
+
+A few things worth knowing:
+- Cancel any time from astryks.com/me — no phone calls, no retention pitch, just a button.
+- You're covered by our 90-day money-back guarantee: if it's not for you, request a full refund within 90 days of subscribing, no questions asked.
+- New lessons get added regularly, all included in your subscription.
+
+If anything's unclear or not working right, just reply to this email — a real person reads it.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">You're subscribed</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Thanks for subscribing! You now have full access to every lesson in the library, billed at
+                  <strong>${priceDisplay}</strong>.
+                </p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      🔓 Cancel any time from <strong>astryks.com/me</strong> — no phone calls, no retention pitch.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      💛 You're covered by our <strong>90-day money-back guarantee</strong> — a full refund, no
+                      questions asked, any time within 90 days of subscribing.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
+                      📚 New lessons get added regularly, all included.
+                    </td>
+                  </tr>
+                </table>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="https://astryks.com/learn" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Start learning
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+function buildCancellationEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "Your Astryks subscription has been canceled";
+
+  const text = `Hi ${name},
+
+Confirming your Astryks subscription has been canceled — you won't be charged again, and you'll keep lesson access until the end of your current billing period.
+
+Your account itself isn't going anywhere: you can still post, browse, and enter the monthly Creative Prize for free, any time.
+
+If this was a mistake, or something about the lessons wasn't working for you, just reply to this email and let us know — we read every reply.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Subscription canceled</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Confirming your Astryks subscription has been canceled — you won't be charged again, and you'll
+                  keep lesson access until the end of your current billing period.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Your account itself isn't going anywhere: you can still post, browse, and enter the monthly
+                  Creative Prize for free, any time.
+                </p>
+                <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#17130F;opacity:0.75;">
+                  If this was a mistake, or something wasn't working for you, just reply to this email — we read
+                  every reply.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+function buildRefundConfirmationEmail(displayName, amountDisplay) {
+  const name = displayName || "there";
+  const subject = `Your ${amountDisplay} refund has been issued`;
+
+  const text = `Hi ${name},
+
+Your refund of ${amountDisplay} has been approved and sent back to your original payment method — it usually takes 5-10 business days to land, depending on your bank. Your subscription has also been canceled, so you won't be charged again.
+
+You're always welcome to keep posting and browsing for free, and if you'd like the expert-led classes again down the line, you can resubscribe any time.
+
+Thanks for giving Astryks a try.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="background-color:#FFF6F1;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Refund issued</p>
+                <p style="margin:10px 0 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#E85D5D;">
+                  ${amountDisplay}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Your refund of <strong>${amountDisplay}</strong> has been approved and sent back to your original
+                  payment method — it usually takes 5-10 business days to land, depending on your bank. Your
+                  subscription has also been canceled, so you won't be charged again.
+                </p>
+                <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  You're always welcome to keep posting and browsing for free, and if you'd like the expert-led
+                  classes again down the line, you can resubscribe any time. Thanks for giving Astryks a try.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+async function sendBrandedEmail(email, { subject, text, html }) {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: SUPPORT_EMAIL_USER.value(), pass: SUPPORT_EMAIL_PASS.value() },
+  });
+  await transporter.sendMail({ from: `Astryks <${SUPPORT_EMAIL_USER.value()}>`, to: email, subject, text, html });
+}
+
+// ---------- Callables: send yourself a test copy of each lifecycle email ----------
+// Same admin-only preview pattern as sendTestWelcomeEmail above.
+
+exports.sendTestSubscriptionEmail = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    await sendBrandedEmail(
+      request.auth.token.email,
+      buildSubscriptionConfirmationEmail(request.auth.token.name || "there", "AU$5/week")
+    );
+    return { sentTo: request.auth.token.email };
+  }
+);
+
+exports.sendTestCancellationEmail = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    await sendBrandedEmail(request.auth.token.email, buildCancellationEmail(request.auth.token.name || "there"));
+    return { sentTo: request.auth.token.email };
+  }
+);
+
+exports.sendTestRefundEmail = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    await sendBrandedEmail(
+      request.auth.token.email,
+      buildRefundConfirmationEmail(request.auth.token.name || "there", "AU$45.00")
+    );
+    return { sentTo: request.auth.token.email };
+  }
+);
+
 // ---------- Trigger: enter every new creative post into that month's prize ----------
 // Fires immediately on post creation (not on reaching any like count — see nominateForPrize's
 // comment for why there's no minimum). Scoped to actual creative uploads (photo/video) — plain
@@ -2035,6 +2310,75 @@ exports.createBillingPortalSession = onCall(
   }
 );
 
+// ---------- Callable: this member's own past charges + current subscription state ----------
+// Lets the account page show billing history (date + amount) and whether a cancellation is
+// already scheduled, directly in the app — rather than only being visible after clicking
+// through to the separate Stripe-hosted billing portal.
+exports.getMyBillingHistory = onCall(
+  { secrets: [stripeSecret] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+    const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+    const customerId = userSnap.data()?.stripeCustomerId;
+    if (!customerId) return { charges: [], cancelAtPeriodEnd: false, currentPeriodEnd: null };
+
+    const stripe = Stripe(stripeSecret.value());
+    const chargesList = await stripe.charges.list({ customer: customerId, limit: 24 });
+    const charges = chargesList.data
+      .filter((c) => c.paid || c.status === "succeeded")
+      .map((c) => ({
+        id: c.id,
+        amountDisplay: formatCents(c.amount, c.currency),
+        date: c.created * 1000,
+        refunded: c.amount_refunded > 0,
+        fullyRefunded: c.refunded,
+      }));
+
+    const subsList = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 5 });
+    const currentSub = subsList.data.find((s) => s.status === "active" || s.status === "trialing") || null;
+
+    return {
+      charges,
+      cancelAtPeriodEnd: currentSub?.cancel_at_period_end ?? false,
+      currentPeriodEnd: currentSub?.current_period_end ? currentSub.current_period_end * 1000 : null,
+    };
+  }
+);
+
+// ---------- Callable: cancel my own subscription, right from the account page ----------
+// Cancels at the end of the current billing period (the normal, expected behavior — you keep
+// what you already paid for) rather than immediately, which is what distinguishes this from the
+// full-refund flow's `stripe.subscriptions.cancel` (immediate, because that path already
+// refunded the money). This exists so canceling doesn't require a detour through the separate
+// Stripe billing portal — one button, right here.
+exports.cancelMySubscription = onCall(
+  { secrets: [stripeSecret] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
+    const userSnap = await db.doc(`users/${request.auth.uid}`).get();
+    const customerId = userSnap.data()?.stripeCustomerId;
+    if (!customerId) throw new HttpsError("failed-precondition", "No subscription found for this account.");
+
+    const stripe = Stripe(stripeSecret.value());
+    const subsList = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 5 });
+    const activeSubs = subsList.data.filter((s) => s.status === "active" || s.status === "trialing");
+    if (activeSubs.length === 0) {
+      throw new HttpsError("failed-precondition", "There's no active subscription on this account to cancel.");
+    }
+
+    let currentPeriodEnd = null;
+    for (const sub of activeSubs) {
+      const updated = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+      currentPeriodEnd = updated.current_period_end ? updated.current_period_end * 1000 : currentPeriodEnd;
+    }
+    // subscriptionStatus in Firestore stays "active" until the period actually ends and Stripe
+    // sends customer.subscription.updated with status no longer active/trialing — that handler
+    // (in stripeWebhook below) is what flips it to "canceled" and sends the cancellation email,
+    // so both the immediate-refund path and this scheduled-cancel path funnel through one place.
+    return { currentPeriodEnd };
+  }
+);
+
 // ---------- Self-service refunds — 90-day money-back guarantee, "no questions asked" ----------
 // A member requests a refund (requestRefund) -- only accepted within REFUND_GUARANTEE_DAYS of
 // their first charge -- you get emailed + pushed (notifyAdmin) with their entire lifetime
@@ -2284,6 +2628,20 @@ exports.approveRefund = onCall(
       console.error("approveRefund: failed to message member", refundRequest.uid, err);
     }
 
+    // Same confirmation as an email too, not just the in-app message above — a refund is
+    // exactly the kind of thing someone wants a receipt for in their inbox, not just a DM they
+    // might not see if they've already stopped opening the app.
+    try {
+      if (refundRequest.userEmail) {
+        await sendBrandedEmail(
+          refundRequest.userEmail,
+          buildRefundConfirmationEmail(refundRequest.userName, amountDisplay)
+        );
+      }
+    } catch (err) {
+      console.error("approveRefund: failed to email member", refundRequest.uid, err);
+    }
+
     return { refundedTotal: amountDisplay };
   }
 );
@@ -2518,6 +2876,30 @@ exports.stripeWebhook = onRequest(
           paid: false,
         });
       }
+
+      // Automatic "thanks for subscribing" email — fires the moment Stripe confirms the first
+      // payment, using the actual charged amount/currency (session.amount_total/currency) rather
+      // than the client-side geo-guessed price, so the number in the email always matches what
+      // was really billed.
+      try {
+        const email = session.customer_details?.email;
+        if (email) {
+          const priceDisplay =
+            session.amount_total != null
+              ? `${formatCents(session.amount_total, subscriptionCurrency || "usd")}/week`
+              : "your subscription price";
+          let displayName = session.customer_details?.name || "there";
+          try {
+            const userRecord = await admin.auth().getUser(uid);
+            displayName = userRecord.displayName || displayName;
+          } catch {
+            // Fall back to the name Stripe collected at checkout — not fatal either way.
+          }
+          await sendBrandedEmail(email, buildSubscriptionConfirmationEmail(displayName, priceDisplay));
+        }
+      } catch (err) {
+        console.error("stripeWebhook: failed to send subscription confirmation email", uid, err);
+      }
     }
 
     if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.updated") {
@@ -2525,10 +2907,24 @@ exports.stripeWebhook = onRequest(
       const isActive = sub.status === "active" || sub.status === "trialing";
       const usersSnap = await db.collection("users").where("stripeCustomerId", "==", sub.customer).limit(1).get();
       if (!usersSnap.empty) {
-        await usersSnap.docs[0].ref.set(
-          { subscriptionStatus: isActive ? "active" : "canceled" },
-          { merge: true }
-        );
+        const userDoc = usersSnap.docs[0];
+        const wasActive = userDoc.data()?.subscriptionStatus === "active";
+        await userDoc.ref.set({ subscriptionStatus: isActive ? "active" : "canceled" }, { merge: true });
+
+        // Only email the moment a subscription actually TRANSITIONS from active to canceled —
+        // Stripe fires "customer.subscription.updated" for lots of things unrelated to
+        // cancellation (card updates, trial-to-paid, etc.), and firing this on every one of
+        // those would spam someone who hasn't actually canceled anything.
+        if (wasActive && !isActive) {
+          try {
+            const userRecord = await admin.auth().getUser(userDoc.id);
+            if (userRecord.email) {
+              await sendBrandedEmail(userRecord.email, buildCancellationEmail(userRecord.displayName || "there"));
+            }
+          } catch (err) {
+            console.error("stripeWebhook: failed to send cancellation email", userDoc.id, err);
+          }
+        }
       }
     }
 

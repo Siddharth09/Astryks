@@ -11,17 +11,27 @@ const createBillingPortalSession = httpsCallable(functions, "createBillingPortal
 const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
 const requestRefundFn = httpsCallable(functions, "requestRefund");
 const getMyRefundStatusFn = httpsCallable(functions, "getMyRefundStatus");
+const getMyBillingHistoryFn = httpsCallable(functions, "getMyBillingHistory");
+const cancelMySubscriptionFn = httpsCallable(functions, "cancelMySubscription");
+
+type Charge = { id: string; amountDisplay: string; date: number; refunded: boolean; fullyRefunded: boolean };
 
 export default function ReferralAndBilling() {
   const { user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
   const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
   const [hasStripeAccount, setHasStripeAccount] = useState(false);
   const [refundStatus, setRefundStatus] = useState<string | null>(null);
   const [refundTotal, setRefundTotal] = useState<string | null>(null);
   const [requestingRefund, setRequestingRefund] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
+  const [charges, setCharges] = useState<Charge[] | null>(null);
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
+  const [showBilling, setShowBilling] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -39,21 +49,75 @@ export default function ReferralAndBilling() {
       .catch(() => {
         // Not fatal — the refund section just won't show a past-request status.
       });
+    getMyBillingHistoryFn()
+      .then((result) => {
+        const data = result.data as { charges: Charge[]; cancelAtPeriodEnd: boolean; currentPeriodEnd: number | null };
+        setCharges(data.charges);
+        setCancelAtPeriodEnd(data.cancelAtPeriodEnd);
+        setCurrentPeriodEnd(data.currentPeriodEnd);
+      })
+      .catch(() => {
+        // Not fatal — the billing history list just won't show.
+      });
   }, [user]);
 
+  // Both of these used to have no error handling at all — if the callable ever threw (missing
+  // Stripe secret, a network blip, an expired auth token), the button just sat there spinning
+  // forever with the "disabled" state never clearing and nothing visible to the user, which is
+  // indistinguishable from "the button doesn't work." Now any failure surfaces a message and
+  // re-enables the button so it can be retried.
   async function manageSubscription() {
     setLoading(true);
-    const result = await createBillingPortalSession({ returnUrl: `${location.origin}/me` });
-    location.href = (result.data as { url: string }).url;
+    setBillingError(null);
+    try {
+      const result = await createBillingPortalSession({ returnUrl: `${location.origin}/me` });
+      location.href = (result.data as { url: string }).url;
+    } catch (err: any) {
+      setBillingError(err.message ?? "Couldn't open billing management — please try again.");
+      setLoading(false);
+    }
   }
 
   async function subscribe() {
     setLoading(true);
-    const result = await createCheckoutSession({
-      successUrl: `${location.origin}/me`,
-      cancelUrl: `${location.origin}/me`,
-    });
-    location.href = (result.data as { url: string }).url;
+    setBillingError(null);
+    try {
+      const result = await createCheckoutSession({
+        successUrl: `${location.origin}/me`,
+        cancelUrl: `${location.origin}/me`,
+      });
+      location.href = (result.data as { url: string }).url;
+    } catch (err: any) {
+      setBillingError(err.message ?? "Couldn't start checkout — please try again.");
+      setLoading(false);
+    }
+  }
+
+  // A direct in-app cancel, so it doesn't take a detour through the separate Stripe billing
+  // portal just to stop paying. Cancels at the end of the current period (you keep what you
+  // already paid for) — a full-refund-and-cancel-immediately is a different, more drastic
+  // action, handled by the "Request a refund" flow below instead.
+  async function cancelSubscription() {
+    if (
+      !confirm(
+        "Cancel your subscription? You'll keep lesson access until the end of your current billing period, and " +
+          "you won't be charged again after that."
+      )
+    ) {
+      return;
+    }
+    setCanceling(true);
+    setBillingError(null);
+    try {
+      const result = await cancelMySubscriptionFn();
+      const data = result.data as { currentPeriodEnd: number | null };
+      setCancelAtPeriodEnd(true);
+      setCurrentPeriodEnd(data.currentPeriodEnd);
+    } catch (err: any) {
+      setBillingError(err.message ?? "Couldn't cancel your subscription — please try again.");
+    } finally {
+      setCanceling(false);
+    }
   }
 
   // "No questions asked" on the backend, but still worth a light confirmation here since this
@@ -84,66 +148,122 @@ export default function ReferralAndBilling() {
 
   return (
     <div className="space-y-3 mb-6">
-      <div className="card p-4 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">Your plan</p>
-          <p className="text-xs text-ink/60">
-            {status === "active" ? `Active — ${pricing.display}` : status === "canceled" ? "Canceled" : "Not subscribed"}
-          </p>
+      <div className="card p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Your plan</p>
+            <p className="text-xs text-ink/60">
+              {status === "active"
+                ? cancelAtPeriodEnd
+                  ? `Active until ${currentPeriodEnd ? new Date(currentPeriodEnd).toLocaleDateString() : "period end"} — ${pricing.display}`
+                  : `Active — ${pricing.display}`
+                : status === "canceled"
+                ? "Canceled"
+                : "Not subscribed"}
+            </p>
+          </div>
+          {status === "active" ? (
+            <div className="flex items-center gap-2">
+              <button onClick={manageSubscription} disabled={loading} className="btn-secondary text-xs px-3 py-2">
+                Manage
+              </button>
+              {!cancelAtPeriodEnd && (
+                <button
+                  onClick={cancelSubscription}
+                  disabled={canceling}
+                  className="text-xs px-3 py-2 text-ink/50 hover:text-ink/80 underline"
+                >
+                  {canceling ? "Canceling…" : "Cancel"}
+                </button>
+              )}
+            </div>
+          ) : (
+            <button onClick={subscribe} disabled={loading} className="btn-primary text-xs px-3 py-2">
+              Subscribe
+            </button>
+          )}
         </div>
-        {status === "active" ? (
-          <button onClick={manageSubscription} disabled={loading} className="btn-secondary text-xs px-3 py-2">
-            Manage
-          </button>
-        ) : (
-          <button onClick={subscribe} disabled={loading} className="btn-primary text-xs px-3 py-2">
-            Subscribe
-          </button>
+        {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}
+        {cancelAtPeriodEnd && (
+          <p className="text-xs text-ink/40 mt-2">
+            Your subscription is set to cancel and won't renew — you'll keep access until then. Changed your
+            mind? Use "Manage" to resume it.
+          </p>
         )}
       </div>
 
       {status === "active" && (
         <p className="text-xs text-ink/40 px-1">
-          "Manage" opens Stripe's secure billing page, where you can see every past payment, update your card, or
-          cancel any time.
+          "Manage" opens Stripe's secure billing page to update your card. "Cancel" stops future billing right
+          here — either way, you keep access until the end of what you've already paid for.
         </p>
       )}
 
-      {hasStripeAccount && (
+      {hasStripeAccount && charges && charges.length > 0 && (
         <div className="card p-4">
-          <p className="text-sm font-medium mb-1">Refunds</p>
-          <p className="text-xs text-ink/40 mb-2">
-            90-day money-back guarantee — a full refund, no questions asked, any time within 90 days of
-            subscribing.
-          </p>
-          {refundStatus === "pending" ? (
-            <p className="text-xs text-ink/60">
-              Your refund request{refundTotal ? ` for ${refundTotal}` : ""} is being reviewed — we'll be in touch
-              soon, and you'll get a message here once it's approved.
-            </p>
-          ) : refundStatus === "approved" ? (
-            <p className="text-xs text-ink/60">
-              Your last refund request was approved{refundTotal ? ` — ${refundTotal} refunded` : ""}. Want to
-              request another for anything billed since then? Use the button below.
-            </p>
-          ) : (
-            <p className="text-xs text-ink/60 mb-3">
-              Changed your mind? Within 90 days of subscribing, you can request a full refund of everything
-              you've paid — we review every request personally, no need to explain why.
-            </p>
+          <button
+            onClick={() => setShowBilling((v) => !v)}
+            className="flex items-center justify-between w-full text-left"
+          >
+            <p className="text-sm font-medium">Billing history</p>
+            <span className="text-ink/40 text-xs">{showBilling ? "Hide" : "Show"}</span>
+          </button>
+          {showBilling && (
+            <div className="mt-3 space-y-2">
+              {charges.map((c) => (
+                <div key={c.id} className="flex items-center justify-between text-xs">
+                  <span className="text-ink/60">{new Date(c.date).toLocaleDateString()}</span>
+                  <span className={c.fullyRefunded ? "text-ink/40 line-through" : "text-ink/80"}>
+                    {c.amountDisplay}
+                  </span>
+                  <span className="text-ink/40">
+                    {c.fullyRefunded ? "Refunded" : c.refunded ? "Partially refunded" : "Paid"}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
-          {refundStatus !== "pending" && (
-            <button
-              onClick={requestRefund}
-              disabled={requestingRefund}
-              className="btn-secondary text-xs px-3 py-2 mt-2"
-            >
-              {requestingRefund ? "Submitting…" : "Request a refund"}
-            </button>
-          )}
-          {refundError && <p className="text-xs text-red-600 mt-2">{refundError}</p>}
         </div>
       )}
+
+      <div className="card p-4">
+        <p className="text-sm font-medium mb-1">Refunds</p>
+        <p className="text-xs text-ink/40 mb-2">
+          90-day money-back guarantee — a full refund, no questions asked, any time within 90 days of
+          subscribing.
+        </p>
+        {!hasStripeAccount ? (
+          <p className="text-xs text-ink/60">
+            Not subscribed yet, so there's nothing to refund — once you do subscribe, this guarantee kicks in
+            automatically.
+          </p>
+        ) : refundStatus === "pending" ? (
+          <p className="text-xs text-ink/60">
+            Your refund request{refundTotal ? ` for ${refundTotal}` : ""} is being reviewed — we'll be in touch
+            soon, and you'll get a message here once it's approved.
+          </p>
+        ) : refundStatus === "approved" ? (
+          <p className="text-xs text-ink/60">
+            Your last refund request was approved{refundTotal ? ` — ${refundTotal} refunded` : ""}. Want to
+            request another for anything billed since then? Use the button below.
+          </p>
+        ) : (
+          <p className="text-xs text-ink/60 mb-3">
+            Changed your mind? Within 90 days of subscribing, you can request a full refund of everything
+            you've paid — we review every request personally, no need to explain why.
+          </p>
+        )}
+        {hasStripeAccount && refundStatus !== "pending" && (
+          <button
+            onClick={requestRefund}
+            disabled={requestingRefund}
+            className="btn-secondary text-xs px-3 py-2 mt-2"
+          >
+            {requestingRefund ? "Submitting…" : "Request a refund"}
+          </button>
+        )}
+        {refundError && <p className="text-xs text-red-600 mt-2">{refundError}</p>}
+      </div>
     </div>
   );
 }

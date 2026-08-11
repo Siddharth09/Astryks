@@ -22,7 +22,7 @@ const SUBJECT_CARDS: {
   comingSoon?: boolean;
 }[] = [
   { id: "music", name: "Music", tagline: "Create a song from scratch", thumbnail: require("@/assets/music-preview.jpg"), size: 176 },
-  { id: "art", name: "Art", tagline: "Create a self portrait", thumbnail: require("@/assets/art-preview.jpg"), size: 128 },
+  { id: "art", name: "Art", tagline: "Create a self portrait", thumbnail: require("@/assets/art-preview.jpg"), size: 176 },
   // Investing (share market) is next up — add its card here once the first lessons are uploaded.
 ];
 
