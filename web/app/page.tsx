@@ -43,6 +43,7 @@ const PRICING_FEATURES = [
   "New lessons added regularly, all included",
   "Works on any phone, tablet or computer",
   "Cancel anytime, no questions asked",
+  "90-day money-back guarantee, no questions asked",
 ];
 
 const FAQS = [
@@ -51,6 +52,7 @@ const FAQS = [
   { q: "Do I need any experience to start?", a: "Absolutely not — remember there are no born experts. Everybody started somewhere. Astryks is designed for that first step when you have zero experience but are open to trying something new. Learn the basic techniques, and then look at existing work out there and try and recreate a song or a painting from a famous artist, or make your own, or do both! It's magical creating layers of paintings, like layers of music, just have fun with it!" },
   { q: "Can I post what I make?", a: "That's entirely up to you. Post it if you'd like feedback and to be part of the community, or keep it to yourself — either way is completely fine, and posting is never required." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
+  { q: "What if it's not for me?", a: "You're covered by our 90-day money-back guarantee — request a full refund of everything you've paid any time within 90 days of subscribing, right from your account settings. No questions asked." },
   { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month, as long as it's reached at least 30 likes. We ask for that because we want our community to lift each other up and cheer on the creative work being shared here — no subscription required, just a free like from anyone. If nothing reaches 30 likes in a given month, no winner is picked that month. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue, and we're running it every month through our first six months (through February 2027). International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
   { q: "Do I have to subscribe to post or enter the prize?", a: "No — creating an account, posting, liking, and entering the Creative Prize are all free. A subscription is only needed to unlock the pre-recorded lesson library." },
   { q: "Will there be new videos and subjects?", a: "Yes — we're regularly adding new videos to Music and Art, and in the coming months we're launching an entirely new subject: investing in the share market. More subjects are on the way after that too." },

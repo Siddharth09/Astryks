@@ -87,9 +87,11 @@ export default function AdminRefundsPage() {
     <div className="max-w-2xl mx-auto py-8 pb-24 px-4">
       <h1 className="font-display text-2xl font-semibold mb-2">Refund requests</h1>
       <p className="text-sm text-ink/60 mb-6">
-        Admin-only. Approving a request refunds everything that member has ever been billed and cancels their
-        subscription immediately — full amount, no partial refunds, no questions asked. Web/Stripe subscribers
-        only; mobile App Store/Google Play subscribers need to request a refund from Apple/Google directly.
+        Admin-only. Members can only submit a request within the 90-day money-back guarantee window (enforced
+        server-side, so nothing shows up here otherwise). Approving a request refunds everything that member has
+        ever been billed and cancels their subscription immediately — full amount, no partial refunds, no
+        questions asked. Web/Stripe subscribers only; mobile App Store/Google Play subscribers need to request a
+        refund from Apple/Google directly.
       </p>
 
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}

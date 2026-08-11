@@ -2035,15 +2035,16 @@ exports.createBillingPortalSession = onCall(
   }
 );
 
-// ---------- Self-service refunds ("no questions asked") ----------
-// A member requests a refund (requestRefund) -> you get emailed + pushed (notifyAdmin) with
-// their entire lifetime billing total -> you review at astryks.com/admin/refunds and click
-// Approve (approveRefund), which refunds every charge Stripe has on file for them in full and
-// cancels their subscription immediately. There's no partial-refund path and no built-in
-// decline reason capture on purpose — "no questions asked" per how this was scoped. Web/Stripe
-// subscribers only: mobile App Store/Google Play subscribers pay through Apple/Google, and
-// only Apple/Google can refund those — requestRefund below explains that instead of accepting
-// a request it can't fulfill.
+// ---------- Self-service refunds — 90-day money-back guarantee, "no questions asked" ----------
+// A member requests a refund (requestRefund) -- only accepted within REFUND_GUARANTEE_DAYS of
+// their first charge -- you get emailed + pushed (notifyAdmin) with their entire lifetime
+// billing total -> you review at astryks.com/admin/refunds and click Approve (approveRefund),
+// which refunds every charge Stripe has on file for them in full and cancels their subscription
+// immediately. There's no partial-refund path and no built-in decline reason capture on purpose
+// — "no questions asked" per how this was scoped, as long as it's within the guarantee window.
+// Web/Stripe subscribers only: mobile App Store/Google Play subscribers pay through Apple/
+// Google, and only Apple/Google can refund those — requestRefund below explains that instead of
+// accepting a request it can't fulfill.
 
 // Sums every still-refundable dollar Stripe has ever captured from this customer — i.e. their
 // full lifetime billing total minus whatever's already been refunded — across every charge,
@@ -2081,6 +2082,14 @@ function formatCents(cents, currency) {
   }
 }
 
+// The money-back guarantee window: a full refund is available, no questions asked, up to this
+// many days after someone's *first* Stripe charge (subscriptionStartDate, set in stripeWebhook's
+// checkout.session.completed handler above). After that window, requestRefund below declines
+// automatically rather than silently refunding an indefinitely long-tenured subscriber — this
+// mirrors a standard 90-day money-back guarantee, not an open-ended "cancel and get everything
+// back" policy.
+const REFUND_GUARANTEE_DAYS = 90;
+
 // ---------- Callable: a member asks for a full refund ----------
 
 exports.requestRefund = onCall(
@@ -2096,6 +2105,17 @@ exports.requestRefund = onCall(
         "failed-precondition",
         "No web subscription found on this account. If you subscribed through the iOS or Android app, refunds " +
           "for that go through Apple's or Google's own refund request process, not Astryks directly."
+      );
+    }
+
+    const startDate = userSnap.data()?.subscriptionStartDate?.toDate?.();
+    const daysSinceStart = startDate ? (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24) : null;
+    if (daysSinceStart == null || daysSinceStart > REFUND_GUARANTEE_DAYS) {
+      throw new HttpsError(
+        "failed-precondition",
+        `The ${REFUND_GUARANTEE_DAYS}-day money-back guarantee only covers refund requests made within ` +
+          `${REFUND_GUARANTEE_DAYS} days of first subscribing, and that window has passed on this account. ` +
+          `Message us in the app if you'd like to ask about an exception.`
       );
     }
 

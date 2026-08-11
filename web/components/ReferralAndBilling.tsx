@@ -112,6 +112,10 @@ export default function ReferralAndBilling() {
       {hasStripeAccount && (
         <div className="card p-4">
           <p className="text-sm font-medium mb-1">Refunds</p>
+          <p className="text-xs text-ink/40 mb-2">
+            90-day money-back guarantee — a full refund, no questions asked, any time within 90 days of
+            subscribing.
+          </p>
           {refundStatus === "pending" ? (
             <p className="text-xs text-ink/60">
               Your refund request{refundTotal ? ` for ${refundTotal}` : ""} is being reviewed — we'll be in touch
@@ -124,8 +128,8 @@ export default function ReferralAndBilling() {
             </p>
           ) : (
             <p className="text-xs text-ink/60 mb-3">
-              Changed your mind? You can request a full refund of everything you've ever paid — we review every
-              request personally, no need to explain why.
+              Changed your mind? Within 90 days of subscribing, you can request a full refund of everything
+              you've paid — we review every request personally, no need to explain why.
             </p>
           )}
           {refundStatus !== "pending" && (
