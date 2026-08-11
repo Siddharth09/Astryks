@@ -23,6 +23,19 @@ export default function LoginPage() {
   );
 }
 
+// The "next" query param is attacker-controllable (it's just part of the URL someone can send
+// in a link), so it must never be followed as-is. A bare `router.push(params.get("next"))`
+// would let an attacker craft a login link like /login?next=https://evil.example.com and have
+// Next.js's router do a real cross-origin navigation right after a victim types their real
+// password — a phishing setup, not a redirect bug. Only allow same-app, on-site paths: must
+// start with a single "/" and not "//" or "/\" (both of those are browser-interpreted as
+// protocol-relative URLs that still leave the site).
+function safeNextPath(raw: string | null): string {
+  if (!raw) return "/home";
+  if (raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\")) return raw;
+  return "/home";
+}
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -41,7 +54,7 @@ function LoginForm() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push(params.get("next") || "/home");
+      router.push(safeNextPath(params.get("next")));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -78,7 +91,7 @@ function LoginForm() {
           createdAt: serverTimestamp(),
         });
       }
-      router.push(params.get("next") || "/home");
+      router.push(safeNextPath(params.get("next")));
     } catch (err: any) {
       setError(err.message);
     }

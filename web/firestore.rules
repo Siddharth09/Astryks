@@ -9,11 +9,20 @@ service cloud.firestore {
       // normal use (profiles/display names etc. are read through here), just not the entire
       // internet with no login at all.
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allowlist, not a blocklist: the client only ever legitimately sets these four fields
+      // (see AuthContext.tsx, usePushNotifications.ts). Everything else — subscriptionStatus,
+      // stripeCustomerId, payoutOwed, referralCode, xp, streakCount, canceledAt,
+      // freePreviewSecondsUsed, and any field added later — is server-only via the Admin SDK.
+      // The previous version only blocked those specific names, which meant a client could
+      // create their own users/{uid} doc directly (e.g. from the browser console, bypassing the
+      // app entirely) with subscriptionStatus: "active" set from the very first write — free,
+      // unlimited access to every paid lesson with zero Stripe charge. This closes that off.
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'photoURL', 'countryCode', 'pushToken']);
       allow update: if request.auth != null && request.auth.uid == userId
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-          ['subscriptionStatus', 'stripeCustomerId', 'payoutOwed', 'referralCode', 'xp', 'streakCount',
-           'canceledAt', 'freePreviewSecondsUsed']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['displayName', 'photoURL', 'countryCode', 'pushToken']
         );
     }
 
@@ -46,9 +55,14 @@ service cloud.firestore {
       // onCommentCreated/onCommentDeleted in functions/index.js, via the Admin SDK, which
       // isn't subject to these rules) — a client update can only ever be the post's own owner
       // editing their own post, and ownerId itself can never change on an update.
+      // Ownership alone isn't enough here: without also excluding likeCount/commentCount, a
+      // post's OWNER could still set their own post's counts to whatever they want — which is
+      // exactly the same real-money Creative Prize leaderboard forgery the comment above already
+      // worried about, just from the owner's own account instead of a stranger's.
       allow update: if request.auth != null
         && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == resource.data.ownerId;
+        && request.resource.data.ownerId == resource.data.ownerId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount']);
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 

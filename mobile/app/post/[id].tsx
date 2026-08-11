@@ -15,6 +15,23 @@ import { colors } from "@/lib/styles";
 const deletePostFn = httpsCallable(functions, "deletePost");
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
+// "link" posts store an arbitrary URL supplied by whoever created the post — Firestore rules
+// only check the post's type/ownerId, not the contents of linkUrl. Without this check, any
+// signed-in user could make a link post pointing at something other than a normal http(s) page
+// (e.g. an intent:// URI on Android) and have it open silently on someone else's device just
+// from viewing the post. Restrict to plain http/https before ever calling Linking.openURL.
+function openIfSafeUrl(url?: string) {
+  if (!url) return;
+  try {
+    const scheme = new URL(url).protocol;
+    if (scheme === "http:" || scheme === "https:") {
+      Linking.openURL(url);
+    }
+  } catch {
+    // Not a parseable URL — ignore rather than hand it to Linking.openURL.
+  }
+}
+
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -123,7 +140,7 @@ export default function PostDetailScreen() {
         <Text style={{ fontSize: 22, fontWeight: "700", color: colors.ink }}>{post.body}</Text>
       )}
       {post.type === "link" && (
-        <TouchableOpacity onPress={() => Linking.openURL(post.linkUrl)} style={{ flexDirection: "row", gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 12 }}>
+        <TouchableOpacity onPress={() => openIfSafeUrl(post.linkUrl)} style={{ flexDirection: "row", gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 12 }}>
           {post.linkImage && <Image source={{ uri: post.linkImage }} style={{ width: 64, height: 64, borderRadius: 10 }} />}
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 12, color: colors.muted }}>{post.linkDomain}</Text>

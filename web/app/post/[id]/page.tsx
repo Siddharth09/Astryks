@@ -13,6 +13,21 @@ import ShareMenu from "@/components/ShareMenu";
 const deletePostFn = httpsCallable(functions, "deletePost");
 const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
+// "link" posts store a URL supplied by whoever created the post — Firestore rules only check
+// post type/ownerId, not the contents of linkUrl. React doesn't sanitize <a href> the way it
+// does dangerouslySetInnerHTML, so a stored `javascript:...` URL here would actually execute in
+// the astryks.com origin for anyone who clicks it — a real stored-XSS vector. Only ever render
+// the link as clickable if it's a plain http(s) URL.
+function isSafeHttpUrl(url?: string) {
+  if (!url) return false;
+  try {
+    const scheme = new URL(url).protocol;
+    return scheme === "http:" || scheme === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function PostPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -97,7 +112,7 @@ export default function PostPage() {
       {post.type === "text" && (
         <p className="font-display text-2xl font-bold whitespace-pre-wrap">{post.body}</p>
       )}
-      {post.type === "link" && (
+      {post.type === "link" && isSafeHttpUrl(post.linkUrl) && (
         <a
           href={post.linkUrl}
           target="_blank"
@@ -113,6 +128,14 @@ export default function PostPage() {
             <p className="font-medium">{post.linkTitle}</p>
           </div>
         </a>
+      )}
+      {post.type === "link" && !isSafeHttpUrl(post.linkUrl) && (
+        <div className="flex items-center gap-3 border border-line/15 rounded-2xl p-4 opacity-60">
+          <div>
+            <p className="text-xs text-ink/50">Link unavailable</p>
+            <p className="font-medium">{post.linkTitle}</p>
+          </div>
+        </div>
       )}
 
       <div className="mt-4">

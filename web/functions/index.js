@@ -3007,12 +3007,21 @@ exports.approveRefund = onCall(
     if (!requestId) throw new HttpsError("invalid-argument", "Missing requestId.");
 
     const reqRef = db.doc(`refundRequests/${requestId}`);
-    const reqSnap = await reqRef.get();
-    if (!reqSnap.exists) throw new HttpsError("not-found", "Refund request not found.");
-    const refundRequest = reqSnap.data();
-    if (refundRequest.status !== "pending") {
-      throw new HttpsError("failed-precondition", `This request has already been ${refundRequest.status}.`);
-    }
+
+    // Claim this request atomically before touching Stripe. Without this, a doubled admin
+    // click (or a retried network request) could both read status "pending" before either
+    // write landed, and both loops below would refund every charge on file — a real double
+    // refund, not just a UI glitch.
+    let refundRequest;
+    await db.runTransaction(async (tx) => {
+      const reqSnap = await tx.get(reqRef);
+      if (!reqSnap.exists) throw new HttpsError("not-found", "Refund request not found.");
+      refundRequest = reqSnap.data();
+      if (refundRequest.status !== "pending") {
+        throw new HttpsError("failed-precondition", `This request has already been ${refundRequest.status}.`);
+      }
+      tx.update(reqRef, { status: "processing" });
+    });
 
     const stripe = Stripe(stripeSecret.value());
     const customerId = refundRequest.stripeCustomerId;
@@ -3021,27 +3030,37 @@ exports.approveRefund = onCall(
     // amounts, no picking which charge. Walks all pages for long-tenured subscribers.
     let refundedCents = 0;
     let currency = refundRequest.currency || "usd";
-    let startingAfter;
-    for (;;) {
-      const page = await stripe.charges.list({ customer: customerId, limit: 100, starting_after: startingAfter });
-      for (const charge of page.data) {
-        const refundable = charge.amount - charge.amount_refunded;
-        if (!charge.paid || charge.status !== "succeeded" || refundable <= 0) continue;
-        const refund = await stripe.refunds.create({ charge: charge.id });
-        refundedCents += refund.amount;
-        currency = charge.currency || currency;
+    try {
+      let startingAfter;
+      for (;;) {
+        const page = await stripe.charges.list({ customer: customerId, limit: 100, starting_after: startingAfter });
+        for (const charge of page.data) {
+          const refundable = charge.amount - charge.amount_refunded;
+          if (!charge.paid || charge.status !== "succeeded" || refundable <= 0) continue;
+          const refund = await stripe.refunds.create({ charge: charge.id });
+          refundedCents += refund.amount;
+          currency = charge.currency || currency;
+        }
+        if (!page.has_more) break;
+        startingAfter = page.data[page.data.length - 1].id;
       }
-      if (!page.has_more) break;
-      startingAfter = page.data[page.data.length - 1].id;
-    }
 
-    // A full refund shouldn't leave them still being billed — cancel immediately rather than
-    // "at period end" (Stripe SDK v16: subscriptions.cancel, not the deprecated .del()).
-    const subsList = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
-    for (const sub of subsList.data) {
-      if (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due") {
-        await stripe.subscriptions.cancel(sub.id);
+      // A full refund shouldn't leave them still being billed — cancel immediately rather than
+      // "at period end" (Stripe SDK v16: subscriptions.cancel, not the deprecated .del()).
+      const subsList = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+      for (const sub of subsList.data) {
+        if (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due") {
+          await stripe.subscriptions.cancel(sub.id);
+        }
       }
+    } catch (err) {
+      // Deliberately left as "processing" rather than reverted to "pending" — some charges may
+      // already be refunded, so this needs a human to check Stripe before anyone retries, not
+      // an automatic re-attempt that could refund the same charges twice.
+      throw new HttpsError(
+        "internal",
+        `Refund failed partway through — check this customer's Stripe history before retrying. (${err.message})`
+      );
     }
 
     await db.doc(`users/${refundRequest.uid}`).set(
@@ -3180,16 +3199,28 @@ exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request)
   if (!month) throw new HttpsError("invalid-argument", "month is required.");
 
   const winnerRef = db.doc(`prizeWinners/${month}`);
-  const winnerSnap = await winnerRef.get();
-  if (!winnerSnap.exists) throw new HttpsError("not-found", "No winner recorded for that month.");
-  const winner = winnerSnap.data();
-  if (winner.paid) {
-    throw new HttpsError("failed-precondition", "This month is already marked as paid — unmark it first if you really want to send another transfer.");
-  }
+
+  // Claim the payout atomically before calling Stripe. Two near-simultaneous clicks (or a
+  // retried request) could otherwise both read paid: false before either write landed, and
+  // both would go on to send a real transfer — an actual double payment, not just a UI glitch.
+  let winner;
+  await db.runTransaction(async (tx) => {
+    const winnerSnap = await tx.get(winnerRef);
+    if (!winnerSnap.exists) throw new HttpsError("not-found", "No winner recorded for that month.");
+    winner = winnerSnap.data();
+    if (winner.paid) {
+      throw new HttpsError("failed-precondition", "This month is already marked as paid — unmark it first if you really want to send another transfer.");
+    }
+    if (winner.paymentInProgress) {
+      throw new HttpsError("failed-precondition", "A payout for this month is already being processed — wait a moment and refresh before retrying.");
+    }
+    tx.update(winnerRef, { paymentInProgress: true });
+  });
 
   const payoutAcctSnap = await db.doc(`payoutAccounts/${winner.ownerId}`).get();
   const payoutAcct = payoutAcctSnap.data();
   if (!payoutAcct?.stripeAccountId || !payoutAcct.payoutsEnabled) {
+    await winnerRef.set({ paymentInProgress: false }, { merge: true });
     throw new HttpsError(
       "failed-precondition",
       "This winner hasn't finished setting up direct deposit yet — use the manual bank/PayID details instead, or send them a reminder."
@@ -3206,12 +3237,16 @@ exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request)
       description: `Astryks Creative Prize — ${winner.monthLabel}`,
     });
   } catch (err) {
+    // Release the claim so a genuine retry (e.g. after fixing a Stripe Connect account issue)
+    // isn't permanently blocked by the in-progress flag left over from this failed attempt.
+    await winnerRef.set({ paymentInProgress: false }, { merge: true });
     throw new HttpsError("internal", `Stripe declined this transfer: ${err.message}`);
   }
 
   await winnerRef.set(
     {
       paid: true,
+      paymentInProgress: false,
       paidAt: admin.firestore.FieldValue.serverTimestamp(),
       paidVia: "stripe",
       stripeTransferId: transfer.id,
