@@ -38,12 +38,6 @@ const SUBJECT_DETAILS = [
   },
 ];
 
-const STEPS = [
-  { n: "01", title: "Sign up", blurb: "Create your account in under a minute — no waitlist." },
-  { n: "02", title: "Start watching", blurb: "Every expert-led video is ready to watch the moment you subscribe — anytime, on any device." },
-  { n: "03", title: "Keep learning", blurb: "Rewatch any lesson in your library whenever you like, and dive into new ones as they're added." },
-];
-
 const PRICING_FEATURES = [
   "Videos created by practicing professionals",
   "Full access to Music & Art, with new subjects on the way",
@@ -85,6 +79,14 @@ export default function LoginScreen() {
   useEffect(() => {
     setPricing(getLocalizedPricing(detectCountryCode()));
   }, []);
+
+  // Defined here (not at module scope) since the middle step's price mention needs to reflect
+  // the visitor's localized pricing, same as the rest of the screen.
+  const STEPS = [
+    { n: "01", title: "Sign up", blurb: "Create your free account in under a minute." },
+    { n: "02", title: "Dive in", blurb: `Post your work, browse what others are creating, and enter the monthly Creative Prize — it's all free. Want our expert-led masterclasses too? Subscribe for ${pricing.display}, cancel anytime.` },
+    { n: "03", title: "Just create", blurb: "Whether it's with our experts or on your own, just start — record one song from scratch, paint one piece. Take your time, and make something that means something to you." },
+  ];
 
   async function handleLogin() {
     setError(null);
@@ -244,8 +246,7 @@ export default function LoginScreen() {
       <View style={{ backgroundColor: "white", borderRadius: 16, borderTopWidth: 4, borderTopColor: colors.highlight, padding: 16, marginBottom: 28 }}>
         <Text style={{ fontSize: 13, color: colors.ink, lineHeight: 19 }}>
           💛 We&apos;re just getting started — we&apos;ll keep adding to Music and Art, and we&apos;re bringing new
-          subjects beyond these three in the coming months. Very soon, there&apos;ll be even more ways to learn and
-          create on Astryks.
+          subjects like investing in the share market, and others, in the coming months.
         </Text>
       </View>
 
