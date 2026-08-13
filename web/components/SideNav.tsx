@@ -69,7 +69,7 @@ export default function SideNav() {
           link to its bottom (mt-auto pushes it down within the fixed-height flex column) makes
           it reachable from anywhere without an extra hop. */}
       <button
-        onClick={() => signOut(auth)}
+        onClick={() => signOut(auth).catch(() => alert("Couldn't log out — please try again."))}
         className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-ink/40 hover:bg-ink/5 hover:text-ink/70 transition-colors text-left"
       >
         Log out

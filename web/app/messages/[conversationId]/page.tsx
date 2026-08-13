@@ -102,18 +102,26 @@ export default function ChatThreadPage() {
     const text = body;
     setBody("");
 
-    await addDoc(collection(db, "conversations", params.conversationId, "messages"), {
-      senderId: user.uid,
-      senderName: user.displayName ?? "Member",
-      text,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      await addDoc(collection(db, "conversations", params.conversationId, "messages"), {
+        senderId: user.uid,
+        senderName: user.displayName ?? "Member",
+        text,
+        createdAt: serverTimestamp(),
+      });
 
-    await setDoc(
-      doc(db, "conversations", params.conversationId),
-      { lastMessage: text, lastMessageAt: serverTimestamp() },
-      { merge: true }
-    );
+      await setDoc(
+        doc(db, "conversations", params.conversationId),
+        { lastMessage: text, lastMessageAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (err: any) {
+      // Previously a failed write here (permission hiccup, network blip) cleared the input with
+      // no error and no way to recover the typed message — it just silently vanished. Restoring
+      // the text and surfacing the error means a send failure is retryable, not a data loss.
+      setBody(text);
+      alert(err.message ?? "Couldn't send that message — please try again.");
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {

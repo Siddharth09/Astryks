@@ -32,6 +32,7 @@ export default function PostCard({
   const [deleting, setDeleting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [prizeOpen, setPrizeOpen] = useState(false);
+  const [messaging, setMessaging] = useState(false);
   const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
 
   async function handleReport(reason: string, details: string) {
@@ -60,19 +61,30 @@ export default function PostCard({
   const [muted, setMuted] = useState(true);
 
   async function openConversation() {
-    if (!currentUserId || currentUserId === post.ownerId) return;
-    const conversationId = [currentUserId, post.ownerId].sort().join("_");
-    const ref = doc(db, "conversations", conversationId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, {
-        participants: [currentUserId, post.ownerId].sort(),
-        participantNames: [currentUserId, post.ownerId].sort().map((id) => (id === post.ownerId ? post.ownerName : "You")),
-        lastMessage: "",
-        lastMessageAt: new Date(),
-      });
+    if (!currentUserId || currentUserId === post.ownerId || messaging) return;
+    setMessaging(true);
+    try {
+      const conversationId = [currentUserId, post.ownerId].sort().join("_");
+      const ref = doc(db, "conversations", conversationId);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          participants: [currentUserId, post.ownerId].sort(),
+          participantNames: [currentUserId, post.ownerId]
+            .sort()
+            .map((id) => (id === post.ownerId ? post.ownerName : "You")),
+          lastMessage: "",
+          lastMessageAt: new Date(),
+        });
+      }
+      router.push(`/messages/${conversationId}`);
+    } catch (err: any) {
+      // Previously this had no loading state and no error handling at all — a slow network call
+      // gave zero feedback (looked like the click didn't register), and any failure was silently
+      // swallowed with the button left in its normal, clickable-again state but no explanation.
+      alert(err.message ?? "Couldn't open that conversation — please try again.");
+      setMessaging(false);
     }
-    router.push(`/messages/${conversationId}`);
   }
 
   useEffect(() => {
@@ -164,8 +176,8 @@ export default function PostCard({
           <time>{createdDate.toLocaleDateString()}</time>
           <FollowButton targetUserId={post.ownerId} currentUserId={currentUserId} />
           {currentUserId && currentUserId !== post.ownerId && (
-            <button onClick={openConversation} className="text-xs text-ink/40 hover:text-ink">
-              Message
+            <button onClick={openConversation} disabled={messaging} className="text-xs text-ink/40 hover:text-ink disabled:opacity-50">
+              {messaging ? "Opening…" : "Message"}
             </button>
           )}
           {currentUserId && currentUserId !== post.ownerId && (

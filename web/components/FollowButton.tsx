@@ -33,21 +33,29 @@ export default function FollowButton({
   async function toggle() {
     if (busy || !followId || !currentUserId) return;
     setBusy(true);
-    const ref = doc(db, "follows", followId);
-    if (following) {
-      await deleteDoc(ref);
-      setFollowing(false);
-    } else {
-      await setDoc(ref, { followerId: currentUserId, followingId: targetUserId, createdAt: serverTimestamp() });
-      setFollowing(true);
+    try {
+      const ref = doc(db, "follows", followId);
+      if (following) {
+        await deleteDoc(ref);
+        setFollowing(false);
+      } else {
+        await setDoc(ref, { followerId: currentUserId, followingId: targetUserId, createdAt: serverTimestamp() });
+        setFollowing(true);
+      }
+    } catch {
+      // Without this, a failed write (permission denied, network blip) left `busy` stuck true
+      // forever — the button's internal guard above silently no-oped every future click, with
+      // nothing visibly wrong (the button never even looked disabled) since `disabled` here was
+      // only ever wired to `checked`, not `busy`. Now a failure just means "try again."
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
     <button
       onClick={toggle}
-      disabled={!checked}
+      disabled={!checked || busy}
       className={(following ? "btn-secondary" : "btn-primary") + " " + (className ?? "text-xs px-3 py-1")}
     >
       {following ? "Following" : "Follow"}

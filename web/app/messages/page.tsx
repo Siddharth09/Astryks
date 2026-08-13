@@ -86,6 +86,11 @@ export default function MessagesPage() {
         });
       }
       router.push(`/messages/${conversationId}`);
+    } catch (err: any) {
+      // Previously there was no catch here — a failure produced no error message and no
+      // navigation, so the click just appeared to do nothing (the `finally` below did at least
+      // prevent it from getting stuck disabled, but gave no explanation of what went wrong).
+      alert(err.message ?? "Couldn't start that conversation — please try again.");
     } finally {
       setStarting(null);
     }

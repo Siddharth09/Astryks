@@ -27,7 +27,10 @@ export default function TopHeader() {
             Without this, mobile users had no way to log out except navigating to the Me tab
             first every time. */}
         {!!user && (
-          <button onClick={() => signOut(auth)} className="ml-auto text-xs text-ink/40">
+          <button
+            onClick={() => signOut(auth).catch(() => alert("Couldn't log out — please try again."))}
+            className="ml-auto text-xs text-ink/40"
+          >
             Log out
           </button>
         )}

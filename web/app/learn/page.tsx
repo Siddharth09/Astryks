@@ -63,6 +63,10 @@ function LearnPageContent() {
   const [activeSubject, setActiveSubject] = useState<any | null>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  // Tracks which single lesson's "Mark done" click is in flight — previously this button had no
+  // loading state and no error handling at all, so a slow or failed call gave zero feedback:
+  // clicking looked like it did nothing, and there was no way to tell the click even registered.
+  const [completingId, setCompletingId] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string; subjectId: string | null } | null>>({});
   const [playbackLoading, setPlaybackLoading] = useState<string | null>(null);
@@ -129,12 +133,20 @@ function LearnPageContent() {
   );
 
   async function markComplete(lessonId: string) {
-    const result = await completeLessonFn({ lessonId });
-    setCompletedIds((prev) => new Set(prev).add(lessonId));
-    const mastered = (result.data as any)?.masteredSubject;
-    if (mastered && activeSubject) {
-      setJustMastered(activeSubject.name);
-      setTimeout(() => setJustMastered(null), 5000);
+    if (completingId) return;
+    setCompletingId(lessonId);
+    try {
+      const result = await completeLessonFn({ lessonId });
+      setCompletedIds((prev) => new Set(prev).add(lessonId));
+      const mastered = (result.data as any)?.masteredSubject;
+      if (mastered && activeSubject) {
+        setJustMastered(activeSubject.name);
+        setTimeout(() => setJustMastered(null), 5000);
+      }
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't mark that lesson done — please try again.");
+    } finally {
+      setCompletingId(null);
     }
   }
 
@@ -336,9 +348,16 @@ function LearnPageContent() {
                         e.stopPropagation();
                         markComplete(lesson.id);
                       }}
-                      className="text-xs text-ink/50 underline flex-shrink-0"
+                      disabled={completingId === lesson.id}
+                      className="text-xs text-ink/50 underline flex-shrink-0 disabled:opacity-50"
                     >
-                      Mark done <span className="text-ink/30">+10xp</span>
+                      {completingId === lesson.id ? (
+                        "Saving…"
+                      ) : (
+                        <>
+                          Mark done <span className="text-ink/30">+10xp</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>

@@ -72,20 +72,28 @@ export default function UserProfilePage() {
   async function openConversation() {
     if (!currentUser || messaging) return;
     setMessaging(true);
-    const conversationId = [currentUser.uid, params.userId].sort().join("_");
-    const ref = doc(db, "conversations", conversationId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, {
-        participants: [currentUser.uid, params.userId].sort(),
-        participantNames: [currentUser.uid, params.userId]
-          .sort()
-          .map((id) => (id === params.userId ? profile?.displayName ?? "Member" : "You")),
-        lastMessage: "",
-        lastMessageAt: new Date(),
-      });
+    try {
+      const conversationId = [currentUser.uid, params.userId].sort().join("_");
+      const ref = doc(db, "conversations", conversationId);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          participants: [currentUser.uid, params.userId].sort(),
+          participantNames: [currentUser.uid, params.userId]
+            .sort()
+            .map((id) => (id === params.userId ? profile?.displayName ?? "Member" : "You")),
+          lastMessage: "",
+          lastMessageAt: new Date(),
+        });
+      }
+      router.push(`/messages/${conversationId}`);
+    } catch (err: any) {
+      // Previously `messaging` was never reset on failure, so the button got stuck disabled on
+      // "Opening…" forever after any error (permission hiccup, network blip) — identical failure
+      // mode to the Subscribe-button bug fixed earlier tonight.
+      alert(err.message ?? "Couldn't open that conversation — please try again.");
+      setMessaging(false);
     }
-    router.push(`/messages/${conversationId}`);
   }
 
   if (authLoading || loading) {

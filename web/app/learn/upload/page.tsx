@@ -42,8 +42,14 @@ export default function LessonUploadPage() {
   }, [isAdmin]);
 
   async function togglePin(lessonId: string, current: boolean) {
-    await updateDoc(doc(db, "lessons", lessonId), { pinned: !current });
-    setExistingLessons((prev) => (prev ?? []).map((l) => (l.id === lessonId ? { ...l, pinned: !current } : l)));
+    try {
+      await updateDoc(doc(db, "lessons", lessonId), { pinned: !current });
+      setExistingLessons((prev) => (prev ?? []).map((l) => (l.id === lessonId ? { ...l, pinned: !current } : l)));
+    } catch (err: any) {
+      // Admin-only tool, but same silent-failure pattern as everywhere else fixed tonight — no
+      // error meant a failed pin toggle just looked like the click did nothing.
+      alert(err.message ?? "Couldn't update that lesson — please try again.");
+    }
   }
 
   async function handleDeleteLesson(lessonId: string, title: string) {

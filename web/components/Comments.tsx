@@ -38,21 +38,31 @@ export default function Comments({
     }
     setPosting(true);
 
-    // commentCount itself is maintained server-side (onCommentCreated in functions/index.js) —
-    // the client only ever creates the comment doc now.
-    const commentsRef = collection(db, "posts", postId, "comments");
-    const newCommentRef = doc(commentsRef);
+    try {
+      // commentCount itself is maintained server-side (onCommentCreated in functions/index.js) —
+      // the client only ever creates the comment doc now.
+      const commentsRef = collection(db, "posts", postId, "comments");
+      const newCommentRef = doc(commentsRef);
 
-    await setDoc(newCommentRef, {
-      body,
-      userId: user.uid,
-      userName: user.displayName ?? "Member",
-      createdAt: serverTimestamp(),
-    });
+      await setDoc(newCommentRef, {
+        body,
+        userId: user.uid,
+        userName: user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+      });
 
-    setComments((prev) => [...prev, { id: newCommentRef.id, body, userId: user.uid, userName: user.displayName ?? "Member" }]);
-    setBody("");
-    setPosting(false);
+      setComments((prev) => [
+        ...prev,
+        { id: newCommentRef.id, body, userId: user.uid, userName: user.displayName ?? "Member" },
+      ]);
+      setBody("");
+    } catch (err: any) {
+      // Previously `posting` was never reset on failure, so the "Post" button got stuck
+      // disabled forever after any error — the comment box would look permanently broken.
+      alert(err.message ?? "Couldn't post that comment — please try again.");
+    } finally {
+      setPosting(false);
+    }
   }
 
   return (

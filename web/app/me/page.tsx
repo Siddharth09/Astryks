@@ -348,7 +348,10 @@ export default function MePage() {
             )}
           </div>
         </div>
-        <button onClick={() => signOut(auth)} className="ml-auto text-sm text-ink/40">
+        <button
+          onClick={() => signOut(auth).catch(() => alert("Couldn't log out — please try again."))}
+          className="ml-auto text-sm text-ink/40"
+        >
           Log out
         </button>
       </div>
