@@ -32,7 +32,11 @@ export default function ReferralAndBilling() {
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
   const [showBilling, setShowBilling] = useState(false);
   const [canceling, setCanceling] = useState(false);
-  const [plan, setPlan] = useState<"weekly" | "annual">("weekly");
+  // Which plan is currently mid-checkout, or null. Previously this page used radio buttons to
+  // pick a plan and a separate "Subscribe" button to act on it — same two-step flow that got
+  // reported as "clicking Weekly/Annual doesn't do anything" on the home/learn banner. Fixed the
+  // same way here: each plan button starts checkout for itself directly.
+  const [loadingPlan, setLoadingPlan] = useState<"weekly" | "annual" | null>(null);
   const [progress, setProgress] = useState<{ streakCount: number; xp: number; masteredSubjects: string[]; lessonsCompleted: number } | null>(null);
 
   useEffect(() => {
@@ -94,8 +98,9 @@ export default function ReferralAndBilling() {
     }
   }
 
-  async function subscribe() {
-    setLoading(true);
+  async function subscribe(plan: "weekly" | "annual") {
+    if (loadingPlan) return; // already mid-checkout for one plan — ignore taps on the other
+    setLoadingPlan(plan);
     setBillingError(null);
     try {
       // Same fix as SubscriptionBanner.tsx: the stored referral code was never actually being
@@ -111,7 +116,7 @@ export default function ReferralAndBilling() {
       location.href = (result.data as { url: string }).url;
     } catch (err: any) {
       setBillingError(err.message ?? "Couldn't start checkout — please try again.");
-      setLoading(false);
+      setLoadingPlan(null);
     }
   }
 
@@ -184,7 +189,7 @@ export default function ReferralAndBilling() {
                 : "Not subscribed — 15 min free preview in Learn"}
             </p>
           </div>
-          {status === "active" ? (
+          {status === "active" && (
             <div className="flex items-center gap-2">
               <button onClick={manageSubscription} disabled={loading} className="btn-secondary text-xs px-3 py-2">
                 Manage
@@ -199,23 +204,33 @@ export default function ReferralAndBilling() {
                 </button>
               )}
             </div>
-          ) : (
-            <button onClick={subscribe} disabled={loading} className="btn-primary text-xs px-3 py-2">
-              {status === "canceled" ? "Resubscribe" : "Subscribe"}
-            </button>
           )}
         </div>
+        {/* Each plan button starts checkout for itself directly — no separate select-then-submit
+            step (see loadingPlan comment above for why that flow got reported as broken). */}
         {status !== "active" && (
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ink/10">
-            <span className="text-xs text-ink/50">Plan:</span>
-            <label className="flex items-center gap-1.5 text-xs text-ink/70">
-              <input type="radio" name="plan" checked={plan === "weekly"} onChange={() => setPlan("weekly")} />
-              Weekly ({pricing.display})
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-ink/70">
-              <input type="radio" name="plan" checked={plan === "annual"} onChange={() => setPlan("annual")} />
-              Annual (<span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay})
-            </label>
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-ink/10">
+            <button
+              onClick={() => subscribe("weekly")}
+              disabled={loadingPlan !== null}
+              className="btn-primary text-xs px-3 py-2"
+            >
+              {loadingPlan === "weekly" ? "Loading…" : `${status === "canceled" ? "Resubscribe" : "Subscribe"} Weekly · ${pricing.display}`}
+            </button>
+            <button
+              onClick={() => subscribe("annual")}
+              disabled={loadingPlan !== null}
+              className="btn-secondary text-xs px-3 py-2"
+            >
+              {loadingPlan === "annual" ? (
+                "Loading…"
+              ) : (
+                <>
+                  {status === "canceled" ? "Resubscribe" : "Subscribe"} Annual ·{" "}
+                  <span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay}
+                </>
+              )}
+            </button>
           </div>
         )}
         {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}

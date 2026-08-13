@@ -13,12 +13,13 @@ const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
 export default function SubscriptionBanner() {
   const { user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
-  // Which plan the "Subscribe" button below actually checks out — defaults to weekly, same as
-  // before, but now it's an explicit, visible choice instead of a default hidden behind a small
-  // "or save with annual" link underneath.
-  const [plan, setPlan] = useState<"weekly" | "annual">("weekly");
+  // Which plan is currently mid-checkout (or null if none) — Weekly/Annual used to be pure
+  // selector buttons that only set this, requiring a separate "Subscribe" tap below to actually
+  // do anything. Real users read "click Weekly or Annual" as "click to subscribe to that plan"
+  // and reported the buttons as broken when nothing happened. Each button now starts checkout
+  // for its own plan directly — no in-between selection step, no separate submit button.
+  const [loadingPlan, setLoadingPlan] = useState<"weekly" | "annual" | null>(null);
   const [billingError, setBillingError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,8 +32,9 @@ export default function SubscriptionBanner() {
     });
   }, [user]);
 
-  async function handleSubscribe() {
-    setLoading(true);
+  async function handleSubscribe(plan: "weekly" | "annual") {
+    if (loadingPlan) return; // already mid-checkout for one plan — ignore taps on the other
+    setLoadingPlan(plan);
     setBillingError(null);
     try {
       // Without this, a referral code entered via ReferralCodeEntry/ReferralCapture just sat in
@@ -66,7 +68,7 @@ export default function SubscriptionBanner() {
       // forever with no explanation — see Aug 2026 incident where a mistyped Stripe price ID
       // did exactly that for every visitor until someone happened to check the browser console.
       setBillingError(err.message ?? "Couldn't start checkout — please try again.");
-      setLoading(false);
+      setLoadingPlan(null);
     }
   }
 
@@ -84,30 +86,34 @@ export default function SubscriptionBanner() {
         </div>
       </div>
 
-      {/* Explicit plan picker — two clearly-priced options instead of one default button plus a
-          tiny "or save with annual" link underneath, so the annual option isn't easy to miss. */}
+      {/* Each button starts checkout for its own plan directly — no separate select-then-submit
+          step, since that two-step flow was reported repeatedly as "clicking Weekly/Annual
+          doesn't do anything" (it did — it just didn't check out yet). */}
       <div className="flex items-center gap-2 mt-3">
         <button
           type="button"
-          onClick={() => setPlan("weekly")}
-          aria-pressed={plan === "weekly"}
-          className={plan === "weekly" ? "btn-primary text-xs px-3 py-1.5 rounded-full" : "btn-secondary text-xs px-3 py-1.5 rounded-full"}
+          onClick={() => handleSubscribe("weekly")}
+          disabled={loadingPlan !== null}
+          className="btn-primary text-xs px-3 py-1.5 rounded-full"
         >
-          Weekly · {pricing.display}
+          {loadingPlan === "weekly" ? "Loading…" : `${status === "canceled" ? "Resubscribe" : "Subscribe"} Weekly · ${pricing.display}`}
         </button>
         <button
           type="button"
-          onClick={() => setPlan("annual")}
-          aria-pressed={plan === "annual"}
-          className={plan === "annual" ? "btn-primary text-xs px-3 py-1.5 rounded-full" : "btn-secondary text-xs px-3 py-1.5 rounded-full"}
+          onClick={() => handleSubscribe("annual")}
+          disabled={loadingPlan !== null}
+          className="btn-secondary text-xs px-3 py-1.5 rounded-full"
         >
-          Annual · <span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay}
+          {loadingPlan === "annual" ? (
+            "Loading…"
+          ) : (
+            <>
+              {status === "canceled" ? "Resubscribe" : "Subscribe"} Annual ·{" "}
+              <span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay}
+            </>
+          )}
         </button>
       </div>
-
-      <button onClick={handleSubscribe} disabled={loading} className="btn-primary text-xs px-4 py-2 mt-3 w-full sm:w-auto">
-        {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
-      </button>
       {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}
 
       <TrailersSection compact />
