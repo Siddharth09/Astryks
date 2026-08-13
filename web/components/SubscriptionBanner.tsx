@@ -40,12 +40,26 @@ export default function SubscriptionBanner() {
       // referrerUid was always null and the referrer's $50-after-90-days payout never fired for
       // anyone, ever. This is what actually wires the two halves of the referral feature together.
       const referralCode = localStorage.getItem("astryks_referral_code") || undefined;
-      const result = await createCheckoutSession({
-        plan,
-        referralCode,
-        successUrl: `${location.origin}/home`,
-        cancelUrl: `${location.origin}/home`,
-      });
+      // Firebase attaches an App Check token to this call (see lib/firebase.ts) — on a fresh
+      // page load that means a reCAPTCHA v3 challenge has to run first, and if that's slow or
+      // gets blocked (flaky network, a privacy extension, reCAPTCHA itself having a bad moment),
+      // the whole call can hang far longer than a normal request with nothing to show for it —
+      // this is what caused "stuck on Loading… forever" with no error, distinct from the earlier
+      // "fails fast with INTERNAL" incident this same catch block was already handling. A race
+      // against a timeout guarantees the button always resolves one way or the other instead of
+      // hanging indefinitely — if the real request finishes after the timeout anyway, that's
+      // harmless, it just won't be shown to this page load.
+      const result = await Promise.race([
+        createCheckoutSession({
+          plan,
+          referralCode,
+          successUrl: `${location.origin}/home`,
+          cancelUrl: `${location.origin}/home`,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("That's taking longer than expected — please try again.")), 15000)
+        ),
+      ]);
       location.href = (result.data as { url: string }).url;
     } catch (err: any) {
       // Without this, a failed checkout call used to leave the button stuck on "Loading…"
