@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import { isAdmin } from "@/lib/admin";
 import { IconMark, IconHome, IconLearn, IconMessages, IconMe, IconPrize } from "@/components/Icons";
 
@@ -18,15 +18,9 @@ const tabs = [
 
 export default function SideNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user } = useAuth();
 
   if (!user) return null;
-
-  async function handleLogout() {
-    await signOut(auth);
-    router.push("/");
-  }
 
   return (
     <aside className="hidden md:flex flex-col fixed top-0 left-0 bottom-0 w-56 border-r border-line/10 bg-paper/95 backdrop-blur px-4 py-6 z-20">
@@ -70,14 +64,14 @@ export default function SideNav() {
         })}
       </nav>
 
-      {/* Pinned to the bottom of the fixed-height rail (aside is top-0/bottom-0 + flex-col, so
-          mt-auto pushes this to the very end) — previously the only way to log out was to
-          navigate to the Me tab first. This puts it one click away from every page. */}
+      {/* Previously logout only lived on the /me page, so leaving the app meant navigating
+          there first. This rail renders on every logged-in desktop page, so anchoring a log out
+          link to its bottom (mt-auto pushes it down within the fixed-height flex column) makes
+          it reachable from anywhere without an extra hop. */}
       <button
-        onClick={handleLogout}
-        className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-ink/50 hover:bg-ink/5 hover:text-ink transition-colors text-left"
+        onClick={() => signOut(auth)}
+        className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-ink/40 hover:bg-ink/5 hover:text-ink/70 transition-colors text-left"
       >
-        <span aria-hidden className="w-5 h-5 flex items-center justify-center">↩</span>
         Log out
       </button>
     </aside>
