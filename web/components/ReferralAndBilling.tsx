@@ -81,6 +81,23 @@ export default function ReferralAndBilling() {
       });
   }, [user]);
 
+  useEffect(() => {
+    // Both "Subscribe" and "Manage" redirect away via `location.href` (to Stripe Checkout or the
+    // Billing Portal) — on success there's no chance to reset the loading state, since the page
+    // is navigating away. Hitting Back afterward doesn't reload this page fresh: the browser
+    // restores it from the back-forward cache exactly as frozen, buttons stuck on "Loading…"
+    // included. `pageshow` with `event.persisted` fires specifically on that bfcache restore.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setLoading(false);
+        setLoadingPlan(null);
+        setBillingError(null);
+      }
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   // Both of these used to have no error handling at all — if the callable ever threw (missing
   // Stripe secret, a network blip, an expired auth token), the button just sat there spinning
   // forever with the "disabled" state never clearing and nothing visible to the user, which is

@@ -38,6 +38,18 @@ export default function ChatThreadPage() {
   // Stripe, never through Astryks at all. Same "share payout details" moment as the manual
   // form below, just the faster/more secure option. Not tied to any specific post, so it works
   // the same whether this is a fresh nomination or an actual win.
+  useEffect(() => {
+    // `handleStripeSetup` redirects away via `location.href` to Stripe's hosted onboarding form.
+    // Hitting Back afterward restores this page from the browser's back-forward cache exactly as
+    // it was frozen — that message's Stripe-setup button stuck disabled — rather than reloading
+    // fresh. `pageshow` with `event.persisted` fires specifically on that bfcache restore.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) setStripeSetupLoading({});
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   async function handleStripeSetup(messageId: string) {
     setStripeSetupLoading((prev) => ({ ...prev, [messageId]: true }));
     try {

@@ -41,6 +41,18 @@ function PrizePayoutSetup() {
       .finally(() => setChecking(false));
   }, [user]);
 
+  useEffect(() => {
+    // `restart()` redirects away via `location.href` to Stripe's hosted onboarding form. Hitting
+    // Back afterward restores this page from the browser's back-forward cache exactly as it was
+    // frozen — `restarting` stuck true and the button stuck disabled — rather than reloading
+    // fresh. `pageshow` with `event.persisted` fires specifically on that bfcache restore.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) setRestarting(false);
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   async function restart() {
     setRestarting(true);
     setError(null);

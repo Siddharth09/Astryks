@@ -32,6 +32,23 @@ export default function SubscriptionBanner() {
     });
   }, [user]);
 
+  useEffect(() => {
+    // Clicking Subscribe redirects to Stripe via `location.href` — on success we never got the
+    // chance to reset `loadingPlan` back to null (the page was navigating away). Hitting the
+    // browser's Back button after that doesn't reload this page fresh: Chrome/Safari restore it
+    // from the back-forward cache exactly as it was frozen, "Loading…" and all, so the button
+    // stayed permanently stuck and unclickable. `pageshow` with `event.persisted` fires
+    // specifically on a bfcache restore, letting us clear the stuck state then.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setLoadingPlan(null);
+        setBillingError(null);
+      }
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   async function handleSubscribe(plan: "weekly" | "annual") {
     if (loadingPlan) return; // already mid-checkout for one plan — ignore taps on the other
     setLoadingPlan(plan);
