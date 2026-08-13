@@ -45,8 +45,12 @@ service cloud.firestore {
       // "resource == null ||" first: a get() on a post ID that doesn't exist (deleted, or a
       // typo'd link) must resolve to "not found", not a permission error — without this guard,
       // referencing resource.data on a null resource fails the whole rule instead.
+      // Posts auto-flagged by moderatePostMedia (functions/index.js) get the same owner/admin-only
+      // treatment as private ones — this is what actually keeps a flagged post hidden from a direct
+      // /post/[id] page load, since that page reads the doc straight from the client rather than
+      // through getFeed's isVisibleTo check.
       allow read: if resource == null
-        || resource.data.visibility != 'private'
+        || (resource.data.visibility != 'private' && resource.data.moderationStatus != 'flagged')
         || (request.auth != null && (
           request.auth.uid == resource.data.ownerId ||
           request.auth.token.email in ['mehta.siddharth09@gmail.com']
@@ -73,10 +77,15 @@ service cloud.firestore {
       // post's OWNER could still set their own post's counts to whatever they want — which is
       // exactly the same real-money Creative Prize leaderboard forgery the comment above already
       // worried about, just from the owner's own account instead of a stranger's.
+      // moderationStatus/moderationFlags are excluded the same way — without this, a post's own
+      // owner could simply clear their own auto-flagged content back to visible by editing the
+      // post from the client, which would defeat the whole point of moderatePostMedia. Only that
+      // trigger (Admin SDK) sets or clears these fields.
       allow update: if request.auth != null
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == resource.data.ownerId
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount']);
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['likeCount', 'commentCount', 'moderationStatus', 'moderationFlags']);
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
@@ -237,6 +246,13 @@ service cloud.firestore {
     // functions — a client read would leak nothing sensitive, but a client WRITE would let anyone
     // reset or forge their own counter and bypass the very limits this exists to enforce.
     match /rateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
+    // Processed Stripe webhook event ids (stripeWebhook in functions/index.js) — purely an
+    // internal dedupe marker so a retried webhook delivery doesn't re-send a confirmation/
+    // cancellation email. No legitimate reason for a client to read or write this directly.
+    match /stripeWebhookEvents/{eventId} {
       allow read, write: if false;
     }
   }

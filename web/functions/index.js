@@ -1582,6 +1582,7 @@ function serializePost(doc) {
 }
 
 function isVisibleTo(post, callerUid) {
+  if (post.moderationStatus === "flagged" && post.ownerId !== callerUid) return false;
   return post.visibility !== "private" || post.ownerId === callerUid;
 }
 
@@ -1616,7 +1617,8 @@ exports.getUserPosts = onCall(async (request) => {
 
   const posts = snap.docs
     .map(serializePost)
-    .filter((p) => p.visibility !== "private" || p.ownerId === callerUid || isAdmin);
+    .filter((p) => (p.visibility !== "private" || p.ownerId === callerUid || isAdmin))
+    .filter((p) => p.moderationStatus !== "flagged" || p.ownerId === callerUid || isAdmin);
   return { posts };
 });
 
@@ -2726,6 +2728,85 @@ exports.onPostCreated = onDocumentCreated("posts/{postId}", async (event) => {
   await nominateForPrize(postId, post);
 });
 
+// ---------- Trigger: automated moderation scan on every new photo/video post ----------
+// Runs Google Cloud Vision SafeSearch (photos) and Cloud Video Intelligence's explicit-content
+// detection (videos) against every new upload, in the same GCP project Astryks already runs
+// on (Blaze plan) — no new vendor account needed, just enabling the two APIs in Cloud Console
+// (see astryks-app/SECURITY.md). This is a real automated backstop, but NOT a complete one —
+// be clear-eyed about what it does and doesn't cover:
+//   - It catches obviously adult/violent/graphic imagery before a human ever reports it.
+//   - It is NOT CSAM (child sexual abuse material) hash-matching. SafeSearch/explicit-content
+//     detection is a general nudity/violence classifier, not a substitute for a dedicated CSAM
+//     detection service (e.g. Thorn's Safer, or Google's invite-only CSAI Match) — given this
+//     platform accepts uploads from any account, applying to one of those is worth prioritizing
+//     as a follow-up, not a someday-maybe.
+//   - Fails OPEN on any API error (leaves the post visible) so a transient Vision/Video
+//     Intelligence outage never takes the whole feed down — the human report flow
+//     (submitReport/resolveReport) is always the backstop of last resort regardless.
+// Flagged posts are hidden from everyone but their owner/admins (isVisibleTo, getUserPosts,
+// and the posts/{postId} rule in firestore.rules all check moderationStatus) rather than
+// deleted outright, so a false positive doesn't destroy someone's post with zero recourse —
+// an admin reviews and deletes for real, or clears the flag, from /admin/reports.
+const MODERATION_LIKELIHOODS_TO_FLAG = ["LIKELY", "VERY_LIKELY"];
+
+async function flagPostForModeration(postId, post, flaggedFor) {
+  await db.doc(`posts/${postId}`).set(
+    {
+      moderationStatus: "flagged",
+      moderationFlags: flaggedFor,
+      moderatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await notifyAdmin(
+    `🚩 Auto-flagged post pending review (${flaggedFor.join(", ")})`,
+    `A new ${post.type} post from ${post.ownerName || "a member"} (owner uid: ${post.ownerId}) was ` +
+      `automatically flagged for: ${flaggedFor.join(", ")}. It's already hidden from everyone except the ` +
+      `owner and admins — nothing further to do urgently, but please review and either delete it for real ` +
+      `or clear moderationStatus (false positive) here: https://astryks.com/admin/reports (post id: ${postId}).`
+  );
+}
+
+exports.moderatePostMedia = onDocumentCreated(
+  { document: "posts/{postId}", timeoutSeconds: 540, memory: "512MiB" },
+  async (event) => {
+    const postId = event.params.postId;
+    const post = event.data?.data();
+    if (!post || !post.mediaPath || !["photo", "video"].includes(post.type)) return;
+
+    const bucket = admin.storage().bucket().name;
+    const gcsUri = `gs://${bucket}/${post.mediaPath}`;
+
+    try {
+      if (post.type === "photo") {
+        const vision = require("@google-cloud/vision");
+        const client = new vision.ImageAnnotatorClient();
+        const [result] = await client.safeSearchDetection(gcsUri);
+        const annotation = result.safeSearchAnnotation || {};
+        const flaggedFor = ["adult", "violence", "racy"].filter((k) =>
+          MODERATION_LIKELIHOODS_TO_FLAG.includes(annotation[k])
+        );
+        if (flaggedFor.length > 0) await flagPostForModeration(postId, post, flaggedFor);
+      } else {
+        const videoIntel = require("@google-cloud/video-intelligence").v1;
+        const client = new videoIntel.VideoIntelligenceServiceClient();
+        const [operation] = await client.annotateVideo({
+          inputUri: gcsUri,
+          features: ["EXPLICIT_CONTENT_DETECTION"],
+        });
+        const [result] = await operation.promise();
+        const frames = result.annotationResults?.[0]?.explicitAnnotation?.frames || [];
+        const flagged = frames.some((f) => MODERATION_LIKELIHOODS_TO_FLAG.includes(f.pornographyLikelihood));
+        if (flagged) await flagPostForModeration(postId, post, ["explicit content"]);
+      }
+    } catch (err) {
+      // Fail open on purpose — see the block comment above this trigger.
+      console.error("moderatePostMedia: scan failed, leaving post visible", postId, err);
+    }
+  }
+);
+
 // ---------- Triggers: keep posts/{postId}.likeCount in sync (Admin SDK, bypasses rules) ----------
 //
 // This is the ONLY place likeCount is ever changed server-side. It used to also be writable
@@ -2947,6 +3028,20 @@ exports.createCheckoutSession = onCall(
     await enforceRateLimit(request.auth.uid, "createCheckoutSession", { max: 10, windowMs: 60 * 60 * 1000 });
     const stripe = Stripe(stripeSecret.value());
     const uid = request.auth.uid;
+
+    // Refuse to open a second subscription for someone who already has one active — without
+    // this, a double-click, a slow network causing the client to retry, or someone just hitting
+    // Subscribe twice from two tabs could complete two separate Stripe subscriptions and charge
+    // the same person twice in parallel. Billing Portal is the correct place to change/cancel an
+    // existing plan, not a brand-new Checkout Session.
+    const existingUserSnap = await db.doc(`users/${uid}`).get();
+    if (existingUserSnap.data()?.subscriptionStatus === "active") {
+      throw new HttpsError(
+        "failed-precondition",
+        "You already have an active subscription — use Manage Subscription to change or cancel it."
+      );
+    }
+
     const referralCode = (request.data?.referralCode || "").toUpperCase().trim() || null;
     const plan = request.data?.plan === "annual" ? "annual" : "weekly";
 
@@ -2990,6 +3085,12 @@ exports.createCheckoutSession = onCall(
       // and charges in that local currency based on the same billing details — no extra
       // code needed here for that part.
       billing_address_collection: "required",
+    }, {
+      // Collapses a double-click or a client retry after a network stutter within the same
+      // minute into the SAME Stripe session (Stripe returns the original response instead of
+      // creating a second one) rather than two separate sessions that could both be completed
+      // and charge the same person twice. A genuine new attempt a minute later gets a fresh key.
+      idempotencyKey: `checkout_${uid}_${plan}_${Math.floor(Date.now() / 60000)}`,
     });
 
     return { url: session.url };
@@ -3494,11 +3595,17 @@ exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request)
   const stripe = Stripe(stripeSecret.value());
   let transfer;
   try {
+    // Belt-and-suspenders alongside the paymentInProgress transaction claim above: an
+    // idempotency key scoped to this specific month means even a Cloud Functions-level retry
+    // of this exact request (rare, but possible on a cold-start/network hiccup) can't result in
+    // Stripe actually moving the AU$1,000 twice for the same winner.
     transfer = await stripe.transfers.create({
       amount: PRIZE_AUD * 100,
       currency: "aud",
       destination: payoutAcct.stripeAccountId,
       description: `Astryks Creative Prize — ${winner.monthLabel}`,
+    }, {
+      idempotencyKey: `prize_transfer_${month}`,
     });
   } catch (err) {
     // Release the claim so a genuine retry (e.g. after fixing a Stripe Connect account issue)
@@ -3532,6 +3639,24 @@ exports.stripeWebhook = onRequest(
       event = stripe.webhooks.constructEvent(req.rawBody, req.headers["stripe-signature"], stripeWebhookSecret.value());
     } catch (err) {
       res.status(400).send(`Webhook signature error: ${err.message}`);
+      return;
+    }
+
+    // Stripe delivers webhooks "at least once" — if this function is slow (Firestore writes +
+    // sending an email) and Stripe's own timeout fires before we respond, it retries the SAME
+    // event again later. Every write below is naturally idempotent (Firestore .set with merge
+    // just re-applies the same state), EXCEPT the confirmation/cancellation emails, which would
+    // otherwise get re-sent to a real person on every retry. Claim the event id first and bail
+    // out immediately if we've already processed it, so retries are true no-ops.
+    const eventRef = db.doc(`stripeWebhookEvents/${event.id}`);
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(eventRef);
+      if (snap.exists) return false;
+      tx.set(eventRef, { type: event.type, receivedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return true;
+    });
+    if (!claimed) {
+      res.json({ received: true, duplicate: true });
       return;
     }
 
