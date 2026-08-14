@@ -26,6 +26,11 @@ const SECTIONS = [
     description: "Every signed-up account, and the tool to permanently delete one.",
   },
   {
+    href: "/admin/media-migration",
+    title: "Private post media migration",
+    description: "One-time fix for older private posts whose media is still reachable at a public Storage URL.",
+  },
+  {
     href: "/learn/upload",
     title: "Upload a lesson",
     description: "Add a new pre-recorded lesson video.",

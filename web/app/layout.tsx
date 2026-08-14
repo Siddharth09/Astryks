@@ -23,15 +23,21 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: "https://astryks.com",
     siteName: "Astryks",
-    images: [{ url: "/logo-mark.png", width: 1024, height: 1024 }],
+    // No `images` here on purpose: app/opengraph-image.png already exists, and Next.js's file
+    // convention auto-generates the correct og:image metadata from it. The old explicit
+    // `images: [{ url: "/logo-mark.png" }]` was a leftover from before that file existed — Next
+    // was emitting BOTH tags (this one first), so the square placeholder logo was actually
+    // winning over the real 1200x630 card that was already sitting unused in the repo.
     locale: "en_US",
     type: "website",
   },
   twitter: {
-    card: "summary",
+    // "summary_large_image" (not "summary") is what makes Twitter/X render a large landscape
+    // card instead of a small square thumbnail. Same story as openGraph above: no explicit
+    // `images` here so app/twitter-image.png (file convention) is what actually gets used.
+    card: "summary_large_image",
     title: "Astryks",
     description: DESCRIPTION,
-    images: ["/logo-mark.png"],
   },
 };
 
