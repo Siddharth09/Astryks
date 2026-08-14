@@ -1,7 +1,7 @@
 "use client";
 
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
@@ -36,10 +36,16 @@ export const functions = getFunctions(app);
 // real traffic is verified before that switch is ever flipped.
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
   try {
-    initializeAppCheck(app, {
+    const appCheck = initializeAppCheck(app, {
       provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
       isTokenAutoRefreshEnabled: true,
     });
+    // Force the first reCAPTCHA v3 challenge to run right away, on page load, instead of
+    // waiting for it to happen lazily on whatever the first Firestore/Storage/Functions call
+    // turns out to be — which was very often "click Subscribe," making that specific button
+    // feel slow. This runs the challenge in the background while someone is still reading the
+    // page, so by the time they click, App Check already has a cached token ready to attach.
+    getToken(appCheck).catch(() => {});
   } catch {
     // Never let a misconfigured site key break the app for real users — App Check is a defense
     // in depth measure, not something login/posting/checkout should depend on.

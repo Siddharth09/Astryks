@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAdmin } from "@/lib/admin";
 import { IconMark, IconHome, IconLearn, IconMessages, IconMe, IconPrize } from "@/components/Icons";
+import UserMenu from "@/components/UserMenu";
 
 const tabs = [
   { href: "/home", label: "Home", Icon: IconHome },
@@ -65,15 +64,11 @@ export default function SideNav() {
       </nav>
 
       {/* Previously logout only lived on the /me page, so leaving the app meant navigating
-          there first. This rail renders on every logged-in desktop page, so anchoring a log out
-          link to its bottom (mt-auto pushes it down within the fixed-height flex column) makes
-          it reachable from anywhere without an extra hop. */}
-      <button
-        onClick={() => signOut(auth).catch(() => alert("Couldn't log out — please try again."))}
-        className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-ink/40 hover:bg-ink/5 hover:text-ink/70 transition-colors text-left"
-      >
-        Log out
-      </button>
+          there first. This rail renders on every logged-in desktop page, so anchoring the
+          account menu to its bottom (mt-auto pushes it down within the fixed-height flex column)
+          makes it reachable from anywhere without an extra hop — and a proper avatar chip is far
+          more discoverable than the plain low-contrast text link this replaced. */}
+      <UserMenu variant="sidebar" />
     </aside>
   );
 }
