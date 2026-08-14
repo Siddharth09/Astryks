@@ -8,9 +8,31 @@ import SplashIntro from "@/components/SplashIntro";
 import TopHeader from "@/components/TopHeader";
 import AppShell from "@/components/AppShell";
 
+const DESCRIPTION = "Learn real skills. Post your own work. Grow together.";
+
+// Without openGraph/twitter fields, a link to astryks.com shared in iMessage/Slack/Twitter/etc.
+// (exactly what an app-store push and word-of-mouth launch depend on) renders as a bare gray box
+// with no image or description — this is what makes a shared link actually look like a real
+// product instead of a raw URL.
 export const metadata: Metadata = {
+  metadataBase: new URL("https://astryks.com"),
   title: "Astryks",
-  description: "Learn real skills. Post your own work. Grow together.",
+  description: DESCRIPTION,
+  openGraph: {
+    title: "Astryks",
+    description: DESCRIPTION,
+    url: "https://astryks.com",
+    siteName: "Astryks",
+    images: [{ url: "/logo-mark.png", width: 1024, height: 1024 }],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Astryks",
+    description: DESCRIPTION,
+    images: ["/logo-mark.png"],
+  },
 };
 
 export const viewport: Viewport = {

@@ -4,7 +4,11 @@ export default function PrizeRulesPage() {
   return (
     <div className="max-w-2xl mx-auto py-10 pb-24 px-4 text-sm text-ink/80 leading-relaxed">
       <h1 className="font-display text-3xl font-bold mb-2">Creative Prize — Official Rules</h1>
-      <p className="text-xs text-ink/40 mb-8">Last updated: 10 August 2026</p>
+      <p className="text-xs text-ink/40 mb-2">Last updated: 14 August 2026</p>
+      <p className="text-xs text-ink/40 mb-8">
+        Sponsor: the holder of Australian Business Number (ABN) 74 309 712 800, trading as Astryks
+        ("Astryks," "we," "us"), astryks.com.
+      </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">1. No purchase necessary</h2>
       <p className="mb-4">

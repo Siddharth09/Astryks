@@ -116,6 +116,7 @@ function LoginForm() {
           className="input"
           type="email"
           placeholder="Email"
+          aria-label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -124,6 +125,7 @@ function LoginForm() {
           className="input"
           type="password"
           placeholder="Password"
+          aria-label="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required

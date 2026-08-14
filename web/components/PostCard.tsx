@@ -208,7 +208,12 @@ export default function PostCard({
           <SaveButton postId={post.id} currentUserId={currentUserId} />
           <div className="ml-auto flex items-center gap-3">
             {(post.type === "photo" || post.type === "video") && (
-              <button onClick={() => setPrizeOpen(true)} className="hover:text-ink" title="Creative prize">
+              <button
+                onClick={() => setPrizeOpen(true)}
+                className="hover:text-ink"
+                title="Creative prize"
+                aria-label="About the Creative Prize"
+              >
                 🏆
               </button>
             )}

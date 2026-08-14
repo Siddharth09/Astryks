@@ -1,15 +1,15 @@
 import type { MetadataRoute } from "next";
 
-// Fixes the recurring 404s for /robots.txt seen in the App Hosting logs — this file convention
-// (app/robots.ts) makes Next.js generate and serve it automatically at the real /robots.txt
-// path, no manual route needed. Keeps signed-in-only areas out of it since there's nothing for
-// a crawler to usefully index there anyway.
+// Next.js serves whatever this returns at /robots.txt automatically — no separate static file
+// needed. Blocks the private, logged-in-only app screens (and the admin dashboard) from being
+// crawled/indexed, while leaving the public marketing/legal pages open, since those are exactly
+// what you'd want to show up in search ahead of the app store launch.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/me", "/messages", "/home"],
+      disallow: ["/admin", "/home", "/learn", "/messages", "/me", "/prizes", "/post", "/user"],
     },
     sitemap: "https://astryks.com/sitemap.xml",
   };

@@ -91,6 +91,7 @@ export default function SignupPage() {
           className="input"
           type="text"
           placeholder="Full name"
+          aria-label="Full name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -99,6 +100,7 @@ export default function SignupPage() {
           className="input"
           type="email"
           placeholder="Email"
+          aria-label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -107,6 +109,7 @@ export default function SignupPage() {
           className="input"
           type="password"
           placeholder="Password"
+          aria-label="Password"
           minLength={6}
           value={password}
           onChange={(e) => setPassword(e.target.value)}

@@ -46,7 +46,13 @@ export default function SaveButton({ postId, currentUserId }: { postId: string; 
   }
 
   return (
-    <button onClick={toggle} disabled={!checked || !currentUserId || busy} className="hover:text-ink text-ink/50">
+    <button
+      onClick={toggle}
+      disabled={!checked || !currentUserId || busy}
+      aria-label={saved ? "Remove from saved" : "Save post"}
+      aria-pressed={saved}
+      className="hover:text-ink text-ink/50"
+    >
       {saved ? "🔖" : "📑"}
     </button>
   );
