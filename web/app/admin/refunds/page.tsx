@@ -16,7 +16,7 @@ type RefundRequest = {
   uid: string;
   userName: string;
   userEmail: string;
-  status: "pending" | "approved" | "denied";
+  status: "pending" | "processing" | "approved" | "denied";
   totalDisplay: string;
   refundedDisplay: string | null;
   requestedAt: number | null;
@@ -148,9 +148,22 @@ export default function AdminRefundsPage() {
                       <p className="text-xs text-ink/40 truncate">{r.userEmail}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-medium text-brand">
-                        ✓ Refunded {r.refundedDisplay ?? r.totalDisplay}
-                      </p>
+                      {/* "processing" means approveRefund started moving money and then threw partway
+                          through (see the catch block in functions/index.js) — it's deliberately left
+                          in this state instead of reverting to "pending" or "approved", because some
+                          charges may already be refunded in Stripe and a retry could double-refund
+                          them. It must never be shown as a completed refund: refundedDisplay is only
+                          set on the success path, so falling back to totalDisplay here would claim the
+                          full amount was refunded when it might be partial or none at all. */}
+                      {r.status === "processing" ? (
+                        <p className="text-xs font-medium text-red-600">⚠ Refund interrupted — check Stripe</p>
+                      ) : r.status === "denied" ? (
+                        <p className="text-xs font-medium text-ink/50">✕ Denied</p>
+                      ) : (
+                        <p className="text-xs font-medium text-brand">
+                          ✓ Refunded {r.refundedDisplay ?? r.totalDisplay}
+                        </p>
+                      )}
                       {r.approvedAt && (
                         <p className="text-xs text-ink/40">{new Date(r.approvedAt).toLocaleDateString()}</p>
                       )}
