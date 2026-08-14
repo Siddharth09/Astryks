@@ -3019,7 +3019,13 @@ exports.validateReferralCode = onCall(async (request) => {
 // someone binge the entire library in the free window and cancel before ever being charged —
 // a time-boxed watch allowance doesn't have that failure mode.
 exports.createCheckoutSession = onCall(
-  { secrets: [stripeSecret, stripePriceId, stripeAnnualPriceId] },
+  // minInstances: 1 keeps one instance of this function warm at all times, so a Subscribe click
+  // never has to wait out a cold start (spinning up a fresh container + loading the Stripe SDK)
+  // on top of the actual Stripe API round trip — this is the single biggest lever on "Subscribe
+  // feels slow," since it's the one function on the checkout path with real revenue on the line.
+  // Trade-off: a small always-on hosting cost (roughly a few dollars a month) instead of scaling
+  // to zero between calls like every other function here.
+  { secrets: [stripeSecret, stripePriceId, stripeAnnualPriceId], minInstances: 1 },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
     // Every call hits the Stripe API (a real, metered, rate-limited dependency) — keep one
@@ -3646,16 +3652,20 @@ exports.stripeWebhook = onRequest(
     // sending an email) and Stripe's own timeout fires before we respond, it retries the SAME
     // event again later. Every write below is naturally idempotent (Firestore .set with merge
     // just re-applies the same state), EXCEPT the confirmation/cancellation emails, which would
-    // otherwise get re-sent to a real person on every retry. Claim the event id first and bail
-    // out immediately if we've already processed it, so retries are true no-ops.
+    // otherwise get re-sent to a real person on every retry.
+    //
+    // This used to claim the event (write stripeWebhookEvents/{id}) BEFORE any processing ran —
+    // so if a Firestore write or the email send threw partway through, the event was already
+    // marked "done." Stripe's automatic retry of that exact same event would then be silently
+    // dropped as a duplicate, permanently losing whatever side effect never finished (e.g. a
+    // paying customer never gets subscriptionStatus:"active"). Checking-then-claiming-at-the-end
+    // instead means a genuine mid-processing failure is retried for real. The only trade-off is
+    // a narrow window where two truly-simultaneous deliveries of the same event (not the normal
+    // sequential retry-after-timeout case) could both process before either claims — acceptable
+    // here since that's far rarer than "processing throws partway through."
     const eventRef = db.doc(`stripeWebhookEvents/${event.id}`);
-    const claimed = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(eventRef);
-      if (snap.exists) return false;
-      tx.set(eventRef, { type: event.type, receivedAt: admin.firestore.FieldValue.serverTimestamp() });
-      return true;
-    });
-    if (!claimed) {
+    const alreadyProcessed = (await eventRef.get()).exists;
+    if (alreadyProcessed) {
       res.json({ received: true, duplicate: true });
       return;
     }
@@ -3711,6 +3721,9 @@ exports.stripeWebhook = onRequest(
           }
         }
       }
+      // Claimed only now that every side effect above actually completed — see the comment
+      // where alreadyProcessed is checked, at the top of this function.
+      await eventRef.set({ type: event.type, receivedAt: admin.firestore.FieldValue.serverTimestamp() });
       res.json({ received: true });
       return;
     }
@@ -3776,6 +3789,15 @@ exports.stripeWebhook = onRequest(
     if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.updated") {
       const sub = event.data.object;
       const isActive = sub.status === "active" || sub.status === "trialing";
+      // Stripe's automatic dunning retries put a subscription into "past_due" (not straight to
+      // "canceled") while it keeps retrying the card over several days. Access is correctly cut
+      // off here the moment it's not active/trialing — a lapsed card shouldn't keep unlocking
+      // lessons — but "past_due" is still RECOVERABLE: if the card gets fixed or the retry
+      // succeeds, Stripe flips the subscription straight back to "active" and charges it, with
+      // no separate "resubscribed" event. Treating past_due the same as a real, terminal
+      // cancellation for EMAIL purposes used to send "your subscription has been canceled — you
+      // won't be charged again," which is simply false for anyone still inside the retry window.
+      const isPastDue = sub.status === "past_due";
       const usersSnap = await db.collection("users").where("stripeCustomerId", "==", sub.customer).limit(1).get();
       if (!usersSnap.empty) {
         const userDoc = usersSnap.docs[0];
@@ -3791,8 +3813,12 @@ exports.stripeWebhook = onRequest(
         // Only email the moment a subscription actually TRANSITIONS from active to canceled —
         // Stripe fires "customer.subscription.updated" for lots of things unrelated to
         // cancellation (card updates, trial-to-paid, etc.), and firing this on every one of
-        // those would spam someone who hasn't actually canceled anything.
-        if (wasActive && !isActive) {
+        // those would spam someone who hasn't actually canceled anything. And never send the
+        // "canceled, you won't be charged again" email for a past_due lapse specifically — that
+        // state can still recover into a real charge, so a payment-failed email (surfaced to the
+        // user in-app via their billing status, not yet a separate email template) is the
+        // accurate message here, not a cancellation confirmation.
+        if (wasActive && !isActive && !isPastDue) {
           try {
             const userRecord = await admin.auth().getUser(userDoc.id);
             if (userRecord.email) {
@@ -3805,6 +3831,9 @@ exports.stripeWebhook = onRequest(
       }
     }
 
+    // Claimed only now that every side effect above actually completed — see the comment where
+    // alreadyProcessed is checked, at the top of this function.
+    await eventRef.set({ type: event.type, receivedAt: admin.firestore.FieldValue.serverTimestamp() });
     res.json({ received: true });
   }
 );
