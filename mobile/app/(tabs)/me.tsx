@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator, TextInput, Linking } from "react-native";
+import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator, TextInput, Linking, Alert } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -112,7 +112,10 @@ export default function MeScreen() {
       await setDoc(doc(db, "users", user.uid), { photoURL: url }, { merge: true });
       setAvatarUrl(url);
     } catch (err) {
-      console.log("Avatar upload failed:", err);
+      // Previously this only logged to the console — a failed upload (bad network, storage
+      // rule rejection, etc.) just silently stopped the spinner with zero explanation, so
+      // tapping "Change photo" looked like it had done nothing at all.
+      Alert.alert("Couldn't update your photo", "Please check your connection and try again.");
     } finally {
       setAvatarUploading(false);
     }

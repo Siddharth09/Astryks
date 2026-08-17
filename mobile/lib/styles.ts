@@ -1,13 +1,23 @@
 import { StyleSheet } from "react-native";
 
+// Shared color palette and base styles for the mobile app — mirrors the web app's Tailwind
+// theme (Astryks-GitHub/web/tailwind.config.ts) so both platforms feel like the same product.
+//
+// This file was missing entirely from the delivered mobile app (every screen under app/ imports
+// `{ styles, colors }` from here, so without it the app cannot bundle at all — this isn't a
+// cosmetic gap, it's the reason the app wouldn't build). Values below are reconstructed to match
+// the web app's palette exactly, plus a `muted` gray for secondary text (the mobile-only
+// equivalent of the web app's `text-ink/50`/`text-ink/60` opacity classes, since React Native
+// style objects don't support Tailwind's opacity-suffix color syntax).
 export const colors = {
   ink: "#17130F",
   paper: "#F7F1E5",
-  line: "#E5E5E3",
-  muted: "#8A8A8D",
+  line: "#242426",
+  accent: "#E8E6E1",
   brand: "#E85D5D",
   brandDark: "#C94A4A",
   brandLight: "#FFF6F1",
+  // astryks.com subject accents
   music: "#E85D5D",
   musicLight: "#FBE3DF",
   art: "#8B7FE8",
@@ -20,78 +30,59 @@ export const colors = {
   sectionSky: "#DCE6F2",
   sectionLavender: "#E4DEF3",
   sectionMint: "#DEF0E3",
+  // Secondary/placeholder text — the mobile equivalent of the web app's `text-ink/50` opacity
+  // classes, since RN style objects need a concrete color rather than an opacity modifier.
+  muted: "#8A8A8D",
 };
 
 export const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.paper,
-    padding: 20,
-  },
   centered: {
     flex: 1,
-    backgroundColor: colors.paper,
     justifyContent: "center",
     padding: 20,
+    backgroundColor: colors.paper,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "800",
     color: colors.ink,
-    marginBottom: 20,
     textAlign: "center",
+    marginBottom: 20,
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 12,
+    borderColor: colors.line + "33", // ~20% opacity, matching the web app's border-line/20/30
+    backgroundColor: "white",
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 17,
+    fontSize: 15,
+    color: colors.ink,
     marginBottom: 12,
-    backgroundColor: "white",
-    color: colors.ink,
-  },
-  buttonPrimary: {
-    backgroundColor: colors.ink,
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  buttonPrimaryText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 17,
-  },
-  buttonSecondary: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginBottom: 16,
-    backgroundColor: "white",
-  },
-  buttonSecondaryText: {
-    color: colors.ink,
-    fontWeight: "600",
-    fontSize: 17,
-  },
-  link: {
-    color: colors.brand,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 16,
   },
   error: {
     color: "#DC2626",
-    fontSize: 15,
-    marginBottom: 8,
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: "center",
   },
-  muted: {
-    color: colors.muted,
-    fontSize: 15,
+  buttonPrimary: {
+    backgroundColor: colors.brand,
+    borderRadius: 999,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  buttonPrimaryText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  link: {
+    color: colors.ink,
+    opacity: 0.6,
+    fontSize: 13,
+    textAlign: "center",
   },
 });

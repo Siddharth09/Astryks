@@ -1,11 +1,26 @@
+# Dependencies
 node_modules/
+
+# Next.js build output
 .next/
+out/
+
+# Env files — these can hold real secrets (unlike the NEXT_PUBLIC_* values in .env.local.example,
+# which are safe-by-design to be public); never let a real .env.local get committed.
 .env
 .env.local
-.env*.local
-*.log
+.env.*.local
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Editor/OS cruft
 .DS_Store
-tsconfig.tsbuildinfo
-.vercel
-service-account.json
-run-me.sh
+*.log
+.vscode/
+
+# TypeScript build info
+*.tsbuildinfo

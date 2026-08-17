@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Image, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { Link, router } from "expo-router";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -55,7 +55,7 @@ const PRIZE_STEPS = [
 
 const FAQS = [
   { q: "Who are the experts teaching on Astryks?", a: "Professional practitioners in their field — people who do this for a living, not just talk about it." },
-  { q: "Is Astryks meant for endless scrolling?", a: "No — we'd rather you put your phone down and go make something. Anything, just start! Learning (like money) compounds over time, but you need to let it consume you a little. Start small, take your time with each lesson and try to finish one piece before starting the next. Record just one song from scratch, or create one painting. Learn the technical details, study other artists and then look out at the world and find what inspires you." },
+  { q: "Is Astryks meant for endless scrolling?", a: "Absolutely not — we'd rather you put your phone down and go make something. Anything, just start! Learning (like money) compounds over time. Start small, take your time with each lesson and try to finish one piece before starting the next. Record just one song from scratch, or create one painting. Learn the technical details, study other artists and then look out at the world and find what inspires you." },
   { q: "Do I need any experience to start?", a: "Absolutely not — remember there are no born experts. Everybody started somewhere. Astryks is designed for that first step when you have zero experience but are open to trying something new. Learn the basic techniques, and then look at existing work out there and try and recreate a song or a painting from a famous artist, or make your own, or do both! It's magical creating layers of paintings, like layers of music, just have fun with it!" },
   { q: "Can I post what I make?", a: "That's entirely up to you. Post it if you'd like feedback and to be part of the community, or keep it to yourself — either way is completely fine, and posting is never required." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
@@ -138,14 +138,15 @@ export default function LoginScreen() {
 
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 28 }}>
           <View style={{ flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: "white", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}>
-            <View style={{ aspectRatio: 1 }}>
-              <Image source={require("@/assets/music-preview.jpg")} style={{ width: "100%", height: "100%" }} />
-              <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.1)", alignItems: "center", justifyContent: "center" }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
-                  <Text>▶</Text>
-                </View>
+            {/* No real preview photo/video ships with the app yet (see comment on the Art card
+                below) — a solid brand-tinted tile with the subject's icon reads as a deliberate
+                design choice rather than a broken image. */}
+            <View style={{ aspectRatio: 1, backgroundColor: colors.musicLight, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 40 }}>🎵</Text>
+              <View style={{ position: "absolute", bottom: 8, alignSelf: "center", width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
+                <Text>▶</Text>
               </View>
-              <View style={{ position: "absolute", left: 8, top: 8, borderRadius: 999, backgroundColor: colors.musicLight, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <View style={{ position: "absolute", left: 8, top: 8, borderRadius: 999, backgroundColor: "white", paddingHorizontal: 8, paddingVertical: 3 }}>
                 <Text style={{ fontSize: 11, fontWeight: "700", color: colors.music, textTransform: "uppercase" }}>Music</Text>
               </View>
             </View>
@@ -154,14 +155,16 @@ export default function LoginScreen() {
             </Text>
           </View>
           <View style={{ flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: "white", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}>
-            <View style={{ aspectRatio: 1 }}>
-              <Image source={require("@/assets/art-preview.jpg")} style={{ width: "100%", height: "100%" }} />
-              <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.1)", alignItems: "center", justifyContent: "center" }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
-                  <Text>▶</Text>
-                </View>
+            {/* Was `require("@/assets/art-preview.jpg")` (and music-preview.jpg above) — neither
+                file exists anywhere in the repo, so both `require()` calls would fail to resolve
+                at bundle time and the app couldn't build at all. Once you have real lesson-still
+                photos, drop them into assets/ and swap these tiles back to <Image>. */}
+            <View style={{ aspectRatio: 1, backgroundColor: colors.artLight, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 40 }}>🎨</Text>
+              <View style={{ position: "absolute", bottom: 8, alignSelf: "center", width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
+                <Text>▶</Text>
               </View>
-              <View style={{ position: "absolute", left: 8, top: 8, borderRadius: 999, backgroundColor: colors.artLight, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <View style={{ position: "absolute", left: 8, top: 8, borderRadius: 999, backgroundColor: "white", paddingHorizontal: 8, paddingVertical: 3 }}>
                 <Text style={{ fontSize: 11, fontWeight: "700", color: colors.art, textTransform: "uppercase" }}>Art</Text>
               </View>
             </View>

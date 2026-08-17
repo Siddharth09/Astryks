@@ -1,13 +1,28 @@
+# Dependencies
 node_modules/
+
+# Expo
 .expo/
 dist/
 web-build/
-.env
-.env.local
-.env*.local
-*.log
-.DS_Store
-ios/
-android/
+expo-env.d.ts
+
+# Native
+*.orig.*
+*.jks
+*.p8
 *.p12
+*.key
 *.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Env files — real secrets (Firebase config, Qonversion keys) should come in via EAS
+# environment variables/secrets, never a committed .env file.
+.env
+.env*.local
+
+# Editor/OS cruft
+.DS_Store
+*.log

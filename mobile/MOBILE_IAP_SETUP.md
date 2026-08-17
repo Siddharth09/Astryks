@@ -1,103 +1,106 @@
-# Mobile subscriptions (Qonversion + Apple/Google in-app purchases) — setup checklist
+# Mobile in-app purchases (Qonversion) — setup steps
 
-The code for this is now wired up (`lib/purchases.ts`, `SubscriptionBanner.tsx`,
-`ReferralAndBilling.tsx`, and the `qonversionWebhook` Cloud Function), but it can't actually
-charge anyone until you do the following account/dashboard setup. None of these steps can be
-done for you — they need your own Apple Developer, Google Play Console, and Qonversion logins.
+The mobile app's Subscribe button goes through Qonversion, which brokers Apple's StoreKit and
+Google Play Billing — this is required by both stores' rules for unlocking digital content
+inside an app (you can't call Stripe directly from the mobile app the way the website does).
+The code is already wired up (`lib/purchases.ts`, and `qonversionWebhook` in
+`astryks-app/functions/index.js`) — what's missing is the actual account setup below. None of
+these steps can be done from inside this coding session; they all require signing into
+dashboards with your own accounts.
 
-## Why this exists
+## 1. Create your App Store Connect and Google Play Console apps (if not done already)
 
-The web app charges through Stripe, which is fine for a website. But Apple and Google require
-digital subscriptions bought *inside* an iOS/Android app to go through their own in-app
-purchase systems (Apple takes 15–30%, Google similar) — a Stripe-only checkout inside the app
-would very likely get the app rejected at review (Guideline 3.1.1). Qonversion sits in between
-your app and Apple/Google's purchase APIs so you don't have to write that integration by hand
-twice, and gives you one dashboard for both platforms — free up to $10,000/month in tracked
-revenue, then 0.6–0.8% above that (no flat fee).
+You need both apps registered before Qonversion can attach real subscription products to them.
+See the main launch checklist for the full store-account steps — do that first if you haven't.
 
-## Steps
+## 2. Create the subscription products in each store
 
-1. **Create App Store Connect subscription products** (developer.apple.com → your app →
-   Subscriptions). Create one auto-renewable subscription group with a weekly subscription
-   product. You'll pick a base price and can add per-territory prices — Apple auto-suggests
-   equivalents in ~40 currencies, but you can manually override specific ones (this is how
-   you'd try to match the AUD5/USD5/EUR5/GBP5/INR400/PHP250 scheme — it won't be pixel-exact
-   the way Stripe's `currency_options` are, since Apple controls the actual price tiers).
+**App Store Connect** (App Store Connect → your app → Subscriptions):
+- Create a Subscription Group (e.g. "Astryks Premium").
+- Add a weekly subscription product, e.g. product ID `astryks_weekly`.
+- Add an annual subscription product, e.g. product ID `astryks_annual`.
+- Price them to match `lib/geo.ts`'s displayed prices as closely as each store's pricing tiers
+  allow (they won't match to the cent — App Store/Play pricing is tier-based per country).
+- Fill in the required subscription display name, description, and review screenshot for each.
 
-2. **Create Google Play Console subscription products** (play.google.com/console → your app →
-   Monetize → Subscriptions). Same idea — one base plan, weekly, with per-country prices you
-   can edit manually per country.
+**Google Play Console** (Play Console → your app → Monetize → Products → Subscriptions):
+- Create a base plan for weekly and one for annual, same product-id convention as above.
+- Set pricing per country.
 
-3. **Create a Qonversion account and project** (qonversion.io). Connect it to both your App
-   Store Connect account (via an App Store Connect API key you generate in App Store Connect →
-   Users and Access → Integrations) and your Google Play service account (a JSON key from
-   Google Cloud Console with access to the Play Developer API — Qonversion's docs walk through
-   generating this).
+## 3. Create a Qonversion account and project
 
-4. **In Qonversion**, create an Entitlement called `premium` (must match `ENTITLEMENT_ID` in
-   `lib/purchases.ts`). Attach both the iOS and Android weekly products to it. Unlike
-   RevenueCat's "Offerings" concept, `lib/purchases.ts` just grabs whichever product Qonversion
-   returns from `products()` — since there's only one subscription product, you don't need to
-   configure an offering/paywall for this to work, just make sure the product exists and is
-   attached to the `premium` entitlement.
+1. Sign up at qonversion.com and create a Project for Astryks.
+2. Under the project, add your iOS app (bundle ID `com.astryks.app`) and Android app (package
+   `com.astryks.app` — both already set correctly in `app.json`).
+3. Under each store integration, connect:
+   - **iOS**: your App Store Connect API key (generate one under App Store Connect → Users and
+     Access → Integrations → App Store Connect API — Qonversion's docs walk through the exact
+     permissions needed).
+   - **Android**: your Google Play service account JSON (Play Console → Setup → API access).
+4. In Qonversion, create Product entries that map to the exact product IDs you created in step 2
+   for both stores.
+5. Create an **Entitlement** called `premium` (this exact id — it must match `ENTITLEMENT_ID` in
+   `lib/purchases.ts` and the `qonversionWebhook` function). Attach both the weekly and annual
+   products from both stores to this one entitlement, so the app doesn't need to know which
+   product or store a purchase came from — it just checks "is `premium` active."
 
-5. **Copy your Project Key** (Qonversion → Project Settings → API Keys — a single key covers
-   both platforms, unlike RevenueCat which used separate iOS/Android keys) into
-   `QONVERSION_PROJECT_KEY` at the top of `astryks-mobile/lib/purchases.ts`, replacing the
-   `REPLACE_WITH_...` placeholder. This is a public key, safe to commit.
+## 4. Wire the Qonversion Project Key into the app
 
-6. **Wire the webhook**: deploy the functions (`firebase deploy --only functions`), then in
-   Qonversion → Settings → Integrations → Webhooks, add the deployed `qonversionWebhook`
-   function's URL (Firebase gives you this after deploy — looks like
-   `https://us-central1-astryks-5f31c.cloudfunctions.net/qonversionWebhook`). Set a "Header
-   Authorization-Token Value" in that same Qonversion screen to any long random string, then
-   run:
+1. Qonversion dashboard → Settings → your project → copy the **Project Key** (this is public,
+   safe to ship in the app binary — not a secret).
+2. Open `lib/purchases.ts` and replace:
+   ```ts
+   const QONVERSION_PROJECT_KEY = "REPLACE_WITH_QONVERSION_PROJECT_KEY";
+   ```
+   with the real key.
+3. Rebuild the app (`eas build`) — Subscribe will now attempt a real purchase instead of showing
+   "Subscriptions aren't set up yet."
+
+## 5. Wire the Qonversion webhook into Firebase
+
+This is what actually updates `subscriptionStatus` on a user's Firestore doc after a real
+purchase, so the rest of the app (paywall, Learn tab, etc.) sees them as subscribed.
+
+1. Pick any secret string yourself (e.g. generate one with `openssl rand -hex 32`) — this is
+   the shared secret between Qonversion and your Cloud Function, not a Qonversion-issued value.
+2. Set it as a Firebase secret (run from the `astryks-app` directory, which has your Firebase
+   project config):
    ```
    firebase functions:secrets:set QONVERSION_WEBHOOK_AUTH
    ```
-   and paste that same string when prompted. They have to match exactly or the webhook calls
-   get rejected. Note Qonversion sends this back as `Authorization: Basic <your-string>` — it's
-   *not* real base64-encoded HTTP Basic auth, just their format for a plain shared secret, and
-   the Cloud Function already expects it in that exact form.
-
-7. **Switch from Expo Go to a dev client for testing.** `@qonversion/react-native-sdk` is a
-   native module — it does not work in the plain Expo Go app at all (the calls will silently
-   no-op, which is what the try/catch in `lib/purchases.ts` is for, so the app doesn't crash for
-   existing testers still on Expo Go — but they won't be able to test purchases). To actually
-   test buying a subscription, you (and any testers) need a custom dev client build instead:
+   paste the same string when prompted.
+3. In the Qonversion dashboard: Settings → Integrations → Webhooks:
+   - Webhook URL: `https://<your-region>-astryks-5f31c.cloudfunctions.net/qonversionWebhook`
+     (check the exact deployed URL with `firebase functions:list`, or by looking at the deploy
+     output the next time you run `firebase deploy --only functions`).
+   - Header: `Authorization`
+   - Value: `Basic <the same secret string from step 1>`
+4. Redeploy the function so it picks up the new secret:
    ```
-   npm install -g eas-cli
-   eas login
-   eas build --profile development --platform ios      # or --platform android
+   firebase deploy --only functions:qonversionWebhook
    ```
-   That produces an installable build (a `.ipa`/`.apk`, or a TestFlight/internal-track link)
-   that has the native Qonversion code baked in — EAS Build runs `expo prebuild` and standard
-   React Native autolinking internally, so no extra native/Expo config-plugin setup is needed
-   for this package. From then on you run `npx expo start --dev-client` instead of plain
-   `npx expo start`, and install that custom build on test devices instead of the Expo Go app.
 
-8. **Test with sandbox accounts** — Apple (a Sandbox Apple ID, created in App Store Connect →
-   Users and Access → Sandbox Testers) and Google (a license-tester account added in Play
-   Console → Setup → License testing) let you go through a real purchase flow without being
-   charged real money.
+## 6. Test end-to-end before submitting to review
 
-9. Once real purchases are flowing, `qonversionWebhook` keeps `users/{uid}.subscriptionStatus`
-   in sync automatically — no further code changes needed.
+- **iOS**: use a real device (not the simulator — StoreKit purchases don't work there) with a
+  Sandbox Apple ID (App Store Connect → Users and Access → Sandbox Testers). Install a
+  development or TestFlight build, tap Subscribe, complete a sandbox purchase, then check the
+  corresponding `users/{uid}` Firestore doc updates to `subscriptionStatus: "active"` within a
+  few seconds.
+- **Android**: use a Play Console internal/closed testing track with a license tester account,
+  same check.
+- Also test **Restore Purchases** (already wired up as `restorePurchases()` in
+  `lib/purchases.ts`) on a fresh install with the same test account, to confirm someone who
+  reinstalls the app gets their subscription back without paying again — reviewers on both
+  stores specifically check for this.
 
-## What's already done for you
+## 7. What happens to existing web (Stripe) subscribers on mobile?
 
-- `lib/purchases.ts` — configures Qonversion with the Firebase uid as its identity (via
-  `identify()`), and exposes `purchaseSubscription()` / `restorePurchases()`.
-- `contexts/AuthContext.tsx` — calls `initPurchases(uid)` as soon as someone signs in.
-- `SubscriptionBanner.tsx` / `ReferralAndBilling.tsx` — mobile Subscribe buttons now call
-  `purchaseSubscription()` instead of opening a Stripe checkout link; "Manage subscription" now
-  opens the native App Store/Play Store subscription-management screen.
-- `functions/index.js` → `exports.qonversionWebhook` — verifies the shared secret, then updates
-  `subscriptionStatus` in Firestore the same way `stripeWebhook` does for web. It reads the
-  `entitlements[].active` boolean directly out of Qonversion's webhook payload rather than
-  branching on event-type strings, so cancellation/renewal/refund/grace-period nuances are all
-  handled by that one field.
-- `eas.json` — basic build profiles (development/preview/production) so `eas build` works out
-  of the box once you're logged in with your own Expo/EAS account.
-- `app.json` — added `ios.buildNumber` and `android.versionCode`, which App Store
-  Connect/Play Console require on every submitted build.
+Nothing automatic — a Stripe subscriber's `subscriptionStatus` is already `"active"` in
+Firestore regardless of which webhook set it, so they'll see full access in the mobile app too
+without needing to also buy the Qonversion/IAP subscription. Someone who subscribes on mobile
+gets a *separate* Apple/Google subscription from a web Stripe one — there's no automatic
+"can I use my existing Stripe subscription in the app" flow, since neither store allows
+recognizing an external purchase for unlocking content this way. If you want to support that
+combination cleanly (e.g. "restore" a web purchase inside the app), that needs its own product
+decision — it's not something either store's IAP system does out of the box.
