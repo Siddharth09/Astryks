@@ -50,6 +50,16 @@ export default function LessonUploadPage() {
     }
   }
 
+  async function updateOrder(lessonId: string, newOrder: number) {
+    if (!Number.isFinite(newOrder)) return;
+    try {
+      await updateDoc(doc(db, "lessons", lessonId), { order: newOrder });
+      setExistingLessons((prev) => (prev ?? []).map((l) => (l.id === lessonId ? { ...l, order: newOrder } : l)));
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't update that lesson's order — please try again.");
+    }
+  }
+
   async function handleDeleteLesson(lessonId: string, title: string) {
     if (!confirm(`Delete "${title}"? This removes its video and everyone's progress on it. This can't be undone.`)) return;
     setDeletingId(lessonId);
@@ -166,8 +176,20 @@ export default function LessonUploadPage() {
           <p className="text-sm text-ink/40">No lessons yet.</p>
         ) : (
           <div className="space-y-2">
-            {existingLessons.map((l) => (
+            {[...existingLessons]
+              .sort((a, b) => (a.subjectId ?? "").localeCompare(b.subjectId ?? "") || (a.order ?? 0) - (b.order ?? 0))
+              .map((l) => (
               <div key={l.id} className="flex items-center gap-3 p-3 rounded-xl border border-ink/10 bg-white">
+                <input
+                  type="number"
+                  defaultValue={l.order ?? 1}
+                  onBlur={(e) => {
+                    const next = parseInt(e.target.value, 10);
+                    if (next !== l.order) updateOrder(l.id, next);
+                  }}
+                  title="Order within this subject — lower numbers come first"
+                  className="w-14 text-sm text-center rounded-lg border border-ink/10 py-1.5 flex-shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{l.title}</p>
                   <p className="text-xs text-ink/40">{SUBJECT_LABEL[l.subjectId] ?? l.subjectId}</p>
