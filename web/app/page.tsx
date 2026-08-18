@@ -385,6 +385,9 @@ export default function Home() {
           {" · "}
           <Link href="/support" className="hover:text-ink/70 hover:underline">Support</Link>
         </p>
+        <p className="mt-1">
+          <a href="mailto:support@astryks.com" className="hover:text-ink/70 hover:underline">support@astryks.com</a>
+        </p>
       </div>
     </div>
   );

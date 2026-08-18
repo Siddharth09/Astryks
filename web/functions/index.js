@@ -8,9 +8,50 @@ const https = require("https");
 const http = require("http");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
+const geoip = require("geoip-lite");
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// ---------- Country detection (for pricing display + prize-leaderboard flags) ----------
+//
+// Replaces a purely client-side timezone guess (a timezone like "America/Chicago" spans
+// multiple countries, and is easy to get wrong) with a server-side IP lookup, for the many
+// prize entrants who never subscribe and so never get a real billing country from Stripe/
+// Apple/Google. Uses geoip-lite's bundled offline database rather than a third-party API —
+// no account/API key to manage, no per-request cost or rate limit, and no new outbound network
+// call from our own servers (which would itself need SSRF-style scrutiny). Trade-off: country-
+// level accuracy only, and only as fresh as the installed package version's data snapshot —
+// both fine for a cosmetic leaderboard flag and a rough pricing-currency guess.
+function getClientIp(req) {
+  const forwarded = req?.headers?.["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.length > 0) {
+    // The load balancer appends each hop; the first entry is the original client.
+    return forwarded.split(",")[0].trim();
+  }
+  return req?.ip || null;
+}
+
+// Callable: looks up the caller's country from their IP and saves it to their own user doc —
+// but only if one isn't already there. Never overwrites an existing value, since a real Stripe/
+// Apple/Google billing country (set once someone subscribes) is far more reliable than any
+// guess. Safe to call on every sign-in; it's a no-op once a country is on record.
+exports.detectCountryFromIp = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const ip = getClientIp(request.rawRequest);
+  const geo = ip ? geoip.lookup(ip) : null;
+  const countryCode = geo?.country || null;
+  if (countryCode) {
+    const userRef = db.doc(`users/${request.auth.uid}`);
+    const snap = await userRef.get();
+    if (!snap.data()?.countryCode) {
+      await userRef.set({ countryCode }, { merge: true });
+    }
+  }
+  return { countryCode };
+});
 
 // ---------- Rate limiting ----------
 //

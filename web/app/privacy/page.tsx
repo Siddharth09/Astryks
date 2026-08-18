@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <p className="mb-1"><strong>Content you create:</strong> posts (photos, videos, text, links), comments, likes, messages you send other members or our support account.</p>
       <p className="mb-1"><strong>Billing info:</strong> handled entirely by Stripe (and, on mobile, Apple/Google) — we receive your subscription status, billing country, and currency, but never your full card number.</p>
       <p className="mb-1"><strong>Usage data:</strong> lesson progress, streaks, which posts you've liked/saved, how much free-preview lesson time you've used per subject (if you're not yet subscribed), and basic device/app info needed to make the Service work (e.g. push notification token).</p>
-      <p className="mb-4"><strong>Location signal:</strong> we estimate your country from your device/browser settings to show you an illustrative subscription price in your local currency, and — once you subscribe — we store the actual billing country Stripe/Apple/Google give us. See our <Link href="/terms" className="link-accent">Terms of Service</Link> for how pricing works.</p>
+      <p className="mb-4"><strong>Location signal:</strong> we estimate your country from your IP address at sign-in (used only for this lookup, not stored) to show you an illustrative subscription price in your local currency and a flag on the Creative Prize leaderboard, and — once you subscribe — we replace that estimate with the actual billing country Stripe/Apple/Google give us. See our <Link href="/terms" className="link-accent">Terms of Service</Link> for how pricing works.</p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">2. How we use it</h2>
       <p className="mb-4">
