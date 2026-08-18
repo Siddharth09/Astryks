@@ -6,11 +6,9 @@ import { httpsCallable } from "firebase/functions";
 import { collection, addDoc } from "firebase/firestore";
 import { functions, db } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { isAdmin } from "@/lib/admin";
 
 const createBunnyUpload = httpsCallable(functions, "createBunnyUpload");
-
-// Simple allowlist for who can add trailers — same as the lesson upload page.
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 export default function TrailerUploadPage() {
   const { user, loading: authLoading } = useRequireAuth();
@@ -24,7 +22,7 @@ export default function TrailerUploadPage() {
 
   if (authLoading || !user) return <p className="text-ink/50 text-center py-16">Loading…</p>;
 
-  if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+  if (!isAdmin(user.email)) {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 

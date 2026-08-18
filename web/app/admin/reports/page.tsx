@@ -5,14 +5,12 @@ import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { isAdmin } from "@/lib/admin";
 
 const getReportsFn = httpsCallable(functions, "getReports");
 const resolveReportFn = httpsCallable(functions, "resolveReport");
 const backfillLessonPlaybackFn = httpsCallable(functions, "backfillLessonPlayback");
 const sendTestWelcomeEmailFn = httpsCallable(functions, "sendTestWelcomeEmail");
-
-// Simple allowlist for who can review reports — same as the other admin pages.
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 const TARGET_LABELS: Record<string, string> = { post: "Post", comment: "Comment", user: "User" };
 
@@ -69,12 +67,12 @@ export default function AdminReportsPage() {
   }
 
   useEffect(() => {
-    if (user && ADMIN_EMAILS.includes(user.email ?? "")) load();
+    if (user && isAdmin(user.email)) load();
   }, [user]);
 
   if (authLoading || !user) return <p className="text-ink/50 text-center py-16">Loading…</p>;
 
-  if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+  if (!isAdmin(user.email)) {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 

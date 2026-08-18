@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { isAdmin } from "@/lib/admin";
 
 const deleteUserAccountFn = httpsCallable(functions, "deleteUserAccount");
 const backfillPostVisibilityFn = httpsCallable(functions, "backfillPostVisibility");
 const migratePrivatePostMediaFn = httpsCallable(functions, "migratePrivatePostMedia");
 const listAllUsersFn = httpsCallable(functions, "listAllUsers");
-
-// Simple allowlist for who can delete accounts — same as the lesson upload page.
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 type ListedUser = {
   uid: string;
@@ -35,21 +33,21 @@ export default function AdminUsersPage() {
   const [allUsers, setAllUsers] = useState<ListedUser[] | null>(null);
   const [usersError, setUsersError] = useState<string | null>(null);
 
-  const isAdmin = !!user && ADMIN_EMAILS.includes(user.email ?? "");
+  const isAdminUser = isAdmin(user?.email);
 
   // Loads the full member list once, on mount — this is a straightforward way to see everyone
   // who's signed up (email, name, join date, subscription status) without going into the
   // Firebase console's Authentication tab.
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdminUser) return;
     listAllUsersFn()
       .then((result) => setAllUsers((result.data as any).users))
       .catch((err) => setUsersError(err.message ?? "Couldn't load the member list."));
-  }, [isAdmin]);
+  }, [isAdminUser]);
 
   if (authLoading || !user) return <p className="text-ink/50 text-center py-16">Loading…</p>;
 
-  if (!isAdmin) {
+  if (!isAdminUser) {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 

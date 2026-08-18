@@ -4,12 +4,10 @@ import { useEffect, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { isAdmin } from "@/lib/admin";
 
 const getRefundRequestsFn = httpsCallable(functions, "getRefundRequests");
 const approveRefundFn = httpsCallable(functions, "approveRefund");
-
-// Simple allowlist for who can review this — same as the other admin pages.
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 type RefundRequest = {
   id: string;
@@ -39,12 +37,12 @@ export default function AdminRefundsPage() {
   }
 
   useEffect(() => {
-    if (user && ADMIN_EMAILS.includes(user.email ?? "")) load();
+    if (user && isAdmin(user.email)) load();
   }, [user]);
 
   if (authLoading || !user) return <p className="text-ink/50 text-center py-16">Loading…</p>;
 
-  if (!ADMIN_EMAILS.includes(user.email ?? "")) {
+  if (!isAdmin(user.email)) {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 

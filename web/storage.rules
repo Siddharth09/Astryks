@@ -19,13 +19,6 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/posts/$(postId)).data.visibility == 'private';
     }
 
-    match /videos/{userId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId
-        && request.resource.size < 500 * 1024 * 1024
-        && request.resource.contentType.matches('video/.*');
-    }
-
     // Post media uploaded after the private-post-media fix: the path now includes the post's
     // own Firestore doc ID (see ShareComposer.tsx/home.tsx), so unlike the legacy flat layout
     // below, this one can actually check whether that specific post is private before serving

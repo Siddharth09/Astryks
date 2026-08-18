@@ -53,7 +53,7 @@ service cloud.firestore {
         || (resource.data.visibility != 'private' && resource.data.moderationStatus != 'flagged')
         || (request.auth != null && (
           request.auth.uid == resource.data.ownerId ||
-          request.auth.token.email in ['mehta.siddharth09@gmail.com']
+          (request.auth.token.email in ['mehta.siddharth09@gmail.com'] && request.auth.token.email_verified == true)
         ));
 
       // likeCount/commentCount must start at 0 (or be omitted) — without this, the *update*
@@ -130,10 +130,10 @@ service cloud.firestore {
       allow read: if true;
       allow update: if request.auth != null && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount']) ||
-        request.auth.token.email in ['mehta.siddharth09@gmail.com']
+        (request.auth.token.email in ['mehta.siddharth09@gmail.com'] && request.auth.token.email_verified == true)
       );
       allow create, delete: if request.auth != null
-        && request.auth.token.email in ['mehta.siddharth09@gmail.com'];
+        && (request.auth.token.email in ['mehta.siddharth09@gmail.com'] && request.auth.token.email_verified == true);
     }
 
     // Lesson playback credentials (bunnyVideoId/bunnyLibraryId) — never readable directly by a
@@ -148,7 +148,7 @@ service cloud.firestore {
     match /trailers/{trailerId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null
-        && request.auth.token.email in ['mehta.siddharth09@gmail.com'];
+        && (request.auth.token.email in ['mehta.siddharth09@gmail.com'] && request.auth.token.email_verified == true);
     }
 
     // Tracks which lessons a user has completed
