@@ -3,6 +3,7 @@ import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import BottomNav from "@/components/BottomNav";
+import ErrorReporter from "@/components/ErrorReporter";
 import SideNav from "@/components/SideNav";
 import SplashIntro from "@/components/SplashIntro";
 import TopHeader from "@/components/TopHeader";
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
       <body>
+        <ErrorReporter />
         <AuthProvider>
           <SplashIntro>
             <TopHeader />

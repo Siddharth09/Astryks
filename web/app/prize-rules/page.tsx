@@ -108,7 +108,7 @@ export default function PrizeRulesPage() {
       <p className="mb-4">
         By entering, you release Astryks, its team, and its officers from any liability for any injury,
         loss, or damage of any kind arising from your participation in this promotion or your receipt
-        or use of the prize, to the fullest extent permitted by law. Section 12 (Limitation of
+        or use of the prize, to the fullest extent permitted by law. Section 13 (Limitation of
         liability) of our{" "}
         <a href="/terms" className="link-accent">Terms of Service</a> applies equally to this
         promotion. Nothing in this section limits liability that can't be limited under applicable

@@ -13,6 +13,8 @@ import ReportModal from "@/components/ReportModal";
 const getUserPosts = httpsCallable(functions, "getUserPosts");
 const submitReportFn = httpsCallable(functions, "submitReport");
 const getPublicProfile = httpsCallable(functions, "getPublicProfile");
+const blockUserFn = httpsCallable(functions, "blockUser");
+const unblockUserFn = httpsCallable(functions, "unblockUser");
 
 export default function UserProfilePage() {
   const params = useParams<{ userId: string }>();
@@ -26,6 +28,12 @@ export default function UserProfilePage() {
   const [missing, setMissing] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [postsBlocked, setPostsBlocked] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
+
+  const isBlocked = postsBlocked || !!profile?.blockedByMe || !!profile?.blockedMe;
 
   async function handleReportUser(reason: string, details: string) {
     await submitReportFn({ targetType: "user", targetId: params.userId, reason, details });
@@ -62,12 +70,46 @@ export default function UserProfilePage() {
         getDocs(query(collection(db, "follows"), where("followingId", "==", params.userId))),
         getDocs(query(collection(db, "follows"), where("followerId", "==", params.userId))),
       ]);
-      setPosts((result.data as any).posts);
+      const postsData = result.data as any;
+      setPosts(postsData.posts);
+      setPostsBlocked(!!postsData.blocked);
       setFollowerCount(followersSnap.size);
       setFollowingCount(followingSnap.size);
       setLoading(false);
     })();
   }, [currentUser, params.userId, router]);
+
+  async function handleBlock() {
+    setBlocking(true);
+    setBlockError(null);
+    try {
+      await blockUserFn({ targetUid: params.userId });
+      setProfile((p: any) => ({ ...p, blockedByMe: true }));
+      setShowBlockConfirm(false);
+    } catch (err: any) {
+      setBlockError(err.message ?? "Couldn't block this account. Please try again.");
+    } finally {
+      setBlocking(false);
+    }
+  }
+
+  async function handleUnblock() {
+    if (blocking) return;
+    setBlocking(true);
+    try {
+      await unblockUserFn({ targetUid: params.userId });
+      setProfile((p: any) => ({ ...p, blockedByMe: false }));
+      // Posts were hidden while blocked, so pull them again now that they may be visible.
+      const result = await getUserPosts({ userId: params.userId });
+      const postsData = result.data as any;
+      setPosts(postsData.posts);
+      setPostsBlocked(!!postsData.blocked);
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't unblock this account. Please try again.");
+    } finally {
+      setBlocking(false);
+    }
+  }
 
   async function openConversation() {
     if (!currentUser || messaging) return;
@@ -137,29 +179,82 @@ export default function UserProfilePage() {
 
       <div className="flex items-center justify-between mb-4">
         <p className="font-display text-lg font-semibold truncate">{profile.displayName ?? "Member"}</p>
-        <button onClick={() => setReportOpen(true)} className="text-xs text-ink/40 hover:text-ink flex-shrink-0">
-          Report
-        </button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {profile.blockedByMe ? (
+            <button onClick={handleUnblock} disabled={blocking} className="text-xs text-ink/40 hover:text-ink">
+              {blocking ? "…" : "Unblock"}
+            </button>
+          ) : profile.blockedMe ? (
+            <span className="text-xs text-ink/30">Blocked you</span>
+          ) : (
+            <button onClick={() => setShowBlockConfirm(true)} className="text-xs text-ink/40 hover:text-ink">
+              Block
+            </button>
+          )}
+          <button onClick={() => setReportOpen(true)} className="text-xs text-ink/40 hover:text-ink">
+            Report
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-2 mb-8">
-        <FollowButton
-          targetUserId={params.userId}
-          currentUserId={currentUser?.uid ?? null}
-          className="flex-1 text-sm py-2"
-        />
-        <button
-          onClick={openConversation}
-          disabled={messaging}
-          className="btn-secondary flex-1 text-sm py-2"
-        >
-          {messaging ? "Opening…" : "Message"}
-        </button>
-      </div>
+      {showBlockConfirm && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-900 mb-4">
+          <p className="font-medium mb-1">Block {profile.displayName ?? "this account"}?</p>
+          <p className="mb-3">
+            You won't see each other's posts, and you won't be able to message each other. You can
+            unblock them anytime.
+          </p>
+          {blockError && <p className="text-red-700 mb-2">{blockError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={handleBlock}
+              disabled={blocking}
+              className="rounded-lg bg-red-600 text-white text-xs font-medium px-3 py-1.5"
+            >
+              {blocking ? "Blocking…" : "Yes, block"}
+            </button>
+            <button
+              onClick={() => setShowBlockConfirm(false)}
+              disabled={blocking}
+              className="rounded-lg border border-ink/15 text-xs px-3 py-1.5"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isBlocked && (
+        <div className="flex gap-2 mb-8">
+          <FollowButton
+            targetUserId={params.userId}
+            currentUserId={currentUser?.uid ?? null}
+            className="flex-1 text-sm py-2"
+          />
+          <button
+            onClick={openConversation}
+            disabled={messaging}
+            className="btn-secondary flex-1 text-sm py-2"
+          >
+            {messaging ? "Opening…" : "Message"}
+          </button>
+        </div>
+      )}
       <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} onSubmit={handleReportUser} />
 
       <div className="border-t border-line/10 pt-5">
-        {posts.length === 0 ? (
+        {isBlocked ? (
+          <div className="flex flex-col items-center gap-3 py-14 text-center">
+            <div className="w-16 h-16 rounded-full border-2 border-ink/15 flex items-center justify-center text-2xl text-ink/30">
+              🚫
+            </div>
+            <p className="text-ink/50 text-sm font-medium px-6">
+              {profile.blockedByMe
+                ? "You've blocked this account — you won't see each other's posts or be able to message."
+                : "This account has blocked you — you won't see each other's posts or be able to message."}
+            </p>
+          </div>
+        ) : posts.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-14">
             <div className="w-16 h-16 rounded-full border-2 border-ink/15 flex items-center justify-center text-2xl text-ink/30">
               📷

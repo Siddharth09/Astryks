@@ -376,9 +376,14 @@ export default function MeScreen() {
           </View>
         </View>
       ) : (
-        <TouchableOpacity onPress={() => setShowDeleteConfirm(true)} style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 14, marginBottom: 16 }}>
+          <TouchableOpacity onPress={() => router.push("/blocked-accounts")}>
+            <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }}>Blocked accounts</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowDeleteConfirm(true)}>
+            <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {lessons.length > 0 && (

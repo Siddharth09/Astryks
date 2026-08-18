@@ -1,10 +1,17 @@
 "use client";
 
+import { useEffect } from "react";
+import { reportClientError } from "@/lib/reportError";
+
 // Catches a render/runtime error anywhere under a normal page (not the root layout itself — see
 // global-error.tsx for that) and shows something recoverable instead of Next.js's raw default
 // error screen, which reads as "the site is broken" rather than "something went wrong, try
 // again" — an important difference right as real paying customers start showing up.
-export default function ErrorBoundary({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function ErrorBoundary({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => {
+    reportClientError(error);
+  }, [error]);
+
   return (
     <div className="max-w-sm mx-auto py-24 text-center px-4">
       <p className="text-4xl mb-4">⚠️</p>

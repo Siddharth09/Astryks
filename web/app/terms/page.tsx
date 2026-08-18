@@ -27,7 +27,9 @@ export default function TermsPage() {
         You're responsible for keeping your login credentials secure and for all activity under your
         account. Tell us right away at support@astryks.com if you suspect unauthorized access. We may
         suspend or terminate accounts that violate these Terms, are used fraudulently (including
-        artificially inflating likes — see Section 9), or are inactive for an extended period.
+        artificially inflating likes — see Section 10), or are inactive for an extended period. You can
+        block another member directly from their profile at any time — this stops you from seeing each
+        other's posts and messaging each other, and can be undone at any time from your account settings.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">4. Subscriptions &amp; billing</h2>
@@ -85,14 +87,26 @@ export default function TermsPage() {
         that it doesn't infringe anyone else's rights.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">7. Course content</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">7. Copyright complaints</h2>
+      <p className="mb-4">
+        If you believe something posted on Astryks infringes your copyright, email
+        support@astryks.com with: (1) a description of the copyrighted work, (2) a link or
+        description identifying where the material appears on Astryks, (3) your contact details,
+        and (4) a statement that you have a good-faith belief the use isn't authorized and that
+        your notice is accurate. We'll investigate and remove infringing content we confirm, and
+        may terminate the accounts of members who repeatedly infringe others' rights. If you
+        believe your own content was removed in error, contact us at the same address to request
+        a review.
+      </p>
+
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">8. Course content</h2>
       <p className="mb-4">
         Lesson videos and other course material are owned by Astryks or our instructors and licensed to
         you for personal, non-commercial viewing as part of an active subscription. You may not
         download, redistribute, or resell this content.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">8. The Creative Prize</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">9. The Creative Prize</h2>
       <p className="mb-4">
         Astryks runs a monthly cash prize for the most-liked eligible post, described on our{" "}
         <Link href="/prize-rules" className="link-accent">Prize Rules</Link> page, which is part of
@@ -100,7 +114,7 @@ export default function TermsPage() {
         payment works.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">9. Things you agree not to do</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">10. Things you agree not to do</h2>
       <p className="mb-4">
         Don't: post anything illegal, harassing, hateful, sexually exploitative (especially involving
         minors — we have zero tolerance for this and will report it to the relevant authorities), or
@@ -109,21 +123,21 @@ export default function TermsPage() {
         or resell course content; impersonate anyone; or interfere with the Service's normal operation.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">10. Termination</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">11. Termination</h2>
       <p className="mb-4">
         You can delete your account at any time from your profile. We may suspend or terminate your
         access if you violate these Terms. If we terminate your account for cause, we're not obligated
         to refund any unused portion of your subscription.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">11. Disclaimers</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">12. Disclaimers</h2>
       <p className="mb-4">
         The Service is provided "as is." We don't guarantee it will be uninterrupted, error-free, or
         that any lesson will make you an expert — outcomes depend on you. To the extent permitted by
         law, we disclaim all warranties, express or implied.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">12. Limitation of liability</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">13. Limitation of liability</h2>
       <p className="mb-4">
         To the maximum extent permitted by law, Astryks and its team aren't liable for any indirect,
         incidental, or consequential damages arising from your use of the Service, and our total
@@ -132,20 +146,20 @@ export default function TermsPage() {
         (including the Australian Consumer Law, if you're an Australian consumer).
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">13. Changes to these Terms</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">14. Changes to these Terms</h2>
       <p className="mb-4">
         We may update these Terms from time to time. If a change is material, we'll make reasonable
         efforts to notify you (e.g. in-app or by email) before it takes effect.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">14. Governing law</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">15. Governing law</h2>
       <p className="mb-4">
         These Terms are governed by the laws of New South Wales, Australia, without regard to
         conflict-of-law principles, and any dispute will be handled in the courts of New South Wales,
         Australia — unless a mandatory law in your country of residence says otherwise.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">15. Contact</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">16. Contact</h2>
       <p className="mb-4">
         Questions about these Terms? Message us in-app via Astryks Support, visit our{" "}
         <Link href="/support" className="link-accent">Support page</Link>, or email support@astryks.com.

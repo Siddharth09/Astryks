@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -12,6 +12,8 @@ import { colors } from "@/lib/styles";
 const getUserPosts = httpsCallable(functions, "getUserPosts");
 const submitReportFn = httpsCallable(functions, "submitReport");
 const getPublicProfile = httpsCallable(functions, "getPublicProfile");
+const blockUserFn = httpsCallable(functions, "blockUser");
+const unblockUserFn = httpsCallable(functions, "unblockUser");
 
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
@@ -24,9 +26,58 @@ export default function UserProfileScreen() {
   const [missing, setMissing] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [postsBlocked, setPostsBlocked] = useState(false);
+  const [blockActionLoading, setBlockActionLoading] = useState(false);
+
+  const isBlockedEitherWay = !!(profile?.blockedByMe || profile?.blockedMe || postsBlocked);
 
   async function handleReportUser(reason: string, details: string) {
     await submitReportFn({ targetType: "user", targetId: userId, reason, details });
+  }
+
+  async function handleBlockToggle() {
+    if (!userId || blockActionLoading) return;
+
+    if (profile?.blockedByMe) {
+      setBlockActionLoading(true);
+      try {
+        await unblockUserFn({ targetUid: userId });
+        setProfile((p: any) => ({ ...p, blockedByMe: false }));
+        // Refetch since the earlier getUserPosts call returned an empty, blocked result.
+        const result = await getUserPosts({ userId });
+        const postsData = result.data as { posts: any[]; blocked: boolean };
+        setPosts(postsData.posts);
+        setPostsBlocked(postsData.blocked);
+      } catch (err: any) {
+        Alert.alert("Couldn't unblock", err.message ?? "Something went wrong.");
+      } finally {
+        setBlockActionLoading(false);
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Block this account?",
+      "They won't be able to see your posts, message you, or find your profile in search. You can unblock them anytime.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            setBlockActionLoading(true);
+            try {
+              await blockUserFn({ targetUid: userId });
+              setProfile((p: any) => ({ ...p, blockedByMe: true }));
+            } catch (err: any) {
+              Alert.alert("Couldn't block", err.message ?? "Something went wrong.");
+            } finally {
+              setBlockActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   useEffect(() => {
@@ -59,7 +110,9 @@ export default function UserProfileScreen() {
         getDocs(query(collection(db, "follows"), where("followingId", "==", userId))),
         getDocs(query(collection(db, "follows"), where("followerId", "==", userId))),
       ]);
-      setPosts((result.data as any).posts);
+      const postsData = result.data as { posts: any[]; blocked: boolean };
+      setPosts(postsData.posts);
+      setPostsBlocked(postsData.blocked);
       setFollowerCount(followersSnap.size);
       setFollowingCount(followingSnap.size);
       setLoading(false);
@@ -67,7 +120,7 @@ export default function UserProfileScreen() {
   }, [currentUser, userId]);
 
   async function openConversation() {
-    if (!currentUser || messaging) return;
+    if (!currentUser || messaging || isBlockedEitherWay) return;
     setMessaging(true);
     try {
       const conversationId = [currentUser.uid, userId].sort().join("_");
@@ -150,29 +203,53 @@ export default function UserProfileScreen() {
 
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <Text style={{ fontSize: 17, fontWeight: "700" }}>{profile.displayName ?? "Member"}</Text>
-        <TouchableOpacity onPress={() => setReportOpen(true)}>
-          <Text style={{ fontSize: 14, color: colors.muted }}>Report</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          {profile.blockedMe ? (
+            <Text style={{ fontSize: 14, color: colors.muted }}>Blocked you</Text>
+          ) : (
+            <TouchableOpacity onPress={handleBlockToggle} disabled={blockActionLoading}>
+              <Text style={{ fontSize: 14, color: profile.blockedByMe ? colors.muted : "#DC2626" }}>
+                {blockActionLoading ? "…" : profile.blockedByMe ? "Unblock" : "Block"}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => setReportOpen(true)}>
+            <Text style={{ fontSize: 14, color: colors.muted }}>Report</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-        <FollowButton
-          targetUserId={userId}
-          currentUserId={currentUser?.uid ?? null}
-          style={{ flex: 1, paddingVertical: 9, alignItems: "center" }}
-          textStyle={{ fontSize: 15, fontWeight: "600" }}
-        />
-        <TouchableOpacity
-          onPress={openConversation}
-          disabled={messaging}
-          style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingVertical: 9, alignItems: "center" }}
-        >
-          <Text style={{ fontSize: 15, fontWeight: "600" }}>{messaging ? "Opening…" : "Message"}</Text>
-        </TouchableOpacity>
-      </View>
+      {!isBlockedEitherWay && (
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+          <FollowButton
+            targetUserId={userId}
+            currentUserId={currentUser?.uid ?? null}
+            style={{ flex: 1, paddingVertical: 9, alignItems: "center" }}
+            textStyle={{ fontSize: 15, fontWeight: "600" }}
+          />
+          <TouchableOpacity
+            onPress={openConversation}
+            disabled={messaging}
+            style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingVertical: 9, alignItems: "center" }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "600" }}>{messaging ? "Opening…" : "Message"}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 18 }}>
-        {posts.length === 0 ? (
+        {isBlockedEitherWay ? (
+          <View style={{ alignItems: "center", gap: 10, paddingVertical: 40 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(0,0,0,0.12)", alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 26, opacity: 0.4 }}>🚫</Text>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "600", textAlign: "center", paddingHorizontal: 30 }}>
+              {profile.blockedByMe
+                ? "You've blocked this account — you won't see each other's posts or be able to message."
+                : "You can't view this account's posts or send them a message."}
+            </Text>
+          </View>
+        ) : posts.length === 0 ? (
           <View style={{ alignItems: "center", gap: 10, paddingVertical: 40 }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(0,0,0,0.12)", alignItems: "center", justifyContent: "center" }}>
               <Text style={{ fontSize: 26, opacity: 0.4 }}>📷</Text>

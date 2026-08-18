@@ -3,6 +3,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // True if either user has blocked the other (blockUser/unblockUser in functions/index.js
+    // keep blockedUserIds/blockedByUserIds in sync on both docs, so checking blockedUserIds
+    // from both sides is enough — no need to also check blockedByUserIds here). get()/exists()
+    // run with rules-evaluation access regardless of the target doc's own read rules, so this
+    // works even though users/{userId} is owner-read-only below.
+    function isBlockedPair(uidA, uidB) {
+      return (exists(/databases/$(database)/documents/users/$(uidA))
+                && uidB in get(/databases/$(database)/documents/users/$(uidA)).data.get('blockedUserIds', []))
+          || (exists(/databases/$(database)/documents/users/$(uidB))
+                && uidA in get(/databases/$(database)/documents/users/$(uidB)).data.get('blockedUserIds', []));
+    }
+
     match /users/{userId} {
       // Was `if request.auth != null` — any signed-in account, not just this doc's owner, could
       // read the WHOLE document, including stripeCustomerId, payoutOwed, and subscriptionStatus.
@@ -16,7 +28,11 @@ service cloud.firestore {
       // Allowlist, not a blocklist: the client only ever legitimately sets these four fields
       // (see AuthContext.tsx, usePushNotifications.ts). Everything else — subscriptionStatus,
       // stripeCustomerId, payoutOwed, referralCode, xp, streakCount, canceledAt,
-      // freePreviewSecondsUsed, and any field added later — is server-only via the Admin SDK.
+      // freePreviewSecondsUsed, blockedUserIds, blockedByUserIds, and any field added later — is
+      // server-only via the Admin SDK (blockUser/unblockUser in functions/index.js), so a client
+      // can't just add themselves to someone's blockedByUserIds to silently hide their own posts
+      // from that person, or clear their own blockedUserIds to un-hide someone without going
+      // through the real unblock flow.
       // The previous version only blocked those specific names, which meant a client could
       // create their own users/{uid} doc directly (e.g. from the browser console, bypassing the
       // app entirely) with subscriptionStatus: "active" set from the very first write — free,
@@ -183,7 +199,11 @@ service cloud.firestore {
     // creating the first one between two people and get exists:false instead of an error.
     match /conversations/{conversationId} {
       allow read: if resource == null || (request.auth != null && request.auth.uid in resource.data.participants);
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.participants;
+      // Blocking (either direction) stops a brand-new conversation from ever being created —
+      // participants is always exactly [uidA, uidB].sort() (see app/messages/page.tsx), so
+      // indexing both elements is safe.
+      allow create: if request.auth != null && request.auth.uid in request.resource.data.participants
+        && !isBlockedPair(request.resource.data.participants[0], request.resource.data.participants[1]);
       // Pin the participant list — without this, any existing participant could silently add a
       // third party to a private DM thread (which can include real bank/PayID details shared
       // for prize payouts) just by updating lastMessage/lastMessageAt alongside a changed
@@ -195,7 +215,13 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        // Also stops a NEW message in an ALREADY-existing conversation the moment either side
+        // blocks the other — not just at conversation-creation time.
         allow create: if request.auth != null
+          && !isBlockedPair(
+               get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants[0],
+               get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants[1]
+             )
           && request.resource.data.senderId == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
       }
@@ -206,6 +232,14 @@ service cloud.firestore {
     // access goes through the submitReport/getReports/resolveReport Cloud Functions instead
     // (Admin SDK bypasses these rules), so client access is denied entirely.
     match /reports/{reportId} {
+      allow read, write: if false;
+    }
+
+    // Client-side crash/error reports — same reasoning as `reports`: written only via the
+    // logClientError callable (which deliberately allows unauthenticated calls, since a crash on
+    // the login screen matters too), read only via getClientErrors/resolveClientError, both
+    // admin-gated. No legitimate client read/write path exists directly against this collection.
+    match /clientErrors/{errorId} {
       allow read, write: if false;
     }
 

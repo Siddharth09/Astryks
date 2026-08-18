@@ -40,6 +40,11 @@ const SECTIONS = [
     title: "Upload a trailer",
     description: "Add a new preview/trailer video shown on the home feed.",
   },
+  {
+    href: "/admin/errors",
+    title: "Crash reports",
+    description: "Unhandled errors reported from the web app and the iOS/Android app.",
+  },
 ];
 
 // This page (and the "Admin" link that points to it in SideNav) is only ever a convenience —

@@ -2,13 +2,24 @@ const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https")
 const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
+const { setGlobalOptions } = require("firebase-functions/v2");
 const crypto = require("crypto");
 const dns = require("dns").promises;
 const https = require("https");
 const http = require("http");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
-const geoip = require("geoip-lite");
+
+// Every function below is exported from this one file, so every function's container loads the
+// combined weight of everything required anywhere in it at cold start — Stripe, nodemailer,
+// @google-cloud/vision, @google-cloud/video-intelligence, firebase-admin — regardless of whether
+// that specific function actually uses most of them. That pushed the platform's own 256MiB
+// default right to the edge: functions were intermittently failing to start in production with
+// "Memory limit of 256 MiB exceeded" (confirmed in Cloud Run logs), not because of a bug in any
+// one function, but because the shared module's baseline footprint alone was too close to the
+// ceiling for cold starts to reliably fit under. 512MiB gives real headroom without needing to
+// split this into multiple codebases right now.
+setGlobalOptions({ memory: "512MiB" });
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -23,6 +34,13 @@ const db = admin.firestore();
 // call from our own servers (which would itself need SSRF-style scrutiny). Trade-off: country-
 // level accuracy only, and only as fresh as the installed package version's data snapshot —
 // both fine for a cosmetic leaderboard flag and a rough pricing-currency guess.
+//
+// require()'d lazily INSIDE the function, not at module top-level — geoip-lite loads its whole
+// offline database into memory the moment it's required, which was pushing every single
+// function in this file over its 256MiB cold-start memory limit (this file is one shared module
+// across all ~65 functions), not just this one. Node caches require() results, so this still
+// only loads the data once per container, just on first actual invocation instead of on every
+// unrelated function's cold start.
 function getClientIp(req) {
   const forwarded = req?.headers?.["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.length > 0) {
@@ -35,11 +53,14 @@ function getClientIp(req) {
 // Callable: looks up the caller's country from their IP and saves it to their own user doc —
 // but only if one isn't already there. Never overwrites an existing value, since a real Stripe/
 // Apple/Google billing country (set once someone subscribes) is far more reliable than any
-// guess. Safe to call on every sign-in; it's a no-op once a country is on record.
-exports.detectCountryFromIp = onCall(async (request) => {
+// guess. Safe to call on every sign-in; it's a no-op once a country is on record. Given its own
+// 512MiB (double the 256MiB default) headroom for geoip-lite's dataset — see the require()
+// comment above for why that cost doesn't spill over into every other function.
+exports.detectCountryFromIp = onCall({ memory: "512MiB" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
+  const geoip = require("geoip-lite");
   const ip = getClientIp(request.rawRequest);
   const geo = ip ? geoip.lookup(ip) : null;
   const countryCode = geo?.country || null;
@@ -1077,6 +1098,78 @@ exports.resolveReport = onCall(
   }
 );
 
+// ---------- Client-side crash/error reporting ----------
+//
+// A self-hosted alternative to a third-party crash tool (Sentry/Bugsnag/etc.) — no external
+// account to create, no DSN to manage, no per-event cost. Every unhandled error/rejection on
+// web and mobile gets reported here (see ErrorReporter.tsx on web, the global handler in
+// astryks-mobile's root layout) and shows up in the /admin/errors dashboard. Deliberately does
+// NOT require auth: some of the most important crashes to see are ones that happen before
+// someone's even logged in (a broken login screen is worse than a broken profile screen), and
+// requiring auth would silently drop exactly those reports.
+const CLIENT_ERROR_PLATFORMS = ["web", "ios", "android"];
+
+exports.logClientError = onCall(async (request) => {
+  const platform = CLIENT_ERROR_PLATFORMS.includes(request.data?.platform) ? request.data.platform : "web";
+  // Keyed by uid when signed in, otherwise by a client-supplied installation id if present, else
+  // a shared anonymous bucket — good enough to stop one broken, looping client from writing
+  // unbounded documents without needing real per-IP tracking for a self-hosted debug tool.
+  const rateLimitKey = request.auth?.uid || (typeof request.data?.anonId === "string" && request.data.anonId.slice(0, 100)) || "anonymous";
+  await enforceRateLimit(rateLimitKey, "logClientError", { max: 30, windowMs: 10 * 60 * 1000 });
+
+  const message = typeof request.data?.message === "string" ? request.data.message.slice(0, 2000) : "(no message)";
+  const stack = typeof request.data?.stack === "string" ? request.data.stack.slice(0, 8000) : null;
+  const screen = typeof request.data?.screen === "string" ? request.data.screen.slice(0, 500) : null;
+  const appVersion = typeof request.data?.appVersion === "string" ? request.data.appVersion.slice(0, 50) : null;
+
+  await db.collection("clientErrors").add({
+    platform,
+    message,
+    stack,
+    screen,
+    appVersion,
+    uid: request.auth?.uid ?? null,
+    userEmail: request.auth?.token?.email ?? null,
+    resolved: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
+exports.getClientErrors = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const includeResolved = !!request.data?.includeResolved;
+  let query = db.collection("clientErrors").orderBy("createdAt", "desc").limit(200);
+  if (!includeResolved) {
+    query = db.collection("clientErrors").where("resolved", "==", false).orderBy("createdAt", "desc").limit(200);
+  }
+  const snap = await query.get();
+  const errors = snap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toMillis ? d.data().createdAt.toMillis() : null,
+  }));
+  return { errors };
+});
+
+exports.resolveClientError = onCall(async (request) => {
+  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const errorId = request.data?.errorId;
+  if (!errorId) {
+    throw new HttpsError("invalid-argument", "errorId is required.");
+  }
+  await db.doc(`clientErrors/${errorId}`).update({
+    resolved: true,
+    resolvedBy: request.auth.token.email,
+    resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true };
+});
+
 // ---------- Callable: let a post's owner opt themselves out of the creative prize ----------
 
 exports.optOutOfPrize = onCall(async (request) => {
@@ -1622,9 +1715,21 @@ function serializePost(doc) {
   };
 }
 
-function isVisibleTo(post, callerUid) {
+function isVisibleTo(post, callerUid, blockedSet) {
   if (post.moderationStatus === "flagged" && post.ownerId !== callerUid) return false;
+  if (blockedSet && blockedSet.has(post.ownerId)) return false;
   return post.visibility !== "private" || post.ownerId === callerUid;
+}
+
+// Returns the union of who the caller has blocked and who has blocked the caller — either
+// direction is enough to hide someone's content from the other, matching how blocking works on
+// most social apps (mutual invisibility, not just one-way). Used by getFeed/getUserPosts/
+// listPublicProfiles so a block actually hides content everywhere, not just in one screen.
+async function getBlockedSet(uid) {
+  if (!uid) return new Set();
+  const snap = await db.doc(`users/${uid}`).get();
+  const data = snap.data() || {};
+  return new Set([...(data.blockedUserIds || []), ...(data.blockedByUserIds || [])]);
 }
 
 // Capped so this can't be used to force a full unbounded collection scan on every call (an
@@ -1635,8 +1740,11 @@ const FEED_PAGE_LIMIT = 500;
 
 exports.getFeed = onCall(async (request) => {
   const callerUid = request.auth?.uid || null;
-  const snap = await db.collection("posts").orderBy("createdAt", "desc").limit(FEED_PAGE_LIMIT).get();
-  const posts = snap.docs.map(serializePost).filter((p) => isVisibleTo(p, callerUid));
+  const [snap, blockedSet] = await Promise.all([
+    db.collection("posts").orderBy("createdAt", "desc").limit(FEED_PAGE_LIMIT).get(),
+    getBlockedSet(callerUid),
+  ]);
+  const posts = snap.docs.map(serializePost).filter((p) => isVisibleTo(p, callerUid, blockedSet));
   return { posts };
 });
 
@@ -1647,6 +1755,13 @@ exports.getUserPosts = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "userId is required.");
   }
   const isAdmin = ADMIN_EMAILS.includes(request.auth?.token?.email ?? "");
+
+  const blockedSet = await getBlockedSet(callerUid);
+  if (blockedSet.has(userId) && !isAdmin) {
+    // Either this user has blocked the caller, or the caller has blocked them — either way,
+    // don't hand back their posts. The client shows a neutral "unavailable" state for this.
+    return { posts: [], blocked: true };
+  }
 
   const snap = await db
     .collection("posts")
@@ -1660,7 +1775,7 @@ exports.getUserPosts = onCall(async (request) => {
     .map(serializePost)
     .filter((p) => (p.visibility !== "private" || p.ownerId === callerUid || isAdmin))
     .filter((p) => p.moderationStatus !== "flagged" || p.ownerId === callerUid || isAdmin);
-  return { posts };
+  return { posts, blocked: false };
 });
 
 // Public-facing info for someone's profile page — deliberately returns only the two fields
@@ -1682,7 +1797,14 @@ exports.getPublicProfile = onCall(async (request) => {
     throw new HttpsError("not-found", "That profile doesn't exist.");
   }
   const data = snap.data();
-  return { displayName: data.displayName ?? null, photoURL: data.photoURL ?? null };
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const callerData = callerSnap.data() || {};
+  return {
+    displayName: data.displayName ?? null,
+    photoURL: data.photoURL ?? null,
+    blockedByMe: (callerData.blockedUserIds || []).includes(targetUid),
+    blockedMe: (data.blockedUserIds || []).includes(request.auth.uid),
+  };
 });
 
 // Same reasoning as getPublicProfile, but for the two screens that browse/search many people at
@@ -1697,13 +1819,99 @@ exports.listPublicProfiles = onCall(async (request) => {
   }
   const requested = Number(request.data?.limit) || 200;
   const cappedLimit = Math.min(Math.max(requested, 1), 200);
-  const snap = await db.collection("users").limit(cappedLimit).get();
-  const profiles = snap.docs.map((d) => ({
-    uid: d.id,
-    displayName: d.data().displayName ?? null,
-    photoURL: d.data().photoURL ?? null,
-  }));
+  const blockedSet = await getBlockedSet(request.auth.uid);
+  const snap = await db.collection("users").limit(cappedLimit + blockedSet.size).get();
+  const profiles = snap.docs
+    .filter((d) => !blockedSet.has(d.id))
+    .slice(0, cappedLimit)
+    .map((d) => ({
+      uid: d.id,
+      displayName: d.data().displayName ?? null,
+      photoURL: d.data().photoURL ?? null,
+    }));
   return { profiles };
+});
+
+// Callable: block another user. Writes to both docs in one batch — the blocker's own
+// blockedUserIds (so they can manage/unblock later) AND the target's blockedByUserIds (a
+// denormalized reverse index, so getFeed/getUserPosts/listPublicProfiles can hide content in
+// both directions without an expensive query for "who has blocked me"). Scope of what blocking
+// actually does today: hides the other person's posts from your feed/profile/search (and vice
+// versa), and prevents new messages between you (see firestore.rules) — it does NOT currently
+// filter comments or likes on existing posts, or retroactively remove past interactions.
+exports.blockUser = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const targetUid = request.data?.targetUid;
+  if (!targetUid || typeof targetUid !== "string") {
+    throw new HttpsError("invalid-argument", "targetUid is required.");
+  }
+  if (targetUid === request.auth.uid) {
+    throw new HttpsError("invalid-argument", "You can't block yourself.");
+  }
+  const targetSnap = await db.doc(`users/${targetUid}`).get();
+  if (!targetSnap.exists) {
+    throw new HttpsError("not-found", "That account doesn't exist.");
+  }
+  const batch = db.batch();
+  batch.set(
+    db.doc(`users/${request.auth.uid}`),
+    { blockedUserIds: admin.firestore.FieldValue.arrayUnion(targetUid) },
+    { merge: true }
+  );
+  batch.set(
+    db.doc(`users/${targetUid}`),
+    { blockedByUserIds: admin.firestore.FieldValue.arrayUnion(request.auth.uid) },
+    { merge: true }
+  );
+  await batch.commit();
+  return { success: true };
+});
+
+// Callable: undo blockUser — same two-doc batch, in reverse.
+exports.unblockUser = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const targetUid = request.data?.targetUid;
+  if (!targetUid || typeof targetUid !== "string") {
+    throw new HttpsError("invalid-argument", "targetUid is required.");
+  }
+  const batch = db.batch();
+  batch.set(
+    db.doc(`users/${request.auth.uid}`),
+    { blockedUserIds: admin.firestore.FieldValue.arrayRemove(targetUid) },
+    { merge: true }
+  );
+  batch.set(
+    db.doc(`users/${targetUid}`),
+    { blockedByUserIds: admin.firestore.FieldValue.arrayRemove(request.auth.uid) },
+    { merge: true }
+  );
+  await batch.commit();
+  return { success: true };
+});
+
+// Callable: list of accounts the caller has blocked, with enough info for a "Blocked accounts"
+// management screen to render and offer an unblock button.
+exports.getBlockedUsers = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const snap = await db.doc(`users/${request.auth.uid}`).get();
+  const blockedUserIds = snap.data()?.blockedUserIds || [];
+  if (blockedUserIds.length === 0) {
+    return { users: [] };
+  }
+  // Firestore's getAll is the right tool here instead of N individual .get() calls — same
+  // number of billed reads either way, but one round trip instead of N.
+  const refs = blockedUserIds.map((uid) => db.doc(`users/${uid}`));
+  const snaps = await db.getAll(...refs);
+  const users = snaps
+    .filter((s) => s.exists)
+    .map((s) => ({ uid: s.id, displayName: s.data().displayName ?? "Member", photoURL: s.data().photoURL ?? null }));
+  return { users };
 });
 
 // One-time maintenance callable: older posts (created before the public/private

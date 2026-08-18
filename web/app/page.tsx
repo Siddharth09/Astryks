@@ -233,8 +233,8 @@ export default function Home() {
           </div>
           <div className="mt-5 rounded-2xl bg-white shadow-sm border-t-4 border-highlight p-5 max-w-2xl">
             <p className="text-sm text-ink/70">
-              💛 We're just getting started — we'll keep adding to Music and Art, and we're bringing new
-              subjects like investing in the share market, and others, in the coming months.
+              💛 We're just getting started — we'll keep adding to Music and Art, with more subjects
+              planned as the library grows.
             </p>
           </div>
         </div>

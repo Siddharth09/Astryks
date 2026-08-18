@@ -22,7 +22,8 @@
       "bundleIdentifier": "com.astryks.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Astryks needs access to your photo library so you can choose a profile photo or share a photo/video of your own work in a post."
+        "NSPhotoLibraryUsageDescription": "Astryks needs access to your photo library so you can choose a profile photo or share a photo/video of your own work in a post.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

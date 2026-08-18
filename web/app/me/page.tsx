@@ -358,6 +358,12 @@ export default function MePage() {
       {avatarError && <p className="text-xs text-red-600 mb-4">{avatarError}</p>}
 
       <div className="mb-4">
+        <Link href="/blocked" className="text-xs text-ink/40 underline">
+          Blocked accounts
+        </Link>
+      </div>
+
+      <div className="mb-4">
         {showDeleteConfirm ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-900">
             <p className="font-medium mb-1">Permanently delete your account?</p>
