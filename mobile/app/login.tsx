@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform, Image } from "react-native";
 import { Link, router } from "expo-router";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -129,11 +129,8 @@ export default function LoginScreen() {
 
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 28 }}>
           <View style={{ flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: "white", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}>
-            {/* No real preview photo/video ships with the app yet (see comment on the Art card
-                below) — a solid brand-tinted tile with the subject's icon reads as a deliberate
-                design choice rather than a broken image. */}
-            <View style={{ aspectRatio: 1, backgroundColor: colors.musicLight, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 40 }}>🎵</Text>
+            <View style={{ aspectRatio: 1 }}>
+              <Image source={require("@/assets/music-preview.jpg")} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
               <View style={{ position: "absolute", bottom: 8, alignSelf: "center", width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
                 <Text>▶</Text>
               </View>
@@ -146,12 +143,8 @@ export default function LoginScreen() {
             </Text>
           </View>
           <View style={{ flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: "white", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}>
-            {/* Was `require("@/assets/art-preview.jpg")` (and music-preview.jpg above) — neither
-                file exists anywhere in the repo, so both `require()` calls would fail to resolve
-                at bundle time and the app couldn't build at all. Once you have real lesson-still
-                photos, drop them into assets/ and swap these tiles back to <Image>. */}
-            <View style={{ aspectRatio: 1, backgroundColor: colors.artLight, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 40 }}>🎨</Text>
+            <View style={{ aspectRatio: 1 }}>
+              <Image source={require("@/assets/art-preview.jpg")} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
               <View style={{ position: "absolute", bottom: 8, alignSelf: "center", width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
                 <Text>▶</Text>
               </View>
@@ -212,7 +205,7 @@ export default function LoginScreen() {
         What you&apos;ll learn
       </Text>
       <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>
-        3 subjects. Build real world skills.
+        2 subjects. Build real world skills.
       </Text>
       <Text style={{ fontSize: 15, color: colors.muted, marginBottom: 16, lineHeight: 18 }}>
         Each subject is taught by real experts who do it professionally — not just talk about it.

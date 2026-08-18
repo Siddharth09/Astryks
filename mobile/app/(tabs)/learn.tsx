@@ -96,6 +96,13 @@ export default function LearnScreen() {
 
   async function openSubject(subject: any) {
     setActive(subject);
+    // Stop any lesson that was playing in whatever subject we're navigating away from — without
+    // this, `playingId` (and the report-progress interval keyed off it, below) kept referring to
+    // the old subject's lesson, so switching subjects while a video was open silently kept
+    // ticking down the PREVIOUS subject's free-preview budget in the background. Also clear any
+    // paywall modal left over from that subject so it doesn't pop back up on top of this one.
+    setPlayingId(null);
+    setPreviewExhaustedSubject(null);
     const snap = await getDocs(query(collection(db, "lessons"), where("subjectId", "==", subject.id), orderBy("order", "asc")));
     setLessons(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   }
@@ -128,8 +135,14 @@ export default function LearnScreen() {
     setPlayingId((prev) => (prev === lessonId ? null : lessonId));
 
     // Playback credentials no longer live on the public lessons doc (see functions/index.js) —
-    // fetch them from the gated callable each time a lesson is opened.
-    if (opening && !playback[lessonId]) {
+    // fetch them from the gated callable each time a lesson is opened. This is a real permission
+    // re-check, not just a cache warm-up: it's what stops someone from watching for free forever
+    // by opening a lesson once (while they still had preview time), then closing and reopening
+    // that same lesson after their subject's 10 minutes ran out — a `!playback[lessonId]` guard
+    // here used to skip this call entirely once a lesson had been fetched once, so a lesson
+    // opened before the cap was hit would keep playing on every later reopen with no server
+    // check at all.
+    if (opening) {
       setPlaybackLoading(lessonId);
       setPlaybackError((prev) => ({ ...prev, [lessonId]: null }));
       try {
@@ -221,7 +234,16 @@ export default function LearnScreen() {
     return (
       <>
       <ScrollView style={{ backgroundColor: colors.paper }} contentContainerStyle={{ padding: 16, paddingTop: 56 }}>
-        <TouchableOpacity onPress={() => setActive(null)}>
+        <TouchableOpacity
+          onPress={() => {
+            setActive(null);
+            // Same reasoning as openSubject() above: leaving the subject screen should stop
+            // playback (and the background progress-reporting interval it drives) and clear any
+            // stale paywall modal, so they don't leak into whichever subject is opened next.
+            setPlayingId(null);
+            setPreviewExhaustedSubject(null);
+          }}
+        >
           <Text style={{ color: colors.muted, marginBottom: 16 }}>← Subjects</Text>
         </TouchableOpacity>
         <SubscriptionBanner />

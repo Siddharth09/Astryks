@@ -49,13 +49,15 @@ export default function ShareMenu({ postId, title }: { postId: string; title?: s
         <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={s.sheet} onPress={() => {}}>
             <TouchableOpacity style={s.option} onPress={nativeShare}>
-              <Text style={s.optionText}>📤  Share… (Facebook, WhatsApp, Instagram, TikTok & more)</Text>
+              <Text style={s.optionIcon}>📤</Text>
+              <Text style={s.optionText}>Share</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.option, s.optionBorder]} onPress={copyLink}>
-              <Text style={s.optionText}>🔗  {copied ? "Link copied!" : "Copy link"}</Text>
+              <Text style={s.optionIcon}>🔗</Text>
+              <Text style={s.optionText}>{copied ? "Link copied!" : "Copy link"}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.option, s.optionBorder]} onPress={() => setOpen(false)}>
-              <Text style={[s.optionText, { color: colors.muted }]}>Cancel</Text>
+              <Text style={[s.optionText, { color: colors.muted, marginLeft: 0 }]}>Cancel</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -67,7 +69,8 @@ export default function ShareMenu({ postId, title }: { postId: string; title?: s
 const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "white", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 28 },
-  option: { paddingVertical: 16, paddingHorizontal: 20 },
+  option: { flexDirection: "row", alignItems: "center", paddingVertical: 16, paddingHorizontal: 20 },
   optionBorder: { borderTopWidth: 1, borderTopColor: colors.line },
-  optionText: { fontSize: 17, color: colors.ink },
+  optionIcon: { fontSize: 17, width: 28 },
+  optionText: { fontSize: 17, color: colors.ink, marginLeft: 4 },
 });

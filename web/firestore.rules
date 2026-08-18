@@ -115,15 +115,24 @@ service cloud.firestore {
         // someone liking their own post from a *different* account they also control — that's
         // an identity problem no rule can see through — but it closes the free, one-click
         // version of it.)
+        // Also blocks a like the moment either side has blocked the other — without this, a
+        // blocked user could still like the blocker's post (or vice versa) by writing this doc
+        // straight from the client (LikeButton.tsx never goes through a callable), completely
+        // bypassing the block feature for this one interaction.
         allow create: if request.auth != null && request.auth.uid == userId
-          && userId != get(/databases/$(database)/documents/posts/$(postId)).data.ownerId;
+          && userId != get(/databases/$(database)/documents/posts/$(postId)).data.ownerId
+          && !isBlockedPair(request.auth.uid, get(/databases/$(database)/documents/posts/$(postId)).data.ownerId);
         allow delete: if request.auth != null && request.auth.uid == userId;
       }
 
       match /comments/{commentId} {
         allow read: if true;
+        // Same reasoning as the like create rule above — Comments.tsx writes this doc directly
+        // from the client, so without this check a blocked user could still comment on the
+        // blocker's post (or vice versa).
         allow create: if request.auth != null
-          && request.resource.data.userId == request.auth.uid;
+          && request.resource.data.userId == request.auth.uid
+          && !isBlockedPair(request.auth.uid, get(/databases/$(database)/documents/posts/$(postId)).data.ownerId);
         allow delete: if request.auth != null
           && resource.data.userId == request.auth.uid;
       }

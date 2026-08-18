@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import BottomNav from "@/components/BottomNav";
 import ErrorReporter from "@/components/ErrorReporter";
+import ReferralCapture from "@/components/ReferralCapture";
 import SideNav from "@/components/SideNav";
 import SplashIntro from "@/components/SplashIntro";
 import TopHeader from "@/components/TopHeader";
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
       <body>
         <ErrorReporter />
+        <ReferralCapture />
         <AuthProvider>
           <SplashIntro>
             <TopHeader />

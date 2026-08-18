@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { doc, collection, query, orderBy, onSnapshot, addDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, query, orderBy, onSnapshot, addDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +9,7 @@ import { colors } from "@/lib/styles";
 
 const optOutOfPrizeFn = httpsCallable(functions, "optOutOfPrize");
 const submitPrizePayoutDetailsFn = httpsCallable(functions, "submitPrizePayoutDetails");
+const getPublicProfile = httpsCallable(functions, "getPublicProfile");
 
 export default function ChatThreadScreen() {
   const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
@@ -20,7 +21,35 @@ export default function ChatThreadScreen() {
   const [payoutMethod, setPayoutMethod] = useState<Record<string, "bank" | "payid">>({});
   const [payoutDetails, setPayoutDetails] = useState<Record<string, string>>({});
   const [payoutState, setPayoutState] = useState<Record<string, "loading" | "done">>({});
+  // Blocking only ever stopped a NEW conversation from being started (see user/[userId].tsx and
+  // the Messages tab's search) — this screen itself never checked block status at all, so an
+  // existing conversation between two people stayed fully usable in both directions even after
+  // one of them blocked the other. Fetch the other participant's block status the same way the
+  // profile screen does, and use it to shut down sending here too.
+  const [isBlocked, setIsBlocked] = useState(false);
   const listRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (!user || !conversationId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const convoSnap = await getDoc(doc(db, "conversations", conversationId));
+        const participants: string[] = convoSnap.data()?.participants ?? [];
+        const otherId = participants.find((id) => id !== user.uid);
+        if (!otherId) return;
+        const result = await getPublicProfile({ uid: otherId });
+        const profile = result.data as { blockedByMe?: boolean; blockedMe?: boolean };
+        if (!cancelled) setIsBlocked(!!(profile?.blockedByMe || profile?.blockedMe));
+      } catch {
+        // Best-effort — if this fails we fall back to allowing sending, same as before this check
+        // existed, rather than locking someone out of a conversation over a network hiccup.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, conversationId]);
 
   async function handleOptOut(messageId: string, postId: string) {
     setOptOutState((prev) => ({ ...prev, [messageId]: "loading" }));
@@ -64,7 +93,7 @@ export default function ChatThreadScreen() {
   }, [conversationId]);
 
   async function handleSend() {
-    if (!body.trim() || !user) return;
+    if (!body.trim() || !user || isBlocked) return;
     await addDoc(collection(db, "conversations", conversationId, "messages"), {
       senderId: user.uid,
       senderName: user.displayName ?? "Member",
@@ -202,53 +231,69 @@ export default function ChatThreadScreen() {
           </View>
         )}
       />
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "flex-end",
-          gap: 8,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderTopWidth: 1,
-          borderTopColor: colors.line,
-          backgroundColor: colors.paper,
-        }}
-      >
-        <TextInput
+      {isBlocked ? (
+        <View
           style={{
-            flex: 1,
-            borderWidth: 1,
-            borderColor: colors.line,
-            borderRadius: 22,
             paddingHorizontal: 16,
-            paddingVertical: 10,
-            backgroundColor: "white",
-            fontSize: 17,
-            minHeight: 44,
-            maxHeight: 120,
-          }}
-          placeholder="Message…"
-          value={body}
-          onChangeText={setBody}
-          multiline
-          textAlignVertical="top"
-        />
-        <TouchableOpacity
-          onPress={handleSend}
-          disabled={!body.trim()}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.brand,
-            opacity: body.trim() ? 1 : 0.4,
+            paddingVertical: 14,
+            borderTopWidth: 1,
+            borderTopColor: colors.line,
+            backgroundColor: colors.paper,
           }}
         >
-          <Text style={{ color: "white", fontSize: 16, transform: [{ rotate: "-90deg" }] }}>▶</Text>
-        </TouchableOpacity>
-      </View>
+          <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
+            You can't send messages in this conversation.
+          </Text>
+        </View>
+      ) : (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-end",
+            gap: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderTopWidth: 1,
+            borderTopColor: colors.line,
+            backgroundColor: colors.paper,
+          }}
+        >
+          <TextInput
+            style={{
+              flex: 1,
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderRadius: 22,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              backgroundColor: "white",
+              fontSize: 17,
+              minHeight: 44,
+              maxHeight: 120,
+            }}
+            placeholder="Message…"
+            value={body}
+            onChangeText={setBody}
+            multiline
+            textAlignVertical="top"
+          />
+          <TouchableOpacity
+            onPress={handleSend}
+            disabled={!body.trim()}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.brand,
+              opacity: body.trim() ? 1 : 0.4,
+            }}
+          >
+            <Text style={{ color: "white", fontSize: 16, transform: [{ rotate: "-90deg" }] }}>▶</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import ReferralCodeEntry from "@/components/ReferralCodeEntry";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -115,6 +116,7 @@ export default function SignupPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        <ReferralCodeEntry />
         <label className="flex items-start gap-2 text-xs text-ink/60">
           <input
             type="checkbox"

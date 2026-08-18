@@ -157,20 +157,20 @@ export default function PostCard({
             {createdDate.toLocaleDateString()}
           </Text>
           <FollowButton targetUserId={post.ownerId} currentUserId={currentUserId} />
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginLeft: "auto" }}>
             {currentUserId && currentUserId !== post.ownerId && (
-              <TouchableOpacity onPress={openConversation}>
-                <Text style={{ fontSize: 13, color: colors.muted }}>Message</Text>
+              <TouchableOpacity onPress={openConversation} accessibilityLabel="Message" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 16 }}>✉️</Text>
               </TouchableOpacity>
             )}
             {currentUserId && currentUserId !== post.ownerId && (
-              <TouchableOpacity onPress={() => setReportOpen(true)}>
-                <Text style={{ fontSize: 13, color: colors.muted }}>Report</Text>
+              <TouchableOpacity onPress={() => setReportOpen(true)} accessibilityLabel="Report" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 16 }}>🚩</Text>
               </TouchableOpacity>
             )}
             {canDelete && (
-              <TouchableOpacity onPress={confirmDelete} disabled={deleting}>
-                <Text style={{ fontSize: 13, color: "#B91C1C" }}>{deleting ? "Deleting…" : "Delete"}</Text>
+              <TouchableOpacity onPress={confirmDelete} disabled={deleting} accessibilityLabel="Delete" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 16, opacity: deleting ? 0.5 : 1 }}>🗑️</Text>
               </TouchableOpacity>
             )}
           </View>

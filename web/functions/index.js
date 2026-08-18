@@ -365,7 +365,7 @@ exports.createBunnyUpload = onCall(
 
     // Only the Astryks team can create Bunny videos — this backs up the client-side
     // admin-only gate on the lesson/trailer upload pages, which alone isn't real security.
-    if (!ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
 
@@ -632,7 +632,7 @@ exports.deleteLesson = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
     }
-    if (!ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
 
@@ -714,7 +714,7 @@ exports.migrateLessonPlaybackFields = onDocumentWritten("lessons/{lessonId}", as
 // it doesn't retroactively fix already-created docs). Safe to run more than once. Admin-only;
 // trigger it once from the browser console, same as backfillPostVisibility below.
 exports.backfillLessonPlayback = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const snap = await db.collection("lessons").get();
@@ -766,7 +766,7 @@ exports.getLessonPlayback = onCall(async (request) => {
   const lessonDocSnap = await db.doc(`lessons/${lessonId}`).get();
   const subjectId = lessonDocSnap.data()?.subjectId || null;
 
-  const isAdmin = ADMIN_EMAILS.includes(request.auth.token.email ?? "");
+  const isAdmin = (ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true);
   let freePreviewSecondsRemaining = null;
   if (!isAdmin) {
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
@@ -917,7 +917,7 @@ exports.deletePost = onCall(
 
     const post = postSnap.data();
     const isOwner = post.ownerId === request.auth.uid;
-    const isAdmin = ADMIN_EMAILS.includes(request.auth.token.email ?? "");
+    const isAdmin = (ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true);
 
     if (!isOwner && !isAdmin) {
       throw new HttpsError("permission-denied", "You can only delete your own posts.");
@@ -1007,7 +1007,7 @@ exports.submitReport = onCall(
 );
 
 exports.getReports = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const snap = await db
@@ -1054,7 +1054,7 @@ exports.getReports = onCall(async (request) => {
 exports.resolveReport = onCall(
   { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     const { reportId, action } = request.data ?? {};
@@ -1137,7 +1137,7 @@ exports.logClientError = onCall(async (request) => {
 });
 
 exports.getClientErrors = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const includeResolved = !!request.data?.includeResolved;
@@ -1155,7 +1155,7 @@ exports.getClientErrors = onCall(async (request) => {
 });
 
 exports.resolveClientError = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const errorId = request.data?.errorId;
@@ -1370,7 +1370,7 @@ exports.submitPrizePayoutDetails = onCall(
 // ---------- Callable: admin-only — every month's creative-prize winner + payout/paid status ----------
 
 exports.getPrizeWinners = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const snap = await db.collection("prizeWinners").orderBy("month", "desc").limit(60).get();
@@ -1413,7 +1413,7 @@ exports.getPrizeWinners = onCall(async (request) => {
 // see app/messages/[conversationId]/page.tsx) so there's a clear, low-friction way for them to
 // add their details even if they skipped it the first time.
 exports.sendPayoutReminder = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const { postId } = request.data ?? {};
@@ -1439,7 +1439,7 @@ exports.sendPayoutReminder = onCall(async (request) => {
 // ---------- Callable: admin-only — mark a month's prize as paid (or undo that) ----------
 
 exports.markPrizeWinnerPaid = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const { month, paid } = request.data ?? {};
@@ -1466,7 +1466,7 @@ exports.markPrizeWinnerPaid = onCall(async (request) => {
 exports.approvePrizeWinnerAnnouncement = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     const { month } = request.data ?? {};
@@ -1655,7 +1655,7 @@ exports.deleteUserAccount = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
     }
-    if (!ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
 
@@ -1754,7 +1754,7 @@ exports.getUserPosts = onCall(async (request) => {
   if (!userId) {
     throw new HttpsError("invalid-argument", "userId is required.");
   }
-  const isAdmin = ADMIN_EMAILS.includes(request.auth?.token?.email ?? "");
+  const isAdmin = (ADMIN_EMAILS.includes(request.auth?.token?.email ?? "") && request.auth?.token?.email_verified === true);
 
   const blockedSet = await getBlockedSet(callerUid);
   if (blockedSet.has(userId) && !isAdmin) {
@@ -1836,13 +1836,20 @@ exports.listPublicProfiles = onCall(async (request) => {
 // blockedUserIds (so they can manage/unblock later) AND the target's blockedByUserIds (a
 // denormalized reverse index, so getFeed/getUserPosts/listPublicProfiles can hide content in
 // both directions without an expensive query for "who has blocked me"). Scope of what blocking
-// actually does today: hides the other person's posts from your feed/profile/search (and vice
-// versa), and prevents new messages between you (see firestore.rules) — it does NOT currently
-// filter comments or likes on existing posts, or retroactively remove past interactions.
+// actually does today: hides the other person's posts from your feed/profile/search, stops
+// either side from posting a NEW like or comment on the other's posts, and prevents new
+// messages between you (see firestore.rules' isBlockedPair, used by the likes/comments/
+// conversations/messages rules) — it does NOT retroactively remove likes/comments/messages that
+// already existed before the block.
 exports.blockUser = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
+  // Every other write-heavy callable here is rate-limited; this one writes to a DIFFERENT
+  // user's document (targetUid's blockedByUserIds) on every call, so without a limit a
+  // malicious account could cycle through many targets (or the same one) to run up unbounded
+  // Firestore reads/writes at someone else's expense.
+  await enforceRateLimit(request.auth.uid, "blockUser", { max: 30, windowMs: 60 * 60 * 1000 });
   const targetUid = request.data?.targetUid;
   if (!targetUid || typeof targetUid !== "string") {
     throw new HttpsError("invalid-argument", "targetUid is required.");
@@ -1874,6 +1881,8 @@ exports.unblockUser = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
+  // Same reasoning as blockUser's limit above — this also writes to another user's document.
+  await enforceRateLimit(request.auth.uid, "unblockUser", { max: 30, windowMs: 60 * 60 * 1000 });
   const targetUid = request.data?.targetUid;
   if (!targetUid || typeof targetUid !== "string") {
     throw new HttpsError("invalid-argument", "targetUid is required.");
@@ -1921,7 +1930,7 @@ exports.getBlockedUsers = onCall(async (request) => {
 // the field set. Admin-only; trigger it once from the browser console
 // (see the note in the delivery message) rather than exposing it in the UI.
 exports.backfillPostVisibility = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const snap = await db.collection("posts").get();
@@ -1947,7 +1956,7 @@ exports.backfillPostVisibility = onCall(async (request) => {
 // more than once: anything already on the new layout (already migrated, or created after the
 // fix shipped) is skipped, not touched.
 exports.migratePrivatePostMedia = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
 
@@ -2008,7 +2017,7 @@ exports.migratePrivatePostMedia = onCall(async (request) => {
 // hand. Capped at 1000 accounts for now — fine at today's scale, worth paging if it grows past
 // that.
 exports.listAllUsers = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const [authList, usersSnap] = await Promise.all([
@@ -2051,11 +2060,12 @@ exports.getMessageSuggestions = onCall(async (request) => {
   await enforceRateLimit(request.auth.uid, "getMessageSuggestions", { max: 30, windowMs: 60 * 60 * 1000 });
   const uid = request.auth.uid;
 
-  const [lessonsSnap, progressSnap, convosSnap, usersSnap] = await Promise.all([
+  const [lessonsSnap, progressSnap, convosSnap, usersSnap, blockedSet] = await Promise.all([
     db.collection("lessons").get(),
     db.collection("lessonProgress").get(),
     db.collection("conversations").where("participants", "array-contains", uid).get(),
     db.collection("users").limit(200).get(),
+    getBlockedSet(uid),
   ]);
 
   const subjectByLesson = Object.fromEntries(lessonsSnap.docs.map((d) => [d.id, d.data().subjectId]));
@@ -2079,9 +2089,13 @@ exports.getMessageSuggestions = onCall(async (request) => {
     }
   }
 
+  // Without this, someone who's blocked (in either direction) could still show up in "people
+  // you might want to message" — the conversations/messages rules would stop the message
+  // itself from ever sending, but their name/photo would still be surfaced here, which defeats
+  // the point of blocking someone.
   const candidates = usersSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((u) => u.id !== uid && !alreadyMessaging.has(u.id));
+    .filter((u) => u.id !== uid && !alreadyMessaging.has(u.id) && !blockedSet.has(u.id));
 
   const withOverlap = candidates.map((u) => {
     const theirSubjects = subjectsByUser[u.id] || new Set();
@@ -2346,7 +2360,7 @@ exports.onProfileCreated = onDocumentCreated(
 exports.sendTestWelcomeEmail = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     const displayName = request.auth.token.name || "there";
@@ -2910,7 +2924,7 @@ async function sendBrandedEmail(email, { subject, text, html }) {
 exports.sendTestSubscriptionEmail = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     await sendBrandedEmail(
@@ -2924,7 +2938,7 @@ exports.sendTestSubscriptionEmail = onCall(
 exports.sendTestCancellationEmail = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     await sendBrandedEmail(request.auth.token.email, buildCancellationEmail(request.auth.token.name || "there"));
@@ -2935,7 +2949,7 @@ exports.sendTestCancellationEmail = onCall(
 exports.sendTestRefundEmail = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     await sendBrandedEmail(
@@ -2953,7 +2967,7 @@ exports.sendTestRefundEmail = onCall(
 exports.sendTestLifecycleNudgeEmails = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     const name = request.auth.token.name || "there";
@@ -3592,7 +3606,7 @@ exports.getMyRefundStatus = onCall(async (request) => {
 // ---------- Callable: admin lists every refund request ----------
 
 exports.getRefundRequests = onCall(async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "Admins only.");
   }
 
@@ -3620,7 +3634,7 @@ exports.getRefundRequests = onCall(async (request) => {
 exports.approveRefund = onCall(
   { secrets: [stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "Admins only.");
     }
     const requestId = request.data?.requestId;
@@ -3812,7 +3826,7 @@ exports.getPayoutAccountStatus = onCall(async (request) => {
 // page only shows this button once that's true; the manual copy-fields panel is always there
 // as a fallback regardless.
 exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request) => {
-  if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
   const { month } = request.data ?? {};
@@ -4505,7 +4519,7 @@ exports.sendMonthlyPrizeReport = onSchedule(
 exports.runPrizeReportNow = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async (request) => {
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email ?? "")) {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "Admin only.");
     }
 
