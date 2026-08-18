@@ -94,7 +94,6 @@ export default function TrailerUploadPage() {
         <select className="input" value={subjectTag} onChange={(e) => setSubjectTag(e.target.value)}>
           <option value="music">Music</option>
           <option value="art">Art</option>
-          <option value="finance">Finance</option>
         </select>
         <input className="input" placeholder="Trailer title" value={title} onChange={(e) => setTitle(e.target.value)} required />
         <input type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />

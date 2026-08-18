@@ -17,8 +17,8 @@ const config: Config = {
         musicLight: "#FBE3DF",
         art: "#8B7FE8",
         artLight: "#EDEAFB",
-        finance: "#3FC1B0",
-        financeLight: "#DFF5F1",
+        teal: "#3FC1B0",
+        tealLight: "#DFF5F1",
         highlight: "#EFC13B",
         // astryks.com section background tints
         sectionRose: "#F7DEDB",

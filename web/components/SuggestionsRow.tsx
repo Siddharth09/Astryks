@@ -9,7 +9,7 @@ import FollowButton from "@/components/FollowButton";
 
 const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
 
-const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
+const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 type LessonCard = { kind: "lesson"; id: string; title: string; subjectId: string; subjectName: string };
 type PersonCard = { kind: "person"; id: string; displayName: string; photoURL: string | null };

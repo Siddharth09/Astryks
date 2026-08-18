@@ -109,7 +109,7 @@ export function getLocalizedPricing(countryCode: string | null): PriceInfo {
 // What paying weekly all year (52 weeks) would add up to, formatted the same way as the
 // display strings above. Meant to be shown struck through next to the actual annual price, so
 // the saving is obvious at a glance instead of relying on wording like "2 weeks free" — which
-// read too much like the separate 15-minute-preview trial and confused people about whether
+// read too much like the separate 10-minute-preview trial and confused people about whether
 // annual subscribers got some kind of free period before being charged. They don't; this is
 // purely a per-year discount for paying upfront.
 export function annualFullPriceDisplay(price: PriceInfo): string {

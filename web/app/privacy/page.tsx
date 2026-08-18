@@ -6,14 +6,14 @@ export default function PrivacyPage() {
   return (
     <div className="max-w-2xl mx-auto py-10 pb-24 px-4 text-sm text-ink/80 leading-relaxed">
       <h1 className="font-display text-3xl font-bold mb-2">Privacy Policy</h1>
-      <p className="text-xs text-ink/40 mb-8">Last updated: 9 August 2026 · Applies to Astryks (the "Service"), operated by the holder of Australian Business Number (ABN) 74 309 712 800, trading as Astryks.</p>
+      <p className="text-xs text-ink/40 mb-8">Last updated: 18 August 2026 · Applies to Astryks (the "Service"), operated by the holder of Australian Business Number (ABN) 74 309 712 800, trading as Astryks.</p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">1. What we collect</h2>
       <p className="mb-2">When you use Astryks, we collect:</p>
       <p className="mb-1"><strong>Account info:</strong> name, email address, profile photo, password (stored securely and hashed by Firebase Authentication — we never see it in plain text).</p>
       <p className="mb-1"><strong>Content you create:</strong> posts (photos, videos, text, links), comments, likes, messages you send other members or our support account.</p>
       <p className="mb-1"><strong>Billing info:</strong> handled entirely by Stripe (and, on mobile, Apple/Google) — we receive your subscription status, billing country, and currency, but never your full card number.</p>
-      <p className="mb-1"><strong>Usage data:</strong> lesson progress, streaks, which posts you've liked/saved, and basic device/app info needed to make the Service work (e.g. push notification token).</p>
+      <p className="mb-1"><strong>Usage data:</strong> lesson progress, streaks, which posts you've liked/saved, how much free-preview lesson time you've used per subject (if you're not yet subscribed), and basic device/app info needed to make the Service work (e.g. push notification token).</p>
       <p className="mb-4"><strong>Location signal:</strong> we estimate your country from your device/browser settings to show you an illustrative subscription price in your local currency, and — once you subscribe — we store the actual billing country Stripe/Apple/Google give us. See our <Link href="/terms" className="link-accent">Terms of Service</Link> for how pricing works.</p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">2. How we use it</h2>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Modal } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { WebView } from "react-native-webview";
@@ -8,13 +8,15 @@ import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
+import { purchaseSubscription } from "@/lib/purchases";
 
 const completeLessonFn = httpsCallable(functions, "completeLesson");
 const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
-const ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
+const reportPreviewProgressFn = httpsCallable(functions, "reportPreviewProgress");
+const ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 // Solid brand-tinted background for the subject circle below, used in place of a real preview
 // photo — see SUBJECT_CARDS' comment for why there's no `thumbnail` field anymore.
-const TILE_BG: Record<string, string> = { music: colors.musicLight, art: colors.artLight, finance: colors.financeLight };
+const TILE_BG: Record<string, string> = { music: colors.musicLight, art: colors.artLight };
 
 const SUBJECT_CARDS: {
   id: string;
@@ -29,7 +31,6 @@ const SUBJECT_CARDS: {
   // below now renders a solid brand-tinted tile with the subject's emoji instead of an image.
   { id: "music", name: "Music", tagline: "Create a song from scratch", size: 176 },
   { id: "art", name: "Art", tagline: "Create a self portrait", size: 128 },
-  { id: "finance", name: "Finance", tagline: "Create a portfolio of stocks", size: 128, comingSoon: true },
 ];
 
 function tierFor(pct: number): { emoji: string; label: string } | null {
@@ -37,6 +38,12 @@ function tierFor(pct: number): { emoji: string; label: string } | null {
   if (pct >= 50) return { emoji: "🥈", label: "Halfway there" };
   if (pct >= 25) return { emoji: "🥉", label: "Getting started" };
   return null;
+}
+
+function formatMinutesSeconds(totalSeconds: number): string {
+  const m = Math.floor(Math.max(0, totalSeconds) / 60);
+  const s = Math.max(0, totalSeconds) % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function LearnScreen() {
@@ -49,11 +56,19 @@ export default function LearnScreen() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string } | null>>({});
+  const [playback, setPlayback] = useState<Record<string, { bunnyVideoId: string; bunnyLibraryId: string; subjectId: string | null; freePreviewSecondsRemaining: number | null } | null>>({});
   const [playbackLoading, setPlaybackLoading] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<Record<string, string | null>>({});
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [justMastered, setJustMastered] = useState<string | null>(null);
+  // Keyed by subjectId (not a single flat number) — each subject gets its OWN 10 minutes, so
+  // Music running out doesn't affect Art. Values come straight from the server's own count
+  // (getLessonPlayback/reportPreviewProgress responses), never computed purely client-side.
+  const [previewRemainingBySubject, setPreviewRemainingBySubject] = useState<Record<string, number>>({});
+  const [previewExhaustedSubject, setPreviewExhaustedSubject] = useState<{ id: string; name: string } | null>(null);
+  const [subscribeLoading, setSubscribeLoading] = useState(false);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -105,19 +120,39 @@ export default function LearnScreen() {
   }
 
   async function playLesson(lessonId: string) {
-    if (!subscribed) return;
+    // No subscription gate here — non-subscribers can open a lesson too, they just get capped
+    // at 10 minutes of free preview PER SUBJECT (enforced server-side by getLessonPlayback, not
+    // by anything client-side). Once a subject's allowance is gone, the callable below throws
+    // and we show a paywall modal instead of a player.
     const opening = playingId !== lessonId;
     setPlayingId((prev) => (prev === lessonId ? null : lessonId));
 
     // Playback credentials no longer live on the public lessons doc (see functions/index.js) —
-    // fetch them from the subscription-gated callable each time a lesson is opened.
+    // fetch them from the gated callable each time a lesson is opened.
     if (opening && !playback[lessonId]) {
       setPlaybackLoading(lessonId);
+      setPlaybackError((prev) => ({ ...prev, [lessonId]: null }));
       try {
         const result = await getLessonPlaybackFn({ lessonId });
-        setPlayback((prev) => ({ ...prev, [lessonId]: result.data as { bunnyVideoId: string; bunnyLibraryId: string } }));
-      } catch {
+        const data = result.data as {
+          bunnyVideoId: string;
+          bunnyLibraryId: string;
+          subjectId: string | null;
+          freePreviewSecondsRemaining: number | null;
+        };
+        setPlayback((prev) => ({ ...prev, [lessonId]: data }));
+        if (data.subjectId && data.freePreviewSecondsRemaining != null) {
+          setPreviewRemainingBySubject((prev) => ({ ...prev, [data.subjectId as string]: data.freePreviewSecondsRemaining as number }));
+        }
+      } catch (err: any) {
+        setPlayingId(null);
         setPlayback((prev) => ({ ...prev, [lessonId]: null }));
+        if (err?.code === "functions/permission-denied" && active) {
+          setPreviewRemainingBySubject((prev) => ({ ...prev, [active.id]: 0 }));
+          setPreviewExhaustedSubject({ id: active.id, name: active.name });
+        } else {
+          setPlaybackError((prev) => ({ ...prev, [lessonId]: "Couldn't load this video — please try again." }));
+        }
       }
       setPlaybackLoading(null);
     }
@@ -127,6 +162,51 @@ export default function LearnScreen() {
       await updateDoc(doc(db, "lessons", lessonId), { viewCount: increment(1) });
       setLessons((prev) => prev.map((l) => (l.id === lessonId ? { ...l, viewCount: (l.viewCount ?? 0) + 1 } : l)));
     }
+  }
+
+  // While a non-subscriber has a lesson open, report ~10s of watch time to the server every 10s
+  // so the free-preview allowance is backed by a real counter — see reportPreviewProgress in
+  // functions/index.js. Stops the moment that SUBJECT's allowance hits 0 (pausing playback and
+  // popping up the subscribe prompt) rather than letting the video keep playing past the cap.
+  useEffect(() => {
+    const currentSubjectId = playback[playingId ?? ""]?.subjectId ?? undefined;
+    if (!playingId || !currentSubjectId || previewRemainingBySubject[currentSubjectId] == null) return;
+    const interval = setInterval(async () => {
+      try {
+        const result = await reportPreviewProgressFn({ lessonId: playingId, seconds: 10 });
+        const { secondsUsed, secondsAllowed, subjectId } = result.data as {
+          secondsUsed: number;
+          secondsAllowed: number;
+          subjectId: string | null;
+        };
+        if (!subjectId) return;
+        const remaining = secondsAllowed - secondsUsed;
+        setPreviewRemainingBySubject((prev) => ({ ...prev, [subjectId]: remaining }));
+        if (remaining <= 0) {
+          setPlayingId(null);
+          const subject = (subjects ?? []).find((s) => s.id === subjectId);
+          setPreviewExhaustedSubject({ id: subjectId, name: subject?.name || "this subject" });
+        }
+      } catch {
+        // Not fatal — worst case the cap is enforced a little late next time getLessonPlayback
+        // is called, not that it never gets enforced at all.
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [playingId, previewRemainingBySubject, playback, subjects]);
+
+  async function handleSubscribeFromPreview() {
+    if (!user) return;
+    setSubscribeLoading(true);
+    setSubscribeError(null);
+    const result = await purchaseSubscription();
+    if (result.success) {
+      setSubscribed(true);
+      setPreviewExhaustedSubject(null);
+    } else if (result.error) {
+      setSubscribeError(result.error);
+    }
+    setSubscribeLoading(false);
   }
 
   if (authLoading || !user || subjects === null) {
@@ -139,6 +219,7 @@ export default function LearnScreen() {
 
   if (active) {
     return (
+      <>
       <ScrollView style={{ backgroundColor: colors.paper }} contentContainerStyle={{ padding: 16, paddingTop: 56 }}>
         <TouchableOpacity onPress={() => setActive(null)}>
           <Text style={{ color: colors.muted, marginBottom: 16 }}>← Subjects</Text>
@@ -152,6 +233,15 @@ export default function LearnScreen() {
           </View>
         )}
         <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 6 }}>{active.name}</Text>
+        {!subscribed && previewRemainingBySubject[active.id] != null && (
+          <View style={{ backgroundColor: "#FFF6F1", borderRadius: 12, padding: 10, marginBottom: 14, flexDirection: "row", justifyContent: "space-between" }}>
+            <Text style={{ fontSize: 12, color: colors.ink, opacity: 0.7 }}>
+              {previewRemainingBySubject[active.id] > 0
+                ? `Free preview of ${active.name}: ${formatMinutesSeconds(previewRemainingBySubject[active.id])} left`
+                : `Free preview of ${active.name} used up`}
+            </Text>
+          </View>
+        )}
         {lessons.length > 0 && (() => {
           const done = lessons.filter((l) => completed.has(l.id)).length;
           const pct = Math.round((done / lessons.length) * 100);
@@ -163,7 +253,7 @@ export default function LearnScreen() {
                 <Text style={{ fontSize: 11, color: colors.muted }}>{pct}%</Text>
               </View>
               <View style={{ height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
-                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: "#E85D5D" }} />
+                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.highlight }} />
               </View>
               {tier && (
                 <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
@@ -173,54 +263,126 @@ export default function LearnScreen() {
             </View>
           );
         })()}
+        {/* Course timeline: each lesson is a stop, connected by a vertical line. The connector
+            between two stops turns yellow once the stop above it is done — so the yellow line's
+            length IS your progress through the course, matching the web app's Learn page. The
+            single "current" stop (first not-done, unlocked lesson) gets a yellow ring so it's
+            obvious where to pick up. */}
         {lessons.map((lesson, i) => {
           const done = completed.has(lesson.id);
           const prevDone = i === 0 || completed.has(lessons[i - 1].id);
           const locked = !done && !prevDone;
+          const isCurrent = !done && !locked;
           return (
-            <View key={lesson.id} style={{ marginBottom: 18 }}>
-              <TouchableOpacity
-                onPress={() => !locked && playLesson(lesson.id)}
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-                disabled={locked}
-              >
-                <View
-                  style={{
-                    width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-                    backgroundColor: done ? "#E85D5D" : "transparent",
-                    borderWidth: done ? 0 : 2, borderColor: "#E85D5D",
-                  }}
+            <View key={lesson.id}>
+              {i > 0 && (
+                <View style={{ alignItems: "flex-start", paddingLeft: 21 }}>
+                  <View
+                    style={{
+                      width: 4, height: 20, borderRadius: 2,
+                      backgroundColor: completed.has(lessons[i - 1].id) ? colors.highlight : "rgba(0,0,0,0.1)",
+                    }}
+                  />
+                </View>
+              )}
+              <View style={{ marginBottom: 18 }}>
+                <TouchableOpacity
+                  onPress={() => !locked && playLesson(lesson.id)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+                  disabled={locked}
                 >
-                  <Text style={{ color: done ? "white" : locked ? colors.muted : "#E85D5D" }}>
-                    {done ? "✓" : locked ? "🔒" : "▶"}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: locked ? colors.muted : colors.ink }}>
-                    {lesson.pinned ? "📌 " : ""}{lesson.title}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: colors.muted }}>{lesson.viewCount ?? 0} views</Text>
-                </View>
-                {!locked && !done && (
-                  <TouchableOpacity onPress={() => markComplete(lesson.id)}>
-                    <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>Mark done</Text>
-                  </TouchableOpacity>
+                  <View
+                    style={{
+                      width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
+                      backgroundColor: done ? "#E85D5D" : isCurrent ? colors.highlight : "transparent",
+                      borderWidth: done || isCurrent ? 0 : 2, borderColor: "#E85D5D",
+                      shadowColor: isCurrent ? colors.highlight : "transparent",
+                      shadowOpacity: isCurrent ? 0.5 : 0,
+                      shadowRadius: isCurrent ? 6 : 0,
+                      elevation: isCurrent ? 3 : 0,
+                    }}
+                  >
+                    <Text style={{ color: done || isCurrent ? "white" : locked ? colors.muted : "#E85D5D" }}>
+                      {done ? "✓" : locked ? "🔒" : "▶"}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ color: locked ? colors.muted : colors.ink }}>
+                        {lesson.pinned ? "📌 " : ""}{lesson.title}
+                      </Text>
+                      {isCurrent && (
+                        <View style={{ backgroundColor: "#FFF6F1", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#C94A4A", textTransform: "uppercase" }}>Up next</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>Lesson {i + 1} · {lesson.viewCount ?? 0} views</Text>
+                  </View>
+                  {!locked && !done && (
+                    <TouchableOpacity onPress={() => markComplete(lesson.id)}>
+                      <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>Mark done</Text>
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+                {playingId === lesson.id && playbackLoading === lesson.id && (
+                  <Text style={{ color: colors.muted, marginTop: 10 }}>Loading video…</Text>
                 )}
-              </TouchableOpacity>
-              {playingId === lesson.id && playbackLoading === lesson.id && (
-                <Text style={{ color: colors.muted, marginTop: 10 }}>Loading video…</Text>
-              )}
-              {playingId === lesson.id && playback[lesson.id]?.bunnyVideoId && (
-                <WebView
-                  source={{ uri: `https://iframe.mediadelivery.net/embed/${playback[lesson.id]!.bunnyLibraryId}/${playback[lesson.id]!.bunnyVideoId}` }}
-                  style={{ width: "100%", height: 200, borderRadius: 12, marginTop: 10 }}
-                />
-              )}
+                {playbackError[lesson.id] && (
+                  <Text style={{ color: "#B3261E", marginTop: 10, fontSize: 13 }}>{playbackError[lesson.id]}</Text>
+                )}
+                {playingId === lesson.id && playback[lesson.id]?.bunnyVideoId && (
+                  <WebView
+                    source={{ uri: `https://iframe.mediadelivery.net/embed/${playback[lesson.id]!.bunnyLibraryId}/${playback[lesson.id]!.bunnyVideoId}` }}
+                    style={{ width: "100%", height: 200, borderRadius: 12, marginTop: 10 }}
+                  />
+                )}
+              </View>
             </View>
           );
         })}
         {lessons.length === 0 && <Text style={{ color: colors.muted }}>No lessons added yet.</Text>}
       </ScrollView>
+
+      <Modal
+        visible={!!previewExhaustedSubject}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewExhaustedSubject(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setPreviewExhaustedSubject(null)}
+          style={{ flex: 1, backgroundColor: "rgba(23,19,15,0.5)", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: "white", borderRadius: 20, padding: 24, width: "100%", maxWidth: 360, alignItems: "center" }}>
+            <Text style={{ fontSize: 32, marginBottom: 10 }}>🔒</Text>
+            <Text style={{ fontSize: 19, fontWeight: "800", color: colors.ink, textAlign: "center", marginBottom: 8 }}>
+              That&apos;s your free preview of {previewExhaustedSubject?.name}
+            </Text>
+            <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 18, lineHeight: 19 }}>
+              You&apos;ve used your 10 free minutes for {previewExhaustedSubject?.name}. Subscribe to keep
+              watching — every subject, every lesson, cancel any time.
+            </Text>
+            {subscribeError && (
+              <Text style={{ fontSize: 12, color: "#B3261E", marginBottom: 10, textAlign: "center" }}>{subscribeError}</Text>
+            )}
+            <TouchableOpacity
+              onPress={handleSubscribeFromPreview}
+              disabled={subscribeLoading}
+              style={{ width: "100%", marginBottom: 10, backgroundColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoading ? 0.6 : 1 }}
+            >
+              <Text style={{ color: "white", fontSize: 15, fontWeight: "700", textAlign: "center" }}>
+                {subscribeLoading ? "Loading…" : "Subscribe"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setPreviewExhaustedSubject(null)}>
+              <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>Maybe later</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </>
     );
   }
 
@@ -267,7 +429,7 @@ export default function LearnScreen() {
       <TextInput
         value={searchQuery}
         onChangeText={setSearchQuery}
-        placeholder="Search lessons — try “music”, “art”, “finance”…"
+        placeholder="Search lessons — try “music”, “art”…"
         style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "white", marginBottom: 14, fontSize: 14 }}
       />
       {q ? (

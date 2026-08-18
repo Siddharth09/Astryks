@@ -26,19 +26,10 @@ const SUBJECT_DETAILS = [
     tag: "Portrait drawing",
     items: ["Draw a portrait from scratch", "Sketch in watercolour", "Draw from life in charcoal"],
   },
-  {
-    icon: "📈",
-    name: "Finance",
-    color: colors.finance,
-    tagBg: colors.financeLight,
-    tagText: colors.finance,
-    tag: "Investing & valuation",
-    soon: true,
-    items: ["Learn to value businesses", "Learn how investing in the share market works", "Build a starter portfolio"],
-  },
 ];
 
 const PRICING_FEATURES = [
+  "10 minutes of free preview first — no card required",
   "Videos created by practicing professionals",
   "Full access to Music & Art, with new subjects on the way",
   "New lessons added regularly, all included",
@@ -133,7 +124,7 @@ export default function LoginScreen() {
           <Text style={{ backgroundColor: colors.highlight }}>experts in their field</Text>
         </Text>
         <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center", marginBottom: 20 }}>
-          Music. Art. Finance. Learn from real working professionals and build skills that last a lifetime.
+          Music. Art. Learn from real working professionals and build skills that last a lifetime.
         </Text>
 
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 28 }}>
@@ -234,7 +225,6 @@ export default function LoginScreen() {
           <Text style={{ fontSize: 22, marginBottom: 8 }}>{s.icon}</Text>
           <Text style={{ fontSize: 17, fontWeight: "800", color: colors.ink, marginBottom: 8 }}>
             {s.name}
-            {s.soon && <Text style={{ color: colors.muted, fontWeight: "400", fontSize: 15 }}> (coming soon)</Text>}
           </Text>
           {s.items.map((item) => (
             <Text key={item} style={{ fontSize: 14, color: colors.muted, marginBottom: 4, lineHeight: 16 }}>
@@ -248,8 +238,8 @@ export default function LoginScreen() {
       ))}
       <View style={{ backgroundColor: "white", borderRadius: 16, borderTopWidth: 4, borderTopColor: colors.highlight, padding: 16, marginBottom: 28 }}>
         <Text style={{ fontSize: 15, color: colors.ink, lineHeight: 19 }}>
-          💛 We&apos;re just getting started — we&apos;ll keep adding to Music and Art, and we&apos;re bringing new
-          subjects like investing in the share market, and others, in the coming months.
+          💛 We&apos;re just getting started — we&apos;ll keep adding to Music and Art, with more subjects
+          planned as the library grows.
         </Text>
       </View>
 
@@ -285,7 +275,7 @@ export default function LoginScreen() {
           </Text>
           {PRICING_FEATURES.map((f) => (
             <View key={f} style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-              <Text style={{ color: colors.finance }}>✓</Text>
+              <Text style={{ color: colors.teal }}>✓</Text>
               <Text style={{ fontSize: 15, color: colors.ink, flex: 1 }}>{f}</Text>
             </View>
           ))}

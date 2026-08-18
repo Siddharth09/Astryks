@@ -6,7 +6,7 @@ export default function TermsPage() {
   return (
     <div className="max-w-2xl mx-auto py-10 pb-24 px-4 text-sm text-ink/80 leading-relaxed">
       <h1 className="font-display text-3xl font-bold mb-2">Terms of Service</h1>
-      <p className="text-xs text-ink/40 mb-8">Last updated: 14 August 2026 · Effective for Astryks (the "Service"), operated by the holder of Australian Business Number (ABN) 74 309 712 800, trading as Astryks ("Astryks", "we", "us").</p>
+      <p className="text-xs text-ink/40 mb-8">Last updated: 18 August 2026 · Effective for Astryks (the "Service"), operated by the holder of Australian Business Number (ABN) 74 309 712 800, trading as Astryks ("Astryks", "we", "us").</p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">1. Acceptance of these Terms</h2>
       <p className="mb-4">
@@ -31,6 +31,13 @@ export default function TermsPage() {
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">4. Subscriptions &amp; billing</h2>
+      <p className="mb-4">
+        Creating an account and posting to Astryks is always free — no subscription is required. Before
+        subscribing, you can also preview a limited amount of the lesson library for free: currently 10
+        minutes of real lesson video per subject, tracked on your account. This free preview is offered
+        at our discretion, separate from any trial mechanism offered by Stripe, Apple, or Google, and we
+        may change or discontinue it at any time without notice.
+      </p>
       <p className="mb-4">
         Astryks is offered as a recurring weekly or annual subscription, at your choice. The price shown
         to you depends on your billing country/currency (see our{" "}

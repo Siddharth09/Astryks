@@ -8,7 +8,7 @@ import { colors } from "@/lib/styles";
 type Trailer = {
   id: string;
   title: string;
-  subjectTag: "music" | "art" | "finance";
+  subjectTag: "music" | "art";
   bunnyVideoId: string;
   bunnyLibraryId: string;
 };
@@ -16,7 +16,6 @@ type Trailer = {
 const SUBJECT_STYLE: Record<string, { border: string; tagBg: string; tagText: string; label: string }> = {
   music: { border: colors.music, tagBg: colors.musicLight, tagText: colors.music, label: "Music" },
   art: { border: colors.art, tagBg: colors.artLight, tagText: colors.art, label: "Art" },
-  finance: { border: colors.finance, tagBg: colors.financeLight, tagText: colors.finance, label: "Finance" },
 };
 
 export default function TrailersSection({ compact = false }: { compact?: boolean }) {

@@ -21,7 +21,7 @@ function formatMinutesSeconds(totalSeconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
+const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 const SUBJECT_CARDS: {
   id: string;
@@ -73,7 +73,7 @@ function LearnPageContent() {
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [justMastered, setJustMastered] = useState<string | null>(null);
-  // Keyed by subjectId (not a single flat number) — each subject gets its OWN 15 minutes, so
+  // Keyed by subjectId (not a single flat number) — each subject gets its OWN 10 minutes, so
   // Music running out doesn't affect Art. Every value here comes straight from the server's own
   // count (getLessonPlayback/reportPreviewProgress responses), never computed purely
   // client-side, so a page refresh or a second tab can't reset it.
@@ -152,7 +152,7 @@ function LearnPageContent() {
 
   async function playLesson(lessonId: string) {
     // No subscription gate here anymore — non-subscribers can open a lesson too, they just get
-    // capped at 15 minutes of free preview PER SUBJECT (enforced server-side by
+    // capped at 10 minutes of free preview PER SUBJECT (enforced server-side by
     // getLessonPlayback, not by anything client-side). Once a subject's allowance is gone, the
     // callable below throws and we show a paywall popup instead of a player.
     const opening = playingId !== lessonId;
@@ -384,7 +384,7 @@ function LearnPageContent() {
           )}
         </div>
 
-        {/* Subscribe popup — shown the moment a subject's 15-minute free preview runs out,
+        {/* Subscribe popup — shown the moment a subject's 10-minute free preview runs out,
             rather than relying on someone noticing a small inline message. Dismissable (closing
             it doesn't grant more preview time — the allowance is already spent server-side —
             it just lets someone browse other subjects, each with their own separate allowance,
@@ -404,7 +404,7 @@ function LearnPageContent() {
                 That's your free preview of {previewExhaustedSubject.name}
               </h3>
               <p className="text-sm text-ink/60 mb-5">
-                You've used your 15 free minutes for {previewExhaustedSubject.name}. Subscribe to keep
+                You've used your 10 free minutes for {previewExhaustedSubject.name}. Subscribe to keep
                 watching — every subject, every lesson, cancel any time.
               </p>
               <Link href="/me" className="btn-primary w-full mb-2">

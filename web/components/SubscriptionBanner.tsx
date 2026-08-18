@@ -99,7 +99,7 @@ export default function SubscriptionBanner() {
           <p className="text-sm font-medium">
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </p>
-          <p className="text-xs text-ink/60">cancel anytime · 15 min free preview in Learn</p>
+          <p className="text-xs text-ink/60">cancel anytime · 10 min free preview in Learn</p>
         </div>
       </div>
 

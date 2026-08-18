@@ -27,7 +27,7 @@ import ReferralAndBilling from "@/components/ReferralAndBilling";
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const deleteMyAccount = httpsCallable(functions, "deleteMyAccount");
 
-const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
+const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 function tierFor(pct: number): { emoji: string; label: string } | null {
   if (pct >= 100) return { emoji: "🏆", label: "Mastered" };

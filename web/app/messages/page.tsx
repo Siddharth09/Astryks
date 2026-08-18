@@ -20,8 +20,8 @@ import PageBackground from "@/components/PageBackground";
 
 const getMessageSuggestions = httpsCallable(functions, "getMessageSuggestions");
 const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
-const SUBJECT_NAMES: Record<string, string> = { music: "Music", art: "Art", finance: "Finance" };
-const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨", finance: "📈" };
+const SUBJECT_NAMES: Record<string, string> = { music: "Music", art: "Art" };
+const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 export default function MessagesPage() {
   const { user, loading: authLoading } = useRequireAuth();

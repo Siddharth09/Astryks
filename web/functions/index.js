@@ -673,19 +673,19 @@ exports.backfillLessonPlayback = onCall(async (request) => {
   return { migrated };
 });
 
-// ---------- Free preview: 15 minutes of REAL lesson content per SUBJECT, no card required ----------
+// ---------- Free preview: 10 minutes of REAL lesson content per SUBJECT, no card required ----------
 // Deliberately a total watch-time cap, not a day-based trial — a day-based trial (7 days of
 // unrestricted access) lets someone binge the entire library and cancel before ever being
 // charged. A metered allowance doesn't have that failure mode: however long someone takes to use
-// their 15 minutes, once it's gone, it's gone — but the cap resets PER SUBJECT (15 min of Music,
-// separately 15 min of Art, etc.), not one shared pool, so trying a second subject isn't
+// their 10 minutes, once it's gone, it's gone — but the cap resets PER SUBJECT (10 min of Music,
+// separately 10 min of Art, etc.), not one shared pool, so trying a second subject isn't
 // penalized by time already spent on the first. Tracked server-side as
 // users/{uid}.freePreviewSecondsUsed.{subjectId} — see reportPreviewProgress below for how that
 // counter actually gets incremented, and firestore.rules for why a client can't just reset it
 // itself (same protected-fields pattern as subscriptionStatus/xp). The subject is always looked
 // up server-side from the lesson doc's own subjectId, never trusted from the client — otherwise
 // a client could just claim a different fake subjectId on every call and get unlimited preview.
-const FREE_PREVIEW_SECONDS_ALLOWED = 15 * 60;
+const FREE_PREVIEW_SECONDS_ALLOWED = 10 * 60;
 
 // Callable: the ONLY legitimate way to get a lesson's actual playback credentials now — gated
 // on an active subscription, the free preview allowance for that lesson's subject, or admin,
@@ -716,7 +716,7 @@ exports.getLessonPlayback = onCall(async (request) => {
       if (freePreviewSecondsRemaining <= 0) {
         throw new HttpsError(
           "permission-denied",
-          "You've used up your 15 minutes of free preview for this subject — subscribe to keep watching."
+          "You've used up your 10 minutes of free preview for this subject — subscribe to keep watching."
         );
       }
     }
@@ -2345,8 +2345,8 @@ function buildTryLessonEmail(displayName) {
 You signed up a couple of days ago — welcome again! We noticed you haven't started a lesson yet, so
 here's a nudge in case you weren't sure where to begin.
 
-Astryks has lessons across Music, Art, and more, taught by people who actually do this for a living.
-You get 15 minutes of free preview across any real lessons — no card required — so there's no
+Astryks has masterclasses across Music and Art, taught by people who actually do this for a living.
+You get 10 minutes of free preview across any real lessons — no card required — so there's no
 pressure, just pick whatever looks interesting and see how it feels.
 
 Head to astryks.com/learn whenever you've got a few minutes.
@@ -2377,8 +2377,8 @@ The Astryks team`;
                   lesson yet, so here's a nudge in case you weren't sure where to begin.
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Astryks has lessons across Music, Art, and more, taught by people who actually do this
-                  for a living. You get <strong>15 minutes of free preview</strong> across any real lessons —
+                  Astryks has masterclasses across Music and Art, taught by people who actually do this
+                  for a living. You get <strong>10 minutes of free preview</strong> across any real lessons —
                   no card required — so there's no pressure, just pick whatever looks interesting.
                 </p>
                 <div style="text-align:center;margin:4px 0 8px;">
@@ -2418,7 +2418,7 @@ You've been exploring Astryks for a few days now, so we thought it's worth spell
 what subscribing gets you, in case anything was unclear:
 
 - Every lesson in the library, across every subject, for ${priceDisplay}.
-- Not sure yet? You get 15 minutes of free preview across any real lessons — no card required —
+- Not sure yet? You get 10 minutes of free preview across any real lessons — no card required —
   so you can get an actual feel for it before deciding.
 - A 90-day money-back guarantee once you do subscribe — a full refund, no questions asked, if
   it's not for you.
@@ -2462,7 +2462,7 @@ The Astryks team`;
                   </tr>
                   <tr>
                     <td style="padding:10px 0;border-bottom:1px solid #F0EAE0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#17130F;">
-                      🎁 <strong>15 minutes of free preview</strong> across any real lessons — no card required.
+                      🎁 <strong>10 minutes of free preview</strong> across any real lessons — no card required.
                     </td>
                   </tr>
                   <tr>
@@ -3015,7 +3015,7 @@ exports.validateReferralCode = onCall(async (request) => {
 
 // No Stripe trial here on purpose — the "try before you buy" mechanic is the free preview
 // (FREE_PREVIEW_SECONDS_ALLOWED, see getLessonPlayback/reportPreviewProgress below) instead: a
-// capped 15 minutes of REAL lesson content, no card required. A day-based Stripe trial would let
+// capped 10 minutes of REAL lesson content, no card required. A day-based Stripe trial would let
 // someone binge the entire library in the free window and cancel before ever being charged —
 // a time-boxed watch allowance doesn't have that failure mode.
 exports.createCheckoutSession = onCall(

@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 type Trailer = {
   id: string;
   title: string;
-  subjectTag: "music" | "art" | "finance";
+  subjectTag: "music" | "art";
   bunnyVideoId: string;
   bunnyLibraryId: string;
 };
@@ -15,7 +15,6 @@ type Trailer = {
 const SUBJECT_STYLE: Record<string, { border: string; tagBg: string; tagText: string; label: string }> = {
   music: { border: "border-music", tagBg: "bg-musicLight", tagText: "text-music", label: "Music" },
   art: { border: "border-art", tagBg: "bg-artLight", tagText: "text-art", label: "Art" },
-  finance: { border: "border-finance", tagBg: "bg-financeLight", tagText: "text-finance", label: "Finance" },
 };
 
 export default function TrailersSection({ compact = false }: { compact?: boolean }) {

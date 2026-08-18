@@ -203,7 +203,7 @@ export default function ReferralAndBilling() {
                   : `Active — ${pricing.display}`
                 : status === "canceled"
                 ? "Canceled — resubscribe any time"
-                : "Not subscribed — 15 min free preview in Learn"}
+                : "Not subscribed — 10 min free preview in Learn"}
             </p>
           </div>
           {status === "active" && (

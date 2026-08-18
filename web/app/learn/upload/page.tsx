@@ -6,14 +6,12 @@ import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, doc, updateDoc, getDocs, query, orderBy } from "firebase/firestore";
 import { functions, db } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { isAdmin } from "@/lib/admin";
 
-const SUBJECT_LABEL: Record<string, string> = { music: "Music", art: "Art", finance: "Finance" };
+const SUBJECT_LABEL: Record<string, string> = { music: "Music", art: "Art" };
 
 const createBunnyUpload = httpsCallable(functions, "createBunnyUpload");
 const deleteLessonFn = httpsCallable(functions, "deleteLesson");
-
-// Simple allowlist for who can add lessons — update with your own email.
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 export default function LessonUploadPage() {
   const { user, loading: authLoading } = useRequireAuth();
@@ -29,7 +27,7 @@ export default function LessonUploadPage() {
   const [existingLessons, setExistingLessons] = useState<any[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const isAdmin = !authLoading && !!user && ADMIN_EMAILS.includes(user.email ?? "");
+  const isAdminUser = !authLoading && isAdmin(user?.email);
 
   async function loadExisting() {
     const snap = await getDocs(query(collection(db, "lessons"), orderBy("createdAt", "desc")));
@@ -37,9 +35,9 @@ export default function LessonUploadPage() {
   }
 
   useEffect(() => {
-    if (isAdmin) loadExisting();
+    if (isAdminUser) loadExisting();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [isAdminUser]);
 
   async function togglePin(lessonId: string, current: boolean) {
     try {
@@ -67,7 +65,7 @@ export default function LessonUploadPage() {
 
   if (authLoading || !user) return <p className="text-ink/50 text-center py-16">Loading…</p>;
 
-  if (!isAdmin) {
+  if (!isAdminUser) {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 
@@ -139,7 +137,6 @@ export default function LessonUploadPage() {
         <select className="input" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
           <option value="music">Music</option>
           <option value="art">Art</option>
-          <option value="finance">Finance</option>
         </select>
         <input className="input" placeholder="Lesson title" value={title} onChange={(e) => setTitle(e.target.value)} required />
         <input
