@@ -118,8 +118,8 @@ export default function ChatThreadScreen() {
         style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, marginBottom: 8 }}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Text style={{ fontSize: 20 }}>←</Text>
-        <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
+        <Text style={{ fontSize: 22 }}>←</Text>
+        <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
       </TouchableOpacity>
       <FlatList
         ref={listRef}
@@ -138,18 +138,18 @@ export default function ChatThreadScreen() {
               paddingVertical: 8,
             }}
           >
-            <Text style={{ color: item.senderId === user?.uid ? "white" : colors.ink, fontSize: 16 }}>{item.text}</Text>
+            <Text style={{ color: item.senderId === user?.uid ? "white" : colors.ink, fontSize: 18 }}>{item.text}</Text>
             {item.type === "prizeNomination" && item.senderId !== user?.uid && item.postId && (
-              <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.line, gap: 8 }}>
+              <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.line + "1A", gap: 8 }}>
                 {optOutState[item.id] === "done" || item.prizeOptOutHandled ? (
-                  <Text style={{ fontSize: 14, color: colors.muted }}>You've opted this post out.</Text>
+                  <Text style={{ fontSize: 16, color: colors.muted }}>You've opted this post out.</Text>
                 ) : (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
                     <TouchableOpacity
                       onPress={() => handleOptOut(item.id, item.postId)}
                       disabled={optOutState[item.id] === "loading"}
                     >
-                      <Text style={{ fontSize: 14, color: colors.ink, textDecorationLine: "underline", opacity: optOutState[item.id] === "loading" ? 0.5 : 1 }}>
+                      <Text style={{ fontSize: 16, color: colors.ink, textDecorationLine: "underline", opacity: optOutState[item.id] === "loading" ? 0.5 : 1 }}>
                         {optOutState[item.id] === "loading" ? "Opting out…" : "Opt out of this nomination"}
                       </Text>
                     </TouchableOpacity>
@@ -157,7 +157,7 @@ export default function ChatThreadScreen() {
                       <TouchableOpacity
                         onPress={() => setPayoutOpen((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
                       >
-                        <Text style={{ fontSize: 14, color: colors.ink, textDecorationLine: "underline" }}>
+                        <Text style={{ fontSize: 16, color: colors.ink, textDecorationLine: "underline" }}>
                           {payoutOpen[item.id] ? "Cancel" : "Share payout details"}
                         </Text>
                       </TouchableOpacity>
@@ -166,7 +166,7 @@ export default function ChatThreadScreen() {
                 )}
 
                 {payoutState[item.id] === "done" && (
-                  <Text style={{ fontSize: 14, color: colors.muted }}>Payout details saved — thanks!</Text>
+                  <Text style={{ fontSize: 16, color: colors.muted }}>Payout details saved — thanks!</Text>
                 )}
 
                 {payoutOpen[item.id] && payoutState[item.id] !== "done" && (
@@ -182,10 +182,10 @@ export default function ChatThreadScreen() {
                             borderRadius: 8,
                             backgroundColor: (payoutMethod[item.id] ?? "bank") === m ? colors.ink : "white",
                             borderWidth: 1,
-                            borderColor: colors.line,
+                            borderColor: colors.line + "1A",
                           }}
                         >
-                          <Text style={{ fontSize: 13, color: (payoutMethod[item.id] ?? "bank") === m ? "white" : colors.ink }}>
+                          <Text style={{ fontSize: 15, color: (payoutMethod[item.id] ?? "bank") === m ? "white" : colors.ink }}>
                             {m === "bank" ? "Bank transfer" : "PayID"}
                           </Text>
                         </TouchableOpacity>
@@ -201,12 +201,12 @@ export default function ChatThreadScreen() {
                       }
                       style={{
                         borderWidth: 1,
-                        borderColor: colors.line,
+                        borderColor: colors.line + "1A",
                         borderRadius: 8,
                         paddingHorizontal: 10,
                         paddingVertical: 8,
                         backgroundColor: "white",
-                        fontSize: 14,
+                        fontSize: 16,
                       }}
                     />
                     <TouchableOpacity
@@ -220,7 +220,7 @@ export default function ChatThreadScreen() {
                         opacity: payoutState[item.id] === "loading" || !(payoutDetails[item.id] ?? "").trim() ? 0.5 : 1,
                       }}
                     >
-                      <Text style={{ fontSize: 14, color: "white", fontWeight: "600" }}>
+                      <Text style={{ fontSize: 16, color: "white", fontWeight: "600" }}>
                         {payoutState[item.id] === "loading" ? "Saving…" : "Save payout details"}
                       </Text>
                     </TouchableOpacity>
@@ -237,11 +237,11 @@ export default function ChatThreadScreen() {
             paddingHorizontal: 16,
             paddingVertical: 14,
             borderTopWidth: 1,
-            borderTopColor: colors.line,
+            borderTopColor: colors.line + "1A",
             backgroundColor: colors.paper,
           }}
         >
-          <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
+          <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center" }}>
             You can't send messages in this conversation.
           </Text>
         </View>
@@ -254,7 +254,7 @@ export default function ChatThreadScreen() {
             paddingHorizontal: 12,
             paddingVertical: 10,
             borderTopWidth: 1,
-            borderTopColor: colors.line,
+            borderTopColor: colors.line + "1A",
             backgroundColor: colors.paper,
           }}
         >
@@ -262,12 +262,12 @@ export default function ChatThreadScreen() {
             style={{
               flex: 1,
               borderWidth: 1,
-              borderColor: colors.line,
+              borderColor: colors.line + "1A",
               borderRadius: 22,
               paddingHorizontal: 16,
               paddingVertical: 10,
               backgroundColor: "white",
-              fontSize: 17,
+              fontSize: 19,
               minHeight: 44,
               maxHeight: 120,
             }}
@@ -290,7 +290,7 @@ export default function ChatThreadScreen() {
               opacity: body.trim() ? 1 : 0.4,
             }}
           >
-            <Text style={{ color: "white", fontSize: 16, transform: [{ rotate: "-90deg" }] }}>▶</Text>
+            <Text style={{ color: "white", fontSize: 18, transform: [{ rotate: "-90deg" }] }}>▶</Text>
           </TouchableOpacity>
         </View>
       )}

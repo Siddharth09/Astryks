@@ -43,7 +43,7 @@ export default function ShareMenu({ postId, title }: { postId: string; title?: s
   return (
     <>
       <TouchableOpacity onPress={() => setOpen(true)} accessibilityLabel="Share this post" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={{ fontSize: 18, color: colors.muted }}>⋯</Text>
+        <Text style={{ fontSize: 20, color: colors.muted }}>⋯</Text>
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
@@ -70,7 +70,7 @@ const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "white", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 28 },
   option: { flexDirection: "row", alignItems: "center", paddingVertical: 16, paddingHorizontal: 20 },
-  optionBorder: { borderTopWidth: 1, borderTopColor: colors.line },
-  optionIcon: { fontSize: 17, width: 28 },
-  optionText: { fontSize: 17, color: colors.ink, marginLeft: 4 },
+  optionBorder: { borderTopWidth: 1, borderTopColor: colors.line + "1A" },
+  optionIcon: { fontSize: 19, width: 28 },
+  optionText: { fontSize: 19, color: colors.ink, marginLeft: 4 },
 });

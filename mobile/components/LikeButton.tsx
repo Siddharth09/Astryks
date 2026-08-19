@@ -64,7 +64,7 @@ export default function LikeButton({
 
   return (
     <TouchableOpacity onPress={toggle} disabled={!checked || isOwnPost}>
-      <Text style={{ color: liked ? "#E85D5D" : colors.muted, fontSize: 15, opacity: isOwnPost ? 0.5 : 1 }}>
+      <Text style={{ color: liked ? "#E85D5D" : colors.muted, fontSize: 17, opacity: isOwnPost ? 0.5 : 1 }}>
         {liked ? "♥" : "♡"} {count}
       </Text>
     </TouchableOpacity>

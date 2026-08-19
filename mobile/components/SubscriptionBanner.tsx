@@ -46,24 +46,24 @@ export default function SubscriptionBanner() {
   return (
     <View style={{ backgroundColor: "#FFF6F1", borderRadius: 16, padding: 14, marginHorizontal: 16, marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Text style={{ fontSize: 18 }}>✨</Text>
+        <Text style={{ fontSize: 20 }}>✨</Text>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "600" }}>
+          <Text style={{ fontSize: 17, fontWeight: "600" }}>
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </Text>
-          <Text style={{ fontSize: 13, color: "#8A8A8D" }}>{pricing.display} · cancel anytime</Text>
+          <Text style={{ fontSize: 15, color: "#8A8A8D" }}>{pricing.display} · cancel anytime</Text>
         </View>
         <TouchableOpacity onPress={handleSubscribe} disabled={loading} style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
-          <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
             {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
           </Text>
         </TouchableOpacity>
       </View>
       <TrailersSection compact />
       {error && (
-        <Text style={{ fontSize: 12, color: "#B3261E", marginTop: 8 }}>{error}</Text>
+        <Text style={{ fontSize: 14, color: "#B3261E", marginTop: 8 }}>{error}</Text>
       )}
-      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8 }}>
+      <Text style={{ fontSize: 14, color: colors.muted, marginTop: 8 }}>
         Billed through your {Platform.OS === "ios" ? "Apple ID" : "Google Play"} account · cancel anytime
       </Text>
     </View>

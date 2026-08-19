@@ -102,6 +102,10 @@ export default function PostCard({
   }
 
   return (
+    // Shadow lives on this outer wrapper rather than on `s.card` itself — RN clips shadows away
+    // entirely on iOS when `overflow: "hidden"` (needed below to round off the media/photo
+    // corners) is set on the same view that also draws the shadow.
+    <View style={s.cardShadow}>
     <View style={s.card}>
       <TouchableOpacity onPress={() => router.push(`/post/${post.id}`)} activeOpacity={0.9}>
         {post.type === "video" && post.bunnyVideoId && (
@@ -125,14 +129,14 @@ export default function PostCard({
               onPress={() => setMuted((m) => !m)}
               style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(0,0,0,0.5)", width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" }}
             >
-              <Text style={{ color: "white", fontSize: 14 }}>{muted ? "🔇" : "🔊"}</Text>
+              <Text style={{ color: "white", fontSize: 16 }}>{muted ? "🔇" : "🔊"}</Text>
             </TouchableOpacity>
           </View>
         )}
         {post.type === "photo" && <Image source={{ uri: displayMediaUrl }} style={s.media} />}
         {post.type === "text" && (
           <View style={{ padding: 16 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.ink }}>{post.body}</Text>
+            <Text style={{ fontSize: 19, fontWeight: "700", color: colors.ink }}>{post.body}</Text>
           </View>
         )}
         {post.type === "link" && (
@@ -144,12 +148,12 @@ export default function PostCard({
               <Image source={{ uri: post.linkImage }} style={s.linkThumb} />
             ) : (
               <View style={[s.linkThumb, { alignItems: "center", justifyContent: "center", backgroundColor: colors.brandLight }]}>
-                <Text style={{ fontSize: 22 }}>🔗</Text>
+                <Text style={{ fontSize: 24 }}>🔗</Text>
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: colors.muted }}>{post.linkDomain}</Text>
-              <Text style={{ fontSize: 15, fontWeight: "600" }} numberOfLines={1}>{post.linkTitle}</Text>
+              <Text style={{ fontSize: 15, color: colors.muted }}>{post.linkDomain}</Text>
+              <Text style={{ fontSize: 17, fontWeight: "600" }} numberOfLines={1}>{post.linkTitle}</Text>
             </View>
           </View>
         )}
@@ -167,17 +171,17 @@ export default function PostCard({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginLeft: "auto" }}>
             {currentUserId && currentUserId !== post.ownerId && (
               <TouchableOpacity onPress={openConversation} accessibilityLabel="Message" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 16 }}>✉️</Text>
+                <Text style={{ fontSize: 18 }}>✉️</Text>
               </TouchableOpacity>
             )}
             {currentUserId && currentUserId !== post.ownerId && (
               <TouchableOpacity onPress={() => setReportOpen(true)} accessibilityLabel="Report" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 16 }}>🚩</Text>
+                <Text style={{ fontSize: 18 }}>🚩</Text>
               </TouchableOpacity>
             )}
             {canDelete && (
               <TouchableOpacity onPress={confirmDelete} disabled={deleting} accessibilityLabel="Delete" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 16, opacity: deleting ? 0.5 : 1 }}>🗑️</Text>
+                <Text style={{ fontSize: 18, opacity: deleting ? 0.5 : 1 }}>🗑️</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -200,7 +204,7 @@ export default function PostCard({
             ((post.prizeEligible && !prizeOptOut && (post.likeCount ?? 0) >= 30) ||
               (prizeOptOut && currentUserId === post.ownerId)) && (
               <TouchableOpacity onPress={() => setPrizeOpen(true)}>
-                <Text style={{ fontSize: 17 }}>🏆</Text>
+                <Text style={{ fontSize: 19 }}>🏆</Text>
               </TouchableOpacity>
             )}
           <ShareMenu postId={post.id} title={post.title} />
@@ -217,15 +221,26 @@ export default function PostCard({
         onOptedIn={() => setOptedInOverride(true)}
       />
     </View>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: "white", borderRadius: 16, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: colors.line },
+  cardShadow: {
+    borderRadius: 16,
+    marginBottom: 20,
+    backgroundColor: "white",
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  card: { backgroundColor: "white", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: colors.line + "1A" },
   media: { width: "100%", height: 220, backgroundColor: colors.ink },
   linkThumb: { width: 64, height: 64, borderRadius: 10, backgroundColor: colors.ink },
   body: { padding: 14 },
-  meta: { color: colors.muted, fontSize: 14, marginBottom: 6 },
-  title: { fontSize: 16, fontWeight: "600", color: colors.ink, marginBottom: 8 },
+  meta: { color: colors.muted, fontSize: 16, marginBottom: 6 },
+  title: { fontSize: 18, fontWeight: "600", color: colors.ink, marginBottom: 8 },
   row: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
 });

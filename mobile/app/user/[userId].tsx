@@ -147,8 +147,8 @@ export default function UserProfileScreen() {
       onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
       style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
     >
-      <Text style={{ fontSize: 20 }}>←</Text>
-      <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
+      <Text style={{ fontSize: 22 }}>←</Text>
+      <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
     </TouchableOpacity>
   );
 
@@ -182,39 +182,39 @@ export default function UserProfileScreen() {
           <Image source={{ uri: profile.photoURL }} style={{ width: 80, height: 80, borderRadius: 40 }} />
         ) : (
           <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#E85D5D", alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ color: "white", fontSize: 26, fontWeight: "600" }}>{(profile.displayName ?? "M")[0]}</Text>
+            <Text style={{ color: "white", fontSize: 27, fontWeight: "600" }}>{(profile.displayName ?? "M")[0]}</Text>
           </View>
         )}
         <View style={{ flex: 1, flexDirection: "row", justifyContent: "space-around" }}>
           <View style={{ alignItems: "center" }}>
-            <Text style={{ fontSize: 17, fontWeight: "700" }}>{posts.length}</Text>
-            <Text style={{ fontSize: 13, color: colors.muted }}>Posts</Text>
+            <Text style={{ fontSize: 19, fontWeight: "700" }}>{posts.length}</Text>
+            <Text style={{ fontSize: 15, color: colors.muted }}>Posts</Text>
           </View>
           <View style={{ alignItems: "center" }}>
-            <Text style={{ fontSize: 17, fontWeight: "700" }}>{followerCount}</Text>
-            <Text style={{ fontSize: 13, color: colors.muted }}>Followers</Text>
+            <Text style={{ fontSize: 19, fontWeight: "700" }}>{followerCount}</Text>
+            <Text style={{ fontSize: 15, color: colors.muted }}>Followers</Text>
           </View>
           <View style={{ alignItems: "center" }}>
-            <Text style={{ fontSize: 17, fontWeight: "700" }}>{followingCount}</Text>
-            <Text style={{ fontSize: 13, color: colors.muted }}>Following</Text>
+            <Text style={{ fontSize: 19, fontWeight: "700" }}>{followingCount}</Text>
+            <Text style={{ fontSize: 15, color: colors.muted }}>Following</Text>
           </View>
         </View>
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <Text style={{ fontSize: 17, fontWeight: "700" }}>{profile.displayName ?? "Member"}</Text>
+        <Text style={{ fontSize: 19, fontWeight: "700" }}>{profile.displayName ?? "Member"}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
           {profile.blockedMe ? (
-            <Text style={{ fontSize: 14, color: colors.muted }}>Blocked you</Text>
+            <Text style={{ fontSize: 16, color: colors.muted }}>Blocked you</Text>
           ) : (
             <TouchableOpacity onPress={handleBlockToggle} disabled={blockActionLoading}>
-              <Text style={{ fontSize: 14, color: profile.blockedByMe ? colors.muted : "#DC2626" }}>
+              <Text style={{ fontSize: 16, color: profile.blockedByMe ? colors.muted : "#DC2626" }}>
                 {blockActionLoading ? "…" : profile.blockedByMe ? "Unblock" : "Block"}
               </Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={() => setReportOpen(true)}>
-            <Text style={{ fontSize: 14, color: colors.muted }}>Report</Text>
+            <Text style={{ fontSize: 16, color: colors.muted }}>Report</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -225,25 +225,25 @@ export default function UserProfileScreen() {
             targetUserId={userId}
             currentUserId={currentUser?.uid ?? null}
             style={{ flex: 1, paddingVertical: 9, alignItems: "center" }}
-            textStyle={{ fontSize: 15, fontWeight: "600" }}
+            textStyle={{ fontSize: 17, fontWeight: "600" }}
           />
           <TouchableOpacity
             onPress={openConversation}
             disabled={messaging}
-            style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingVertical: 9, alignItems: "center" }}
+            style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 999, paddingVertical: 9, alignItems: "center" }}
           >
-            <Text style={{ fontSize: 15, fontWeight: "600" }}>{messaging ? "Opening…" : "Message"}</Text>
+            <Text style={{ fontSize: 17, fontWeight: "600" }}>{messaging ? "Opening…" : "Message"}</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 18 }}>
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.line + "1A", paddingTop: 18 }}>
         {isBlockedEitherWay ? (
           <View style={{ alignItems: "center", gap: 10, paddingVertical: 40 }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(0,0,0,0.12)", alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 26, opacity: 0.4 }}>🚫</Text>
+              <Text style={{ fontSize: 27, opacity: 0.4 }}>🚫</Text>
             </View>
-            <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "600", textAlign: "center", paddingHorizontal: 30 }}>
+            <Text style={{ color: colors.muted, fontSize: 18, fontWeight: "600", textAlign: "center", paddingHorizontal: 30 }}>
               {profile.blockedByMe
                 ? "You've blocked this account — you won't see each other's posts or be able to message."
                 : "You can't view this account's posts or send them a message."}
@@ -252,9 +252,9 @@ export default function UserProfileScreen() {
         ) : posts.length === 0 ? (
           <View style={{ alignItems: "center", gap: 10, paddingVertical: 40 }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(0,0,0,0.12)", alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 26, opacity: 0.4 }}>📷</Text>
+              <Text style={{ fontSize: 27, opacity: 0.4 }}>📷</Text>
             </View>
-            <Text style={{ color: colors.muted, fontSize: 16, fontWeight: "600" }}>No shared posts</Text>
+            <Text style={{ color: colors.muted, fontSize: 18, fontWeight: "600" }}>No shared posts</Text>
           </View>
         ) : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>

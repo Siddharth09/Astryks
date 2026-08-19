@@ -45,16 +45,16 @@ export default function ReferralAndBilling() {
     <View style={{ gap: 10, marginBottom: 20 }}>
       <View style={{ backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center" }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "600" }}>Subscription</Text>
-          <Text style={{ fontSize: 13, color: colors.muted }}>
+          <Text style={{ fontSize: 17, fontWeight: "600" }}>Subscription</Text>
+          <Text style={{ fontSize: 15, color: colors.muted }}>
             {status === "active" ? `Active — ${pricing.display}` : status === "canceled" ? "Canceled" : "Not subscribed"}
           </Text>
         </View>
         <TouchableOpacity
           onPress={status === "active" ? manageSubscription : subscribe}
-          style={{ backgroundColor: status === "active" ? "transparent" : colors.ink, borderWidth: status === "active" ? 1 : 0, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
+          style={{ backgroundColor: status === "active" ? "transparent" : colors.ink, borderWidth: status === "active" ? 1 : 0, borderColor: colors.line + "1A", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
         >
-          <Text style={{ fontSize: 14, color: status === "active" ? colors.ink : "white" }}>
+          <Text style={{ fontSize: 16, color: status === "active" ? colors.ink : "white" }}>
             {status === "active" ? "Manage" : "Subscribe"}
           </Text>
         </TouchableOpacity>

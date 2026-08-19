@@ -47,8 +47,8 @@ export default function ReportModal({
         <View style={{ backgroundColor: "white", borderRadius: 16, padding: 20 }}>
           {done ? (
             <>
-              <Text style={{ fontSize: 17, fontWeight: "700", marginBottom: 8 }}>Report submitted</Text>
-              <Text style={{ color: colors.muted, fontSize: 15, marginBottom: 16 }}>
+              <Text style={{ fontSize: 19, fontWeight: "700", marginBottom: 8 }}>Report submitted</Text>
+              <Text style={{ color: colors.muted, fontSize: 17, marginBottom: 16 }}>
                 Thanks — our team will take a look.
               </Text>
               <TouchableOpacity
@@ -60,7 +60,7 @@ export default function ReportModal({
             </>
           ) : (
             <>
-              <Text style={{ fontSize: 17, fontWeight: "700", marginBottom: 12 }}>Report</Text>
+              <Text style={{ fontSize: 19, fontWeight: "700", marginBottom: 12 }}>Report</Text>
               {REASONS.map((r) => (
                 <TouchableOpacity
                   key={r}
@@ -82,7 +82,7 @@ export default function ReportModal({
                       <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.ink }} />
                     )}
                   </View>
-                  <Text style={{ fontSize: 16 }}>{r}</Text>
+                  <Text style={{ fontSize: 18 }}>{r}</Text>
                 </TouchableOpacity>
               ))}
               <TextInput
@@ -92,19 +92,19 @@ export default function ReportModal({
                 multiline
                 style={{
                   borderWidth: 1,
-                  borderColor: colors.line,
+                  borderColor: colors.line + "1A",
                   borderRadius: 10,
                   padding: 10,
                   minHeight: 60,
                   textAlignVertical: "top",
                   marginVertical: 10,
-                  fontSize: 15,
+                  fontSize: 17,
                 }}
               />
               <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
                 <TouchableOpacity
                   onPress={handleClose}
-                  style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
+                  style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
                 >
                   <Text style={{ fontWeight: "600" }}>Cancel</Text>
                 </TouchableOpacity>

@@ -100,7 +100,7 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
 
   return (
     <View style={{ marginTop: 12, marginBottom: 4 }}>
-      <Text style={{ fontSize: 15, fontWeight: "600", marginBottom: 8, paddingHorizontal: 16 }}>✨ Suggested for you</Text>
+      <Text style={{ fontSize: 17, fontWeight: "600", marginBottom: 8, paddingHorizontal: 16 }}>✨ Suggested for you</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
         {cards === null
           ? Array.from({ length: 3 }).map((_, i) => (
@@ -111,16 +111,16 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
                 <TouchableOpacity
                   key={`lesson-${c.id}`}
                   onPress={() => router.push({ pathname: "/(tabs)/learn", params: { subject: c.subjectId } })}
-                  style={{ width: 140, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: "white", padding: 12 }}
+                  style={{ width: 140, borderRadius: 12, borderWidth: 1, borderColor: colors.line + "1A", backgroundColor: "white", padding: 12 }}
                 >
-                  <Text style={{ fontSize: 18 }}>{SUBJECT_ICONS[c.subjectId] ?? "⭐"}</Text>
-                  <Text numberOfLines={2} style={{ fontSize: 15, fontWeight: "600", marginTop: 6 }}>{c.title}</Text>
-                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>Continue {c.subjectName}</Text>
+                  <Text style={{ fontSize: 20 }}>{SUBJECT_ICONS[c.subjectId] ?? "⭐"}</Text>
+                  <Text numberOfLines={2} style={{ fontSize: 17, fontWeight: "600", marginTop: 6 }}>{c.title}</Text>
+                  <Text style={{ fontSize: 15, color: colors.muted, marginTop: 2 }}>Continue {c.subjectName}</Text>
                 </TouchableOpacity>
               ) : (
                 <View
                   key={`person-${c.id}`}
-                  style={{ width: 120, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: "white", padding: 12, alignItems: "center", gap: 8 }}
+                  style={{ width: 120, borderRadius: 12, borderWidth: 1, borderColor: colors.line + "1A", backgroundColor: "white", padding: 12, alignItems: "center", gap: 8 }}
                 >
                   <TouchableOpacity
                     onPress={() => router.push(`/user/${c.id}`)}
@@ -133,7 +133,7 @@ export default function SuggestionsRow({ currentUserId }: { currentUserId: strin
                         <Text style={{ color: "white", fontWeight: "600" }}>{c.displayName[0]}</Text>
                       </View>
                     )}
-                    <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "600" }}>{c.displayName}</Text>
+                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: "600" }}>{c.displayName}</Text>
                   </TouchableOpacity>
                   <FollowButton targetUserId={c.id} currentUserId={currentUserId} />
                 </View>

@@ -39,11 +39,11 @@ export default function BlockedAccountsScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/me"))}
           style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
-          <Text style={{ fontSize: 20 }}>←</Text>
-          <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
+          <Text style={{ fontSize: 22 }}>←</Text>
+          <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
         </TouchableOpacity>
       </View>
-      <Text style={{ fontSize: 20, fontWeight: "700", paddingHorizontal: 16, marginBottom: 14 }}>Blocked accounts</Text>
+      <Text style={{ fontSize: 22, fontWeight: "700", paddingHorizontal: 16, marginBottom: 14 }}>Blocked accounts</Text>
 
       {users === null ? (
         <View style={{ flex: 1, justifyContent: "center" }}>
@@ -68,13 +68,13 @@ export default function BlockedAccountsScreen() {
                   <Text style={{ color: "white", fontWeight: "600" }}>{(item.displayName ?? "M")[0]}</Text>
                 </View>
               )}
-              <Text style={{ flex: 1, fontWeight: "600", fontSize: 16 }}>{item.displayName ?? "Member"}</Text>
+              <Text style={{ flex: 1, fontWeight: "600", fontSize: 18 }}>{item.displayName ?? "Member"}</Text>
               <TouchableOpacity
                 onPress={() => handleUnblock(item.uid)}
                 disabled={unblockingId === item.uid}
-                style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
+                style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
               >
-                <Text style={{ fontSize: 14, fontWeight: "600" }}>{unblockingId === item.uid ? "…" : "Unblock"}</Text>
+                <Text style={{ fontSize: 16, fontWeight: "600" }}>{unblockingId === item.uid ? "…" : "Unblock"}</Text>
               </TouchableOpacity>
             </View>
           )}

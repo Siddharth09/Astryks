@@ -27,7 +27,7 @@ export default function ReferralCodeEntry() {
   if (!open) {
     return (
       <TouchableOpacity onPress={() => setOpen(true)} style={{ marginTop: 8 }}>
-        <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>Have a referral code?</Text>
+        <Text style={{ fontSize: 16, color: colors.muted, textDecorationLine: "underline" }}>Have a referral code?</Text>
       </TouchableOpacity>
     );
   }
@@ -36,7 +36,7 @@ export default function ReferralCodeEntry() {
     <View style={{ marginTop: 8, gap: 6 }}>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <TextInput
-          style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "white", fontSize: 15 }}
+          style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "white", fontSize: 17 }}
           placeholder="Enter code"
           autoCapitalize="characters"
           value={input}
@@ -45,14 +45,14 @@ export default function ReferralCodeEntry() {
             setStatus("idle");
           }}
         />
-        <TouchableOpacity onPress={apply} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 12, justifyContent: "center" }}>
-          <Text style={{ fontSize: 14 }}>Apply</Text>
+        <TouchableOpacity onPress={apply} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 8, paddingHorizontal: 12, justifyContent: "center" }}>
+          <Text style={{ fontSize: 16 }}>Apply</Text>
         </TouchableOpacity>
       </View>
       {status === "valid" && (
-        <Text style={{ fontSize: 13, color: "#15803D" }}>Code applied — thanks for joining through a friend!</Text>
+        <Text style={{ fontSize: 15, color: "#15803D" }}>Code applied — thanks for joining through a friend!</Text>
       )}
-      {status === "invalid" && <Text style={{ fontSize: 13, color: "#B91C1C" }}>That code doesn't look right.</Text>}
+      {status === "invalid" && <Text style={{ fontSize: 15, color: "#B91C1C" }}>That code doesn't look right.</Text>}
     </View>
   );
 }

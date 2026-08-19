@@ -27,15 +27,15 @@ function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsP
     <View style={{ flexDirection: "row", gap: 8 }}>
       <TouchableOpacity
         onPress={() => setIsPublic(true)}
-        style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: isPublic ? colors.ink : "white", borderWidth: isPublic ? 0 : 1, borderColor: colors.line }}
+        style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: isPublic ? colors.ink : "white", borderWidth: isPublic ? 0 : 1, borderColor: colors.line + "1A" }}
       >
-        <Text style={{ color: isPublic ? "white" : colors.ink, fontSize: 14, fontWeight: "600" }}>🌍 Public</Text>
+        <Text style={{ color: isPublic ? "white" : colors.ink, fontSize: 16, fontWeight: "600" }}>🌍 Public</Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() => setIsPublic(false)}
-        style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: !isPublic ? colors.ink : "white", borderWidth: !isPublic ? 0 : 1, borderColor: colors.line }}
+        style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: !isPublic ? colors.ink : "white", borderWidth: !isPublic ? 0 : 1, borderColor: colors.line + "1A" }}
       >
-        <Text style={{ color: !isPublic ? "white" : colors.ink, fontSize: 14, fontWeight: "600" }}>🔒 Private</Text>
+        <Text style={{ color: !isPublic ? "white" : colors.ink, fontSize: 16, fontWeight: "600" }}>🔒 Private</Text>
       </TouchableOpacity>
     </View>
   );
@@ -224,9 +224,9 @@ export default function HomeScreen() {
   if (allPosts === null) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.paper }}>
-        <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line + "1A", flexDirection: "row", alignItems: "center", gap: 8 }}>
           <BrandMark size={24} />
-          <Text style={{ fontSize: 18, fontWeight: "700" }}>Astryks</Text>
+          <Text style={{ fontSize: 20, fontWeight: "700" }}>Astryks</Text>
         </View>
         <View style={{ padding: 16 }}>
           <FeedSkeleton />
@@ -251,9 +251,9 @@ export default function HomeScreen() {
   // screen one continuous scrollable list, the way Instagram's feed works.
   const listHeader = (
     <>
-      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line + "1A", flexDirection: "row", alignItems: "center", gap: 8 }}>
         <BrandMark size={24} />
-        <Text style={{ fontSize: 18, fontWeight: "700" }}>Astryks</Text>
+        <Text style={{ fontSize: 20, fontWeight: "700" }}>Astryks</Text>
       </View>
 
       <SubscriptionBanner />
@@ -265,7 +265,7 @@ export default function HomeScreen() {
       {textInput !== null ? (
         <View style={{ padding: 12, gap: 8 }}>
           <TextInput
-            style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", minHeight: 80, textAlignVertical: "top" }}
+            style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", minHeight: 80, textAlignVertical: "top" }}
             placeholder="Write something…"
             value={textInput}
             onChangeText={setTextInput}
@@ -274,7 +274,7 @@ export default function HomeScreen() {
           />
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity onPress={() => setTextInput(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => setTextInput(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={shareText} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
@@ -286,12 +286,12 @@ export default function HomeScreen() {
         <View style={{ padding: 12, gap: 8 }}>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TextInput
-              style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, backgroundColor: "white" }}
+              style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 12, backgroundColor: "white" }}
               placeholder="Paste a link"
               value={linkInput}
               onChangeText={setLinkInput}
             />
-            <TouchableOpacity onPress={() => setLinkInput(null)} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => setLinkInput(null)} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={shareLink} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" }}>
@@ -302,12 +302,12 @@ export default function HomeScreen() {
         </View>
       ) : pendingMedia !== null ? (
         <View style={{ padding: 12, gap: 8 }}>
-          <Text style={{ fontSize: 15, color: colors.muted }}>
+          <Text style={{ fontSize: 17, color: colors.muted }}>
             {pendingMedia.type === "video" ? "🎥 Video ready to post" : "🖼️ Photo ready to post"}
           </Text>
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity onPress={() => setPendingMedia(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => setPendingMedia(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={postMedia} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
@@ -317,15 +317,15 @@ export default function HomeScreen() {
         </View>
       ) : (
         <View
-          style={{ flexDirection: "row", alignItems: "center", gap: 8, margin: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "white" }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 8, margin: 12, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "white" }}
         >
           <TouchableOpacity onPress={() => setTextInput("")} style={{ flex: 1 }}>
-            <Text style={{ color: colors.muted, fontSize: 15 }}>Share something…</Text>
+            <Text style={{ color: colors.muted, fontSize: 17 }}>Share something…</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={pickMedia}><Text style={{ fontSize: 16 }}>📷</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setLinkInput("")}><Text style={{ fontSize: 16 }}>🔗</Text></TouchableOpacity>
+          <TouchableOpacity onPress={pickMedia}><Text style={{ fontSize: 18 }}>📷</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setLinkInput("")}><Text style={{ fontSize: 18 }}>🔗</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setPrizeInfoOpen(true)} accessibilityLabel="About the creative prize">
-            <Text style={{ fontSize: 16 }}>🏆</Text>
+            <Text style={{ fontSize: 18 }}>🏆</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -337,22 +337,22 @@ export default function HomeScreen() {
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search posts by person, text, or link…"
-          style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", fontSize: 15 }}
+          style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", fontSize: 17 }}
         />
       </View>
 
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
         <TouchableOpacity
           onPress={() => setScope("everyone")}
-          style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: scope === "everyone" ? colors.ink : "transparent", borderWidth: scope === "everyone" ? 0 : 1, borderColor: colors.line }}
+          style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: scope === "everyone" ? colors.ink : "transparent", borderWidth: scope === "everyone" ? 0 : 1, borderColor: colors.line + "1A" }}
         >
-          <Text style={{ fontSize: 14, color: scope === "everyone" ? "white" : colors.ink }}>Everyone</Text>
+          <Text style={{ fontSize: 16, color: scope === "everyone" ? "white" : colors.ink }}>Everyone</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setScope("following")}
-          style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: scope === "following" ? colors.ink : "transparent", borderWidth: scope === "following" ? 0 : 1, borderColor: colors.line }}
+          style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: scope === "following" ? colors.ink : "transparent", borderWidth: scope === "following" ? 0 : 1, borderColor: colors.line + "1A" }}
         >
-          <Text style={{ fontSize: 14, color: scope === "following" ? "white" : colors.ink }}>Following</Text>
+          <Text style={{ fontSize: 16, color: scope === "following" ? "white" : colors.ink }}>Following</Text>
         </TouchableOpacity>
       </View>
 

@@ -77,16 +77,16 @@ export default function SignupScreen() {
             height: 18,
             borderRadius: 4,
             borderWidth: 1,
-            borderColor: colors.line,
+            borderColor: colors.line + "1A",
             backgroundColor: agreed ? colors.ink : "white",
             alignItems: "center",
             justifyContent: "center",
             marginTop: 1,
           }}
         >
-          {agreed && <Text style={{ color: "white", fontSize: 14 }}>✓</Text>}
+          {agreed && <Text style={{ color: "white", fontSize: 16 }}>✓</Text>}
         </View>
-        <Text style={{ fontSize: 14, color: colors.muted, flex: 1, lineHeight: 17 }}>
+        <Text style={{ fontSize: 16, color: colors.muted, flex: 1, lineHeight: 17 }}>
           I agree to Astryks's{" "}
           <Text style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/terms")}>
             Terms of Service

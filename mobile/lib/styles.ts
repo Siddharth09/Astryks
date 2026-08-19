@@ -43,7 +43,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.paper,
   },
   title: {
-    fontSize: 26,
+    fontSize: 27,
     fontWeight: "800",
     color: colors.ink,
     textAlign: "center",
@@ -56,13 +56,13 @@ export const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
+    fontSize: 17,
     color: colors.ink,
     marginBottom: 12,
   },
   error: {
     color: "#DC2626",
-    fontSize: 13,
+    fontSize: 15,
     marginBottom: 12,
     textAlign: "center",
   },
@@ -76,13 +76,13 @@ export const styles = StyleSheet.create({
   },
   buttonPrimaryText: {
     color: "white",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
   },
   link: {
     color: colors.ink,
     opacity: 0.6,
-    fontSize: 13,
+    fontSize: 15,
     textAlign: "center",
   },
 });

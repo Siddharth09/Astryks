@@ -47,15 +47,15 @@ export default function Comments({ postId, initialComments }: { postId: string; 
   return (
     <View style={{ marginTop: 20 }}>
       <Text style={{ fontWeight: "600", marginBottom: 10 }}>Comments</Text>
-      {comments.length === 0 && <Text style={{ color: colors.muted, fontSize: 15 }}>No comments yet.</Text>}
+      {comments.length === 0 && <Text style={{ color: colors.muted, fontSize: 17 }}>No comments yet.</Text>}
       {comments.map((c) => (
         <View key={c.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-          <Text style={{ fontSize: 15, flex: 1 }}>
+          <Text style={{ fontSize: 17, flex: 1 }}>
             <Text style={{ fontWeight: "600" }}>{c.userName}</Text> <Text>{c.body}</Text>
           </Text>
           {user && user.uid !== c.userId && (
             <TouchableOpacity onPress={() => setReportingComment({ id: c.id, userId: c.userId })}>
-              <Text style={{ fontSize: 13, color: colors.muted }}>Report</Text>
+              <Text style={{ fontSize: 15, color: colors.muted }}>Report</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -68,7 +68,7 @@ export default function Comments({ postId, initialComments }: { postId: string; 
           </TouchableOpacity>
         </View>
       ) : (
-        <Text style={{ color: colors.muted, fontSize: 15 }}>Log in to comment.</Text>
+        <Text style={{ color: colors.muted, fontSize: 17 }}>Log in to comment.</Text>
       )}
       <ReportModal
         visible={reportingComment !== null}
@@ -81,6 +81,6 @@ export default function Comments({ postId, initialComments }: { postId: string; 
 
 const s = StyleSheet.create({
   row: { flexDirection: "row", marginTop: 8, gap: 8 },
-  input: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white" },
+  input: { flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white" },
   button: { backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" },
 });

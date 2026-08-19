@@ -71,8 +71,8 @@ export default function PostDetailScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
           style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
         >
-          <Text style={{ fontSize: 20 }}>←</Text>
-          <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
+          <Text style={{ fontSize: 22 }}>←</Text>
+          <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>This post is private.</Text>
       </View>
@@ -86,8 +86,8 @@ export default function PostDetailScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
           style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
         >
-          <Text style={{ fontSize: 20 }}>←</Text>
-          <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
+          <Text style={{ fontSize: 22 }}>←</Text>
+          <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, justifyContent: "center" }}>
           <ActivityIndicator color={colors.ink} />
@@ -126,8 +126,8 @@ export default function PostDetailScreen() {
         style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Text style={{ fontSize: 20 }}>←</Text>
-        <Text style={{ fontSize: 17, color: colors.ink }}>Back</Text>
+        <Text style={{ fontSize: 22 }}>←</Text>
+        <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
       </TouchableOpacity>
       {post.type === "video" && post.bunnyVideoId && (
         <WebView source={{ uri: `https://iframe.mediadelivery.net/embed/${post.bunnyLibraryId}/${post.bunnyVideoId}` }} style={{ width: "100%", height: 240, borderRadius: 16 }} />
@@ -137,33 +137,33 @@ export default function PostDetailScreen() {
       )}
       {post.type === "photo" && <Image source={{ uri: post.mediaUrl }} style={{ width: "100%", height: 260, borderRadius: 16 }} />}
       {post.type === "text" && (
-        <Text style={{ fontSize: 22, fontWeight: "700", color: colors.ink }}>{post.body}</Text>
+        <Text style={{ fontSize: 24, fontWeight: "700", color: colors.ink }}>{post.body}</Text>
       )}
       {post.type === "link" && (
-        <TouchableOpacity onPress={() => openIfSafeUrl(post.linkUrl)} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 16, overflow: "hidden" }}>
+        <TouchableOpacity onPress={() => openIfSafeUrl(post.linkUrl)} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 16, overflow: "hidden" }}>
           {post.linkImage ? (
             <Image source={{ uri: post.linkImage }} style={{ width: "100%", height: 200 }} />
           ) : (
             <View style={{ width: "100%", height: 200, backgroundColor: colors.brandLight, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 32 }}>🔗</Text>
+              <Text style={{ fontSize: 33 }}>🔗</Text>
             </View>
           )}
           <View style={{ padding: 12 }}>
-            <Text style={{ fontSize: 14, color: colors.muted }}>{post.linkDomain}</Text>
+            <Text style={{ fontSize: 16, color: colors.muted }}>{post.linkDomain}</Text>
             <Text style={{ fontWeight: "600" }}>{post.linkTitle}</Text>
           </View>
         </TouchableOpacity>
       )}
 
       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 12 }}>
-        <Text style={{ color: colors.muted, fontSize: 14 }}>{post.ownerName ?? "Member"} · {createdDate.toLocaleDateString()}</Text>
+        <Text style={{ color: colors.muted, fontSize: 16 }}>{post.ownerName ?? "Member"} · {createdDate.toLocaleDateString()}</Text>
         {canDelete && (
           <TouchableOpacity onPress={confirmDelete} disabled={deleting} style={{ marginLeft: "auto" }}>
-            <Text style={{ color: "#B91C1C", fontSize: 15 }}>{deleting ? "Deleting…" : "Delete"}</Text>
+            <Text style={{ color: "#B91C1C", fontSize: 17 }}>{deleting ? "Deleting…" : "Delete"}</Text>
           </TouchableOpacity>
         )}
       </View>
-      {post.title ? <Text style={{ fontSize: 20, fontWeight: "700", marginTop: 6, marginBottom: 6 }}>{post.title}</Text> : null}
+      {post.title ? <Text style={{ fontSize: 22, fontWeight: "700", marginTop: 6, marginBottom: 6 }}>{post.title}</Text> : null}
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <LikeButton postId={post.id} initialCount={post.likeCount ?? 0} currentUserId={user?.uid ?? null} postOwnerId={post.ownerId} />
         <View style={{ marginLeft: "auto" }}>
