@@ -233,6 +233,11 @@ export default function LearnScreen() {
     if (result.success) {
       setSubscribed(true);
       setPreviewExhaustedSubject(null);
+      // Optimistic write, same as SubscriptionBanner's own subscribe handler — the real
+      // update lands later via the Qonversion webhook, but without this, re-opening a subject
+      // (which remounts SubscriptionBanner) re-reads the stale pre-webhook value and shows the
+      // "Subscribe" banner again right after someone just subscribed.
+      updateDoc(doc(db, "users", user.uid), { subscriptionStatus: "active" }).catch(() => {});
     } else if (result.error) {
       setSubscribeError(result.error);
     }
@@ -263,7 +268,10 @@ export default function LearnScreen() {
         >
           <Text style={{ color: colors.muted, marginBottom: 16 }}>← Subjects</Text>
         </TouchableOpacity>
-        <SubscriptionBanner />
+        {/* Gated on the subscription state this screen already tracks, rather than letting
+            SubscriptionBanner do its own separate (and easily stale) fetch — see
+            handleSubscribeFromPreview above for why that fetch could disagree with reality. */}
+        {subscribed === false && <SubscriptionBanner />}
         {justMastered && (
           <View style={{ backgroundColor: "#E85D5D", borderRadius: 12, padding: 12, marginBottom: 16 }}>
             <Text style={{ color: "white", fontWeight: "600", fontSize: 15, textAlign: "center" }}>

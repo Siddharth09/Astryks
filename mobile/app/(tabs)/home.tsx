@@ -53,6 +53,10 @@ export default function HomeScreen() {
   // picked, with no chance to choose visibility at all (unlike web, which always showed this
   // choice for photo/video posts).
   const [pendingMedia, setPendingMedia] = useState<{ uri: string; type: "photo" | "video" } | null>(null);
+  // Shared caption field for both the photo/video and link composers below — previously neither
+  // flow captured any user-written text at all, so a shared link or photo/video posted zero
+  // context of your own alongside it.
+  const [captionInput, setCaptionInput] = useState("");
   const [isPublic, setIsPublic] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,10 +66,23 @@ export default function HomeScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+  // Lower than a strict "must be mostly on screen" bar — with the tall header above the feed
+  // (brand bar, banner, trailers, composer, toggle, suggestions), the first post often doesn't
+  // cross a 60% threshold until the user scrolls, which meant its video never got `isActive` and
+  // just sat on its paused first frame looking like a still image.
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 25 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) setActiveId(viewableItems[0].item.id);
   }).current;
+
+  // Belt-and-suspenders for the same issue: seed the first post as active as soon as the feed
+  // loads, rather than waiting on a viewability callback that may not fire for it at all if it
+  // starts out below the fold behind the header content above.
+  useEffect(() => {
+    if (activeId === null && posts && posts.length > 0) {
+      setActiveId(posts[0].id);
+    }
+  }, [posts, activeId]);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -161,7 +178,7 @@ export default function HomeScreen() {
 
     await setDoc(postRef, {
       type,
-      title: null,
+      title: captionInput.trim() || null,
       mediaUrl,
       mediaPath: path,
       visibility: isPublic ? "public" : "private",
@@ -172,6 +189,7 @@ export default function HomeScreen() {
       commentCount: 0,
     });
     setPendingMedia(null);
+    setCaptionInput("");
     load();
   }
 
@@ -198,6 +216,7 @@ export default function HomeScreen() {
 
     await addDoc(collection(db, "posts"), {
       type: "link",
+      title: captionInput.trim() || null,
       linkUrl: linkInput,
       linkTitle: preview.title,
       linkImage: preview.image,
@@ -210,6 +229,7 @@ export default function HomeScreen() {
       commentCount: 0,
     });
     setLinkInput(null);
+    setCaptionInput("");
     load();
   }
 
@@ -290,14 +310,22 @@ export default function HomeScreen() {
               placeholder="Paste a link"
               value={linkInput}
               onChangeText={setLinkInput}
+              autoFocus
             />
-            <TouchableOpacity onPress={() => setLinkInput(null)} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => { setLinkInput(null); setCaptionInput(""); }} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={shareLink} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" }}>
               <Text style={{ color: "white", fontWeight: "600" }}>Share</Text>
             </TouchableOpacity>
           </View>
+          <TextInput
+            style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", minHeight: 60, textAlignVertical: "top" }}
+            placeholder="Say something about it (optional)"
+            value={captionInput}
+            onChangeText={setCaptionInput}
+            multiline
+          />
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
         </View>
       ) : pendingMedia !== null ? (
@@ -305,9 +333,17 @@ export default function HomeScreen() {
           <Text style={{ fontSize: 17, color: colors.muted }}>
             {pendingMedia.type === "video" ? "🎥 Video ready to post" : "🖼️ Photo ready to post"}
           </Text>
+          <TextInput
+            style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "white", minHeight: 60, textAlignVertical: "top" }}
+            placeholder="Add a caption (optional)"
+            value={captionInput}
+            onChangeText={setCaptionInput}
+            multiline
+            autoFocus
+          />
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity onPress={() => setPendingMedia(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => { setPendingMedia(null); setCaptionInput(""); }} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={postMedia} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>

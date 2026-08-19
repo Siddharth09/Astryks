@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Share, Pressable } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Share, Pressable, Alert } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@/lib/styles";
+import { reportError } from "@/lib/errorReporting";
 
 // Tapping "···" opens a small sheet with two choices. "Share…" hands off straight to the OS
 // share sheet (RN's built-in Share.share) — on both iOS and Android that already lists
@@ -29,8 +30,13 @@ export default function ShareMenu({ postId, title }: { postId: string; title?: s
       // `url` is used on iOS in addition to `message`; Android's Share module ignores it and
       // only ever sends `message`, so the link needs to already be inside that string too.
       await Share.share({ message: `${shareText} ${url}`, url, title: shareText });
-    } catch {
-      // User backed out of the share sheet — nothing to do.
+    } catch (err) {
+      // Note: on iOS, the user dismissing the share sheet RESOLVES (with dismissedAction), it
+      // doesn't throw — so anything landing here is a real failure, not a normal cancel. This
+      // used to be swallowed silently with no logging and no user feedback at all, which is
+      // exactly what "the share button doesn't do anything" looks like from the outside.
+      reportError(err, "ShareMenu.nativeShare");
+      Alert.alert("Couldn't open the share sheet", "Please try again.");
     }
   }
 

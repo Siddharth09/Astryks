@@ -70,6 +70,7 @@ export default function MeScreen() {
 
   const [showAddLink, setShowAddLink] = useState(false);
   const [linkInput, setLinkInput] = useState("");
+  const [linkCaptionInput, setLinkCaptionInput] = useState("");
   const [linkSaving, setLinkSaving] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -259,6 +260,7 @@ export default function MeScreen() {
 
       await addDoc(collection(db, "posts"), {
         type: "link",
+        title: linkCaptionInput.trim() || null,
         linkUrl: linkInput.trim(),
         linkTitle: preview.title,
         linkImage: preview.image,
@@ -272,6 +274,7 @@ export default function MeScreen() {
 
       setShowAddLink(false);
       setLinkInput("");
+      setLinkCaptionInput("");
       await loadProfileData();
     } catch (err: any) {
       setLinkError(err.message ?? "Couldn't fetch that link.");
@@ -559,6 +562,13 @@ export default function MeScreen() {
                 value={linkInput}
                 onChangeText={setLinkInput}
                 style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 18 }}
+              />
+              <TextInput
+                placeholder="Say something about it (optional)"
+                value={linkCaptionInput}
+                onChangeText={setLinkCaptionInput}
+                multiline
+                style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 18, minHeight: 60, textAlignVertical: "top" }}
               />
               {linkError && <Text style={{ color: "#DC2626", fontSize: 16 }}>{linkError}</Text>}
               <TouchableOpacity

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode } from "expo-av";
 import { WebView } from "react-native-webview";
 import { router } from "expo-router";
@@ -129,7 +130,7 @@ export default function PostCard({
               onPress={() => setMuted((m) => !m)}
               style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(0,0,0,0.5)", width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" }}
             >
-              <Text style={{ color: "white", fontSize: 16 }}>{muted ? "🔇" : "🔊"}</Text>
+              <Ionicons name={muted ? "volume-mute" : "volume-high"} size={14} color="white" />
             </TouchableOpacity>
           </View>
         )}
@@ -171,17 +172,17 @@ export default function PostCard({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginLeft: "auto" }}>
             {currentUserId && currentUserId !== post.ownerId && (
               <TouchableOpacity onPress={openConversation} accessibilityLabel="Message" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 18 }}>✉️</Text>
+                <Ionicons name="mail-outline" size={17} color={colors.muted} />
               </TouchableOpacity>
             )}
             {currentUserId && currentUserId !== post.ownerId && (
               <TouchableOpacity onPress={() => setReportOpen(true)} accessibilityLabel="Report" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 18 }}>🚩</Text>
+                <Ionicons name="flag-outline" size={17} color={colors.muted} />
               </TouchableOpacity>
             )}
             {canDelete && (
               <TouchableOpacity onPress={confirmDelete} disabled={deleting} accessibilityLabel="Delete" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 18, opacity: deleting ? 0.5 : 1 }}>🗑️</Text>
+                <Ionicons name="trash-outline" size={17} color={colors.muted} style={{ opacity: deleting ? 0.5 : 1 }} />
               </TouchableOpacity>
             )}
           </View>
