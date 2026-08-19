@@ -182,11 +182,19 @@ export default function PostCard({
             <Text style={s.meta}>💬 {post.commentCount ?? 0}</Text>
           </TouchableOpacity>
           <SaveButton postId={post.id} currentUserId={currentUserId} />
-          {(post.type === "photo" || post.type === "video") && (
-            <TouchableOpacity onPress={() => setPrizeOpen(true)}>
-              <Text style={{ fontSize: 17 }}>🏆</Text>
-            </TouchableOpacity>
-          )}
+          {/* `prizeEligible` is set true on nearly every photo/video post the moment it's created
+              (see nominateForPrize in functions/index.js) — it means "entered", not "in the
+              running to actually win." Showing the trophy on every single post made it
+              meaningless noise; only show it once a post has actually crossed the 30-like
+              qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and hasn't been opted out. */}
+          {(post.type === "photo" || post.type === "video") &&
+            post.prizeEligible &&
+            !post.prizeOptOut &&
+            (post.likeCount ?? 0) >= 30 && (
+              <TouchableOpacity onPress={() => setPrizeOpen(true)}>
+                <Text style={{ fontSize: 17 }}>🏆</Text>
+              </TouchableOpacity>
+            )}
           <ShareMenu postId={post.id} title={post.title} />
         </View>
       </View>

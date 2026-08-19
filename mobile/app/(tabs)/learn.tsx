@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Modal } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Modal, Image } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { WebView } from "react-native-webview";
 import { httpsCallable } from "firebase/functions";
@@ -14,9 +15,10 @@ const completeLessonFn = httpsCallable(functions, "completeLesson");
 const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
 const reportPreviewProgressFn = httpsCallable(functions, "reportPreviewProgress");
 const ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
-// Solid brand-tinted background for the subject circle below, used in place of a real preview
-// photo — see SUBJECT_CARDS' comment for why there's no `thumbnail` field anymore.
-const TILE_BG: Record<string, string> = { music: colors.musicLight, art: colors.artLight };
+const THUMBNAILS: Record<string, any> = {
+  music: require("@/assets/music-preview.jpg"),
+  art: require("@/assets/art-preview.jpg"),
+};
 
 const SUBJECT_CARDS: {
   id: string;
@@ -25,12 +27,10 @@ const SUBJECT_CARDS: {
   size: number;
   comingSoon?: boolean;
 }[] = [
-  // No `thumbnail` field — this used to `require("@/assets/music-preview.jpg")` /
-  // `art-preview.jpg`, but neither file exists in assets/ (only icon/adaptive-icon/splash-icon/
-  // logo-mark do), so both `require()` calls would fail to resolve at bundle time. The circle
-  // below now renders a solid brand-tinted tile with the subject's emoji instead of an image.
-  { id: "music", name: "Music", tagline: "Create a song from scratch", size: 176 },
-  { id: "art", name: "Art", tagline: "Create a self portrait", size: 128 },
+  // Both the same size — they used to differ (176 vs 128), which read as one subject being more
+  // "important" than the other with no actual reason for it.
+  { id: "music", name: "Music", tagline: "Create a song from scratch", size: 160 },
+  { id: "art", name: "Art", tagline: "Create a self portrait", size: 160 },
 ];
 
 function tierFor(pct: number): { emoji: string; label: string } | null {
@@ -48,6 +48,7 @@ function formatMinutesSeconds(totalSeconds: number): string {
 
 export default function LearnScreen() {
   const { user, loading: authLoading } = useAuth();
+  const navigation = useNavigation();
   const { subject: wantedSubjectId } = useLocalSearchParams<{ subject?: string }>();
   const [subjects, setSubjects] = useState<any[] | null>(null);
   const [allLessons, setAllLessons] = useState<any[]>([]);
@@ -93,6 +94,22 @@ export default function LearnScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjects, wantedSubjectId]);
+
+  // Tapping the "Learn" tab while already inside a subject used to leave you exactly where you
+  // were (expo-router/React Navigation don't reset a tab's state just because its icon was
+  // tapped again) — tapping Learn should always mean "take me back to the subject picker", the
+  // same way tapping a tab icon again resets most apps' tabs to their root screen.
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener("tabPress", () => {
+      if (active) {
+        setActive(null);
+        setPlayingId(null);
+        setPreviewExhaustedSubject(null);
+      }
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, active]);
 
   async function openSubject(subject: any) {
     setActive(subject);
@@ -275,7 +292,7 @@ export default function LearnScreen() {
                 <Text style={{ fontSize: 11, color: colors.muted }}>{pct}%</Text>
               </View>
               <View style={{ height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
-                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.highlight }} />
+                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.teal }} />
               </View>
               {tier && (
                 <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
@@ -302,7 +319,7 @@ export default function LearnScreen() {
                   <View
                     style={{
                       width: 4, height: 20, borderRadius: 2,
-                      backgroundColor: completed.has(lessons[i - 1].id) ? colors.highlight : "rgba(0,0,0,0.1)",
+                      backgroundColor: completed.has(lessons[i - 1].id) ? colors.teal : "rgba(0,0,0,0.1)",
                     }}
                   />
                 </View>
@@ -316,9 +333,9 @@ export default function LearnScreen() {
                   <View
                     style={{
                       width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-                      backgroundColor: done ? "#E85D5D" : isCurrent ? colors.highlight : "transparent",
+                      backgroundColor: done ? "#E85D5D" : isCurrent ? colors.teal : "transparent",
                       borderWidth: done || isCurrent ? 0 : 2, borderColor: "#E85D5D",
-                      shadowColor: isCurrent ? colors.highlight : "transparent",
+                      shadowColor: isCurrent ? colors.teal : "transparent",
                       shadowOpacity: isCurrent ? 0.5 : 0,
                       shadowRadius: isCurrent ? 6 : 0,
                       elevation: isCurrent ? 3 : 0,
@@ -500,8 +517,14 @@ export default function LearnScreen() {
             }
             return (
               <TouchableOpacity key={card.id} onPress={() => openSubject(subject)} style={{ alignItems: "center", gap: 10 }}>
-                <View style={{ width: card.size, height: card.size, borderRadius: card.size / 2, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 3, backgroundColor: TILE_BG[card.id] ?? colors.accent, alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ fontSize: card.size * 0.32 }}>{ICONS[card.id] ?? "⭐"}</Text>
+                <View style={{ width: card.size, height: card.size, borderRadius: card.size / 2, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 3, backgroundColor: colors.accent }}>
+                  {THUMBNAILS[card.id] ? (
+                    <Image source={THUMBNAILS[card.id]} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                  ) : (
+                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: card.size * 0.32 }}>{ICONS[card.id] ?? "⭐"}</Text>
+                    </View>
+                  )}
                   {subjectTier[card.id] && (
                     <View
                       style={{

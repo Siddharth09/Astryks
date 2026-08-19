@@ -207,16 +207,24 @@ export default function PostCard({
           </Link>
           <SaveButton postId={post.id} currentUserId={currentUserId} />
           <div className="ml-auto flex items-center gap-3">
-            {(post.type === "photo" || post.type === "video") && (
-              <button
-                onClick={() => setPrizeOpen(true)}
-                className="hover:text-ink"
-                title="Creative prize"
-                aria-label="About the Creative Prize"
-              >
-                🏆
-              </button>
-            )}
+            {/* `prizeEligible` is set true on nearly every photo/video post the moment it's
+                created (see nominateForPrize in functions/index.js) — it means "entered," not
+                "in the running to actually win." Only show the trophy once a post has crossed
+                the 30-like qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and isn't opted out,
+                so it isn't just noise on every single post. */}
+            {(post.type === "photo" || post.type === "video") &&
+              post.prizeEligible &&
+              !post.prizeOptOut &&
+              (post.likeCount ?? 0) >= 30 && (
+                <button
+                  onClick={() => setPrizeOpen(true)}
+                  className="hover:text-ink"
+                  title="Creative prize"
+                  aria-label="About the Creative Prize"
+                >
+                  🏆
+                </button>
+              )}
             <ShareMenu postId={post.id} title={post.title} />
           </div>
         </div>

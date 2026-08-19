@@ -522,6 +522,30 @@ exports.fetchLinkPreview = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "This URL can't be previewed.");
   }
 
+  // YouTube's own watch pages are unreliable to scrape for og:image — Google frequently serves
+  // a cookie-consent interstitial (no real thumbnail in it) instead of the actual video page to
+  // a server-side fetch with no existing consent cookies, which is exactly what was causing
+  // YouTube links to post with no thumbnail. YouTube's oEmbed endpoint is built for exactly this
+  // use case (link previews) and always returns the real title/thumbnail directly as JSON, no
+  // HTML-scraping or consent-wall involved. Host is hardcoded to youtube.com, not user-supplied,
+  // so this doesn't need the SSRF-safe pinned-IP handling the generic path below requires.
+  const youtubeHost = parsedUrl.hostname.replace(/^www\.|^m\./, "");
+  if (youtubeHost === "youtube.com" || youtubeHost === "youtu.be") {
+    try {
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (oembedRes.ok) {
+        const oembed = await oembedRes.json();
+        return {
+          title: (oembed.title || url).slice(0, 200),
+          image: oembed.thumbnail_url || null,
+          domain: parsedUrl.hostname,
+        };
+      }
+    } catch {
+      // Fall through to the generic scraper below rather than fail the whole preview.
+    }
+  }
+
   const pinnedIp = await resolveAndValidateHostname(parsedUrl.hostname);
   if (!pinnedIp) {
     // Either the hostname didn't resolve, or one of its addresses is private/loopback/
@@ -1715,6 +1739,11 @@ function serializePost(doc) {
   };
 }
 
+// The `post.visibility !== "private" || post.ownerId === callerUid` clause here is specifically
+// for profile-style views (getUserPosts) where seeing your own private posts on your own
+// profile is the whole point. getFeed below deliberately does NOT rely on that clause — the
+// general public feed should never show a private post, including the owner's own, so it adds
+// its own unconditional private-post exclusion on top of this.
 function isVisibleTo(post, callerUid, blockedSet) {
   if (post.moderationStatus === "flagged" && post.ownerId !== callerUid) return false;
   if (blockedSet && blockedSet.has(post.ownerId)) return false;
@@ -1744,7 +1773,13 @@ exports.getFeed = onCall(async (request) => {
     db.collection("posts").orderBy("createdAt", "desc").limit(FEED_PAGE_LIMIT).get(),
     getBlockedSet(callerUid),
   ]);
-  const posts = snap.docs.map(serializePost).filter((p) => isVisibleTo(p, callerUid, blockedSet));
+  // Private posts never belong in the general public feed — not even the owner's own. (Their
+  // own profile page, via getUserPosts below, is where they see those.) This was previously
+  // missing, so making a post "Private" only hid it from other users, not from showing up in
+  // your own Home feed right alongside everything public.
+  const posts = snap.docs
+    .map(serializePost)
+    .filter((p) => p.visibility !== "private" && isVisibleTo(p, callerUid, blockedSet));
   return { posts };
 });
 

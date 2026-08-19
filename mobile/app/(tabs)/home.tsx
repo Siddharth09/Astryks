@@ -216,8 +216,13 @@ export default function HomeScreen() {
         )
       );
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.paper }}>
+  // Everything above the post list used to be rendered as fixed siblings next to the FlatList,
+  // so only the posts themselves scrolled — swiping down on a photo just scrolled that one card
+  // instead of moving through the feed, since half the screen (header, banner, composer,
+  // search, suggestions) never moved. Moving all of it into ListHeaderComponent makes the whole
+  // screen one continuous scrollable list, the way Instagram's feed works.
+  const listHeader = (
+    <>
       <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", alignItems: "center", gap: 8 }}>
         <BrandMark size={24} />
         <Text style={{ fontSize: 18, fontWeight: "700" }}>Astryks</Text>
@@ -324,21 +329,31 @@ export default function HomeScreen() {
       </View>
 
       {scope === "everyone" && <SuggestionsRow currentUserId={user.uid} />}
+    </>
+  );
 
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.paper }}>
       <FlatList
         data={visiblePosts}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: 30 }}
+        ListHeaderComponent={listHeader}
         renderItem={({ item }) => (
-          <PostCard
-            post={item}
-            currentUserId={user.uid}
-            isActive={item.id === activeId}
-            onDeleted={(id) => {
-              setAllPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
-              setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
-            }}
-          />
+          // Horizontal padding lives here (on each post) rather than on contentContainerStyle,
+          // since the header sections above already carry their own padding — putting it on the
+          // shared container too would double it up for the header content.
+          <View style={{ paddingHorizontal: 16 }}>
+            <PostCard
+              post={item}
+              currentUserId={user.uid}
+              isActive={item.id === activeId}
+              onDeleted={(id) => {
+                setAllPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+                setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+              }}
+            />
+          </View>
         )}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
