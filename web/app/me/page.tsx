@@ -18,6 +18,15 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { useRouter } from "next/navigation";
 import { db, storage, functions } from "@/lib/firebase";
+import { useResizedImageUrl } from "@/lib/resizedImage";
+
+// Small grid thumbnail — needs its own component (not inline in a .map()) since it calls a hook
+// to swap in the resized 800x800 WebP copy once available, falling back to the full-res original.
+function PostThumb({ post }: { post: any }) {
+  const displayUrl = useResizedImageUrl(post.mediaPath, post.mediaUrl);
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={displayUrl} alt="" className="w-full h-full object-cover" />;
+}
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { signOut, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -515,8 +524,7 @@ export default function MePage() {
                   className="aspect-square rounded-lg overflow-hidden bg-ink flex items-center justify-center relative"
                 >
                   {p.type === "photo" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.mediaUrl} alt="" className="w-full h-full object-cover" />
+                    <PostThumb post={p} />
                   ) : (
                     <span className="text-white text-xl">▶</span>
                   )}
@@ -591,8 +599,7 @@ export default function MePage() {
           {saved.map((p) => (
             <Link key={p.id} href={`/post/${p.id}`} className="aspect-square rounded-lg overflow-hidden bg-ink flex items-center justify-center">
               {p.type === "photo" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.mediaUrl} alt="" className="w-full h-full object-cover" />
+                <PostThumb post={p} />
               ) : (
                 <span className="text-white text-xl">{p.type === "link" ? "🔗" : "▶"}</span>
               )}

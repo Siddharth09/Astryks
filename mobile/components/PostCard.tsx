@@ -14,6 +14,7 @@ import ReportModal from "@/components/ReportModal";
 import PrizeInfoModal from "@/components/PrizeInfoModal";
 import ShareMenu from "@/components/ShareMenu";
 import { colors } from "@/lib/styles";
+import { useResizedImageUrl } from "@/lib/resizedImage";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const submitReportFn = httpsCallable(functions, "submitReport");
@@ -39,6 +40,7 @@ export default function PostCard({
   const [optedInOverride, setOptedInOverride] = useState(false);
   const prizeOptOut = post.prizeOptOut && !optedInOverride;
   const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
+  const displayMediaUrl = useResizedImageUrl(post.type === "photo" ? post.mediaPath : null, post.mediaUrl);
 
   async function handleReport(reason: string, details: string) {
     await submitReportFn({ targetType: "post", targetId: post.id, reason, details });
@@ -127,7 +129,7 @@ export default function PostCard({
             </TouchableOpacity>
           </View>
         )}
-        {post.type === "photo" && <Image source={{ uri: post.mediaUrl }} style={s.media} />}
+        {post.type === "photo" && <Image source={{ uri: displayMediaUrl }} style={s.media} />}
         {post.type === "text" && (
           <View style={{ padding: 16 }}>
             <Text style={{ fontSize: 17, fontWeight: "700", color: colors.ink }}>{post.body}</Text>

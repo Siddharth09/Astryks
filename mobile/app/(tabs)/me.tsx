@@ -18,6 +18,14 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { signOut, updateProfile } from "firebase/auth";
 import { db, auth, storage, functions } from "@/lib/firebase";
+import { useResizedImageUrl } from "@/lib/resizedImage";
+
+// Small grid thumbnail — needs its own component (not inline in a .map()) since it calls a hook
+// to swap in the resized 800x800 WebP copy once available, falling back to the full-res original.
+function PostThumb({ post }: { post: any }) {
+  const displayUrl = useResizedImageUrl(post.mediaPath, post.mediaUrl);
+  return <Image source={{ uri: displayUrl }} style={{ width: "100%", height: "100%" }} />;
+}
 import ReferralAndBilling from "@/components/ReferralAndBilling";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
@@ -510,7 +518,7 @@ export default function MeScreen() {
                 style={{ width: "31.5%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.ink }}
               >
                 {p.type === "photo" ? (
-                  <Image source={{ uri: p.mediaUrl }} style={{ width: "100%", height: "100%" }} />
+                  <PostThumb post={p} />
                 ) : (
                   <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                     <Text style={{ color: "white" }}>▶</Text>
@@ -594,7 +602,7 @@ export default function MeScreen() {
               style={{ width: "31.5%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
             >
               {p.type === "photo" ? (
-                <Image source={{ uri: p.mediaUrl }} style={{ width: "100%", height: "100%" }} />
+                <PostThumb post={p} />
               ) : (
                 <Text style={{ color: "white" }}>{p.type === "link" ? "🔗" : "▶"}</Text>
               )}

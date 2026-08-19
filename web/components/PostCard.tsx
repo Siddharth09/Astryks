@@ -13,6 +13,7 @@ import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
 import PrizeInfoModal from "@/components/PrizeInfoModal";
 import ShareMenu from "@/components/ShareMenu";
+import { useResizedImageUrl } from "@/lib/resizedImage";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const submitReportFn = httpsCallable(functions, "submitReport");
@@ -38,6 +39,7 @@ export default function PostCard({
   const [optedInOverride, setOptedInOverride] = useState(false);
   const prizeOptOut = post.prizeOptOut && !optedInOverride;
   const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
+  const displayMediaUrl = useResizedImageUrl(post.type === "photo" ? post.mediaPath : null, post.mediaUrl);
 
   async function handleReport(reason: string, details: string) {
     await submitReportFn({ targetType: "post", targetId: post.id, reason, details });
@@ -144,7 +146,7 @@ export default function PostCard({
         )}
         {post.type === "photo" && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.mediaUrl} alt={post.title || "Post"} loading="lazy" className="w-full aspect-video object-cover bg-ink" />
+          <img src={displayMediaUrl} alt={post.title || "Post"} loading="lazy" className="w-full aspect-video object-cover bg-ink" />
         )}
         {post.type === "text" && (
           <p className="font-display text-lg font-bold p-4 whitespace-pre-wrap">{post.body}</p>
