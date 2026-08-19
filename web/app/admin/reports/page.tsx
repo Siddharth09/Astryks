@@ -10,6 +10,7 @@ import { isAdmin } from "@/lib/admin";
 const getReportsFn = httpsCallable(functions, "getReports");
 const resolveReportFn = httpsCallable(functions, "resolveReport");
 const backfillLessonPlaybackFn = httpsCallable(functions, "backfillLessonPlayback");
+const backfillYoutubeLinkPreviewsFn = httpsCallable(functions, "backfillYoutubeLinkPreviews");
 const sendTestWelcomeEmailFn = httpsCallable(functions, "sendTestWelcomeEmail");
 
 const TARGET_LABELS: Record<string, string> = { post: "Post", comment: "Comment", user: "User" };
@@ -21,6 +22,8 @@ export default function AdminReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState<string | null>(null);
+  const [backfillingYoutube, setBackfillingYoutube] = useState(false);
+  const [youtubeBackfillResult, setYoutubeBackfillResult] = useState<string | null>(null);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
 
@@ -58,6 +61,23 @@ export default function AdminReportsPage() {
       setMigrateResult(`Error: ${err.message ?? "Something went wrong."}`);
     } finally {
       setMigrating(false);
+    }
+  }
+
+  // One-time maintenance action — refetches thumbnails for YouTube link posts shared before
+  // fetchLinkPreview switched to the oEmbed API, which were stuck blank from the old HTML
+  // scraper hitting Google's cookie-consent interstitial. Safe to click more than once.
+  async function handleBackfillYoutube() {
+    setBackfillingYoutube(true);
+    setYoutubeBackfillResult(null);
+    try {
+      const result = await backfillYoutubeLinkPreviewsFn();
+      const { checked, fixed } = result.data as any;
+      setYoutubeBackfillResult(`Done — checked ${checked} YouTube post${checked === 1 ? "" : "s"}, fixed ${fixed}.`);
+    } catch (err: any) {
+      setYoutubeBackfillResult(`Error: ${err.message ?? "Something went wrong."}`);
+    } finally {
+      setBackfillingYoutube(false);
     }
   }
 
@@ -110,6 +130,23 @@ export default function AdminReportsPage() {
           {migrating ? "Running…" : "Run migration"}
         </button>
         {migrateResult && <p className="text-xs text-ink/60 mt-2">{migrateResult}</p>}
+      </div>
+
+      <div className="card p-4 mb-6 bg-paper/60">
+        <p className="text-sm font-medium mb-1">One-time maintenance: YouTube link thumbnails</p>
+        <p className="text-xs text-ink/50 mb-3">
+          Refetches thumbnails for YouTube links shared before we switched to YouTube's oEmbed
+          API — those are stuck with a blank placeholder. New links handle this automatically.
+          Safe to click more than once.
+        </p>
+        <button
+          onClick={handleBackfillYoutube}
+          disabled={backfillingYoutube}
+          className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+        >
+          {backfillingYoutube ? "Running…" : "Run migration"}
+        </button>
+        {youtubeBackfillResult && <p className="text-xs text-ink/60 mt-2">{youtubeBackfillResult}</p>}
       </div>
 
       <div className="card p-4 mb-6 bg-paper/60">

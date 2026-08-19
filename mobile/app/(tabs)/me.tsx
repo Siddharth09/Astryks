@@ -569,7 +569,13 @@ export default function MeScreen() {
                 onPress={() => router.push(`/post/${l.id}`)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 10 }}
               >
-                <Text style={{ fontSize: 18 }}>🔗</Text>
+                {l.linkImage ? (
+                  <Image source={{ uri: l.linkImage }} style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: colors.ink }} />
+                ) : (
+                  <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: colors.brandLight, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 18 }}>🔗</Text>
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, color: colors.muted }}>{l.linkDomain}</Text>
                   <Text style={{ fontSize: 16, fontWeight: "600" }} numberOfLines={1}>{l.linkTitle}</Text>

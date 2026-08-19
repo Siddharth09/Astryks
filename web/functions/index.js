@@ -579,6 +579,47 @@ exports.fetchLinkPreview = onCall(async (request) => {
   return { title: title.slice(0, 200), image, domain: parsedUrl.hostname };
 });
 
+// One-time maintenance callable: existing YouTube link posts shared before fetchLinkPreview
+// started using the oEmbed API (see above) are stuck with whatever null/broken image the old
+// HTML-scraping approach got from Google's cookie-consent interstitial. Re-fetches just those
+// via oEmbed and fixes them in place. Safe to run more than once — skips anything that already
+// has a linkImage. Admin-only; trigger it once from the browser console, same as
+// backfillLessonPlayback/backfillPostVisibility elsewhere in this file.
+exports.backfillYoutubeLinkPreviews = onCall(async (request) => {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const snap = await db.collection("posts").where("type", "==", "link").get();
+  let fixed = 0;
+  let checked = 0;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (data.linkImage || !data.linkUrl) continue;
+    let hostname;
+    try {
+      hostname = new URL(data.linkUrl).hostname.replace(/^www\.|^m\./, "");
+    } catch {
+      continue;
+    }
+    if (hostname !== "youtube.com" && hostname !== "youtu.be") continue;
+    checked++;
+    try {
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(data.linkUrl)}&format=json`);
+      if (!oembedRes.ok) continue;
+      const oembed = await oembedRes.json();
+      if (!oembed.thumbnail_url) continue;
+      await doc.ref.update({
+        linkImage: oembed.thumbnail_url,
+        linkTitle: (oembed.title || data.linkTitle || data.linkUrl).slice(0, 200),
+      });
+      fixed++;
+    } catch {
+      // Leave this one as-is and keep going — a single bad video shouldn't stop the rest.
+    }
+  }
+  return { checked, fixed };
+});
+
 // ---------- Callable: mark a lesson complete ----------
 //
 // This is the ONLY place streaks/xp get earned. Streaks used to also bump on
@@ -1225,6 +1266,39 @@ exports.optOutOfPrize = onCall(async (request) => {
     post.ownerName,
     "No worries — that post has been pulled out of this month's creative prize draw. Message us here if you ever change your mind."
   );
+  return { ok: true };
+});
+
+// Reverses optOutOfPrize above — was previously a one-way door with no way back in short of
+// contacting support. Re-entry is free and immediate (matching how entry works for every other
+// post — see the big comment on nominateForPrize), so this just flips the same two fields back.
+exports.optInToPrize = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const postId = request.data?.postId;
+  if (!postId) {
+    throw new HttpsError("invalid-argument", "postId is required.");
+  }
+
+  const postRef = db.doc(`posts/${postId}`);
+  const postSnap = await postRef.get();
+  if (!postSnap.exists) {
+    throw new HttpsError("not-found", "This post no longer exists.");
+  }
+  const post = postSnap.data();
+  if (post.ownerId !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "Only the post's owner can opt it back into the prize.");
+  }
+  if (!["photo", "video"].includes(post.type)) {
+    throw new HttpsError("failed-precondition", "Only photo and video posts can enter the creative prize.");
+  }
+
+  if (!post.prizeOptOut) {
+    return { ok: true, alreadyOptedIn: true };
+  }
+
+  await postRef.set({ prizeOptOut: false, prizeEligible: true }, { merge: true });
   return { ok: true };
 });
 

@@ -569,7 +569,12 @@ export default function MePage() {
             <div className="space-y-2">
               {links.map((l) => (
                 <Link key={l.id} href={`/post/${l.id}`} className="flex items-center gap-3 border border-line/15 rounded-xl p-3">
-                  <div className="w-10 h-10 rounded-lg bg-brandLight flex items-center justify-center">🔗</div>
+                  {l.linkImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={l.linkImage} alt="" className="w-12 h-12 rounded-lg object-cover bg-ink flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-brandLight flex items-center justify-center flex-shrink-0">🔗</div>
+                  )}
                   <div className="min-w-0">
                     <p className="text-xs text-ink/50">{l.linkDomain}</p>
                     <p className="text-sm font-medium truncate">{l.linkTitle}</p>

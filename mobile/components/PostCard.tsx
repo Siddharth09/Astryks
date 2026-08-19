@@ -34,6 +34,10 @@ export default function PostCard({
   const [deleting, setDeleting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [prizeOpen, setPrizeOpen] = useState(false);
+  // Optimistic local override so opting back in updates the trophy/modal immediately — `post`
+  // is a prop from the parent's feed data, which won't itself refresh until the next reload.
+  const [optedInOverride, setOptedInOverride] = useState(false);
+  const prizeOptOut = post.prizeOptOut && !optedInOverride;
   const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
 
   async function handleReport(reason: string, details: string) {
@@ -130,19 +134,20 @@ export default function PostCard({
           </View>
         )}
         {post.type === "link" && (
-          // Full-width preview banner, same size as photo/video posts (s.media) — matches web
-          // and reads as a proper link-preview card instead of a small bookmark-list row.
-          <View>
+          // Compact card, not a full-size banner — photos/videos are the "large" content in the
+          // feed (Instagram-style), and a shared link is a small aside next to that, not a
+          // same-size peer. Fixed small thumbnail + title/domain in a row.
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12 }}>
             {post.linkImage ? (
-              <Image source={{ uri: post.linkImage }} style={s.media} />
+              <Image source={{ uri: post.linkImage }} style={s.linkThumb} />
             ) : (
-              <View style={[s.media, { alignItems: "center", justifyContent: "center", backgroundColor: colors.brandLight }]}>
-                <Text style={{ fontSize: 32 }}>🔗</Text>
+              <View style={[s.linkThumb, { alignItems: "center", justifyContent: "center", backgroundColor: colors.brandLight }]}>
+                <Text style={{ fontSize: 22 }}>🔗</Text>
               </View>
             )}
-            <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
-              <Text style={{ fontSize: 14, color: colors.muted }}>{post.linkDomain}</Text>
-              <Text style={{ fontSize: 16, fontWeight: "600" }} numberOfLines={1}>{post.linkTitle}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: colors.muted }}>{post.linkDomain}</Text>
+              <Text style={{ fontSize: 15, fontWeight: "600" }} numberOfLines={1}>{post.linkTitle}</Text>
             </View>
           </View>
         )}
@@ -186,11 +191,12 @@ export default function PostCard({
               (see nominateForPrize in functions/index.js) — it means "entered", not "in the
               running to actually win." Showing the trophy on every single post made it
               meaningless noise; only show it once a post has actually crossed the 30-like
-              qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and hasn't been opted out. */}
+              qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and hasn't been opted out — EXCEPT
+              for the post's own owner, who can still tap in on an opted-out post to opt back in
+              (otherwise opting out became a one-way door with no UI left to undo it from here). */}
           {(post.type === "photo" || post.type === "video") &&
-            post.prizeEligible &&
-            !post.prizeOptOut &&
-            (post.likeCount ?? 0) >= 30 && (
+            ((post.prizeEligible && !prizeOptOut && (post.likeCount ?? 0) >= 30) ||
+              (prizeOptOut && currentUserId === post.ownerId)) && (
               <TouchableOpacity onPress={() => setPrizeOpen(true)}>
                 <Text style={{ fontSize: 17 }}>🏆</Text>
               </TouchableOpacity>
@@ -202,9 +208,11 @@ export default function PostCard({
       <PrizeInfoModal
         visible={prizeOpen}
         onClose={() => setPrizeOpen(false)}
+        postId={post.id}
         likeCount={post.likeCount ?? 0}
         eligible={post.prizeEligible}
-        optedOut={post.prizeOptOut}
+        optedOut={prizeOptOut}
+        onOptedIn={() => setOptedInOverride(true)}
       />
     </View>
   );
@@ -213,6 +221,7 @@ export default function PostCard({
 const s = StyleSheet.create({
   card: { backgroundColor: "white", borderRadius: 16, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: colors.line },
   media: { width: "100%", height: 220, backgroundColor: colors.ink },
+  linkThumb: { width: 64, height: 64, borderRadius: 10, backgroundColor: colors.ink },
   body: { padding: 14 },
   meta: { color: colors.muted, fontSize: 14, marginBottom: 6 },
   title: { fontSize: 16, fontWeight: "600", color: colors.ink, marginBottom: 8 },

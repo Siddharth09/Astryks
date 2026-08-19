@@ -1,6 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
+
+const optInToPrizeFn = httpsCallable(functions, "optInToPrize");
 
 const THRESHOLD = 30;
 
@@ -13,24 +18,46 @@ function daysLeftInMonth() {
 export default function PrizeInfoModal({
   open,
   onClose,
+  postId,
   likeCount = 0,
   eligible,
   optedOut,
   generic,
+  onOptedIn,
 }: {
   open: boolean;
   onClose: () => void;
+  // Required to actually call optInToPrize below — only missing when generic is true (shown
+  // from the composer before a post exists yet), in which case optedOut is never true anyway.
+  postId?: string;
   likeCount?: number;
   eligible?: boolean;
   optedOut?: boolean;
   // Pass true when there's no post yet (e.g. shown from the composer, before posting) —
   // skips the per-post progress bar/eligible/opted-out states in favour of a plain explainer.
   generic?: boolean;
+  // Lets the parent (which holds the actual post data) clear its own optedOut flag once this
+  // succeeds, since this modal doesn't own that state itself.
+  onOptedIn?: () => void;
 }) {
+  const [optingIn, setOptingIn] = useState(false);
   if (!open) return null;
 
   const pct = Math.min(100, Math.round((likeCount / THRESHOLD) * 100));
   const daysLeft = daysLeftInMonth();
+
+  async function handleOptIn() {
+    if (!postId || optingIn) return;
+    setOptingIn(true);
+    try {
+      await optInToPrizeFn({ postId });
+      onOptedIn?.();
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't opt back in — please try again.");
+    } finally {
+      setOptingIn(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -67,9 +94,16 @@ export default function PrizeInfoModal({
         {generic ? null : optedOut ? (
           <div className="rounded-xl bg-ink/5 px-4 py-3 mb-4">
             <p className="text-sm font-medium">You've opted this post out</p>
-            <p className="text-xs text-ink/60 mt-1">
-              It won't be entered into this month's draw. Message us if you change your mind.
+            <p className="text-xs text-ink/60 mt-1 mb-3">
+              It won't be entered into this month's draw.
             </p>
+            <button
+              onClick={handleOptIn}
+              disabled={optingIn}
+              className="bg-ink text-white text-xs font-semibold rounded-full px-4 py-2 disabled:opacity-60"
+            >
+              {optingIn ? "Opting back in…" : "Opt back in"}
+            </button>
           </div>
         ) : eligible ? (
           <div className="rounded-xl bg-brandLight px-4 py-3 mb-4">

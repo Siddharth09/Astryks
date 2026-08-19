@@ -101,9 +101,14 @@ export default function HomeScreen() {
   }, [scope, allPosts, user]);
 
   async function pickMedia() {
+    // Was quality: 1 (uncompressed) — a modern phone photo at full quality can be 5-10MB+,
+    // meaning every single photo post in the feed had to fully download that before it could
+    // even display, no resizing or thumbnail anywhere in the pipeline. 0.7 matches what me.tsx
+    // already uses for profile photos and cuts typical file size dramatically with no visible
+    // quality loss at feed-card size.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 1,
+      quality: 0.7,
     });
     if (result.canceled || !user) return;
     const asset = result.assets[0];

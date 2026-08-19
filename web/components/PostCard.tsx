@@ -33,6 +33,10 @@ export default function PostCard({
   const [reportOpen, setReportOpen] = useState(false);
   const [prizeOpen, setPrizeOpen] = useState(false);
   const [messaging, setMessaging] = useState(false);
+  // Optimistic local override so opting back in updates the trophy/modal immediately — `post`
+  // is a prop from the parent's feed data, which won't itself refresh until the next reload.
+  const [optedInOverride, setOptedInOverride] = useState(false);
+  const prizeOptOut = post.prizeOptOut && !optedInOverride;
   const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
 
   async function handleReport(reason: string, details: string) {
@@ -146,23 +150,21 @@ export default function PostCard({
           <p className="font-display text-lg font-bold p-4 whitespace-pre-wrap">{post.body}</p>
         )}
         {post.type === "link" && (
-          // Full-width preview banner (same aspect ratio as photo/video posts) instead of a
-          // small 56px thumbnail crammed next to the title — this is what makes a shared YouTube
-          // link actually read as a proper preview card rather than a bookmark-list row.
-          <div>
+          // Compact card, not a full-size banner — photos/videos are the "large" content in the
+          // feed (Instagram-style), and a shared link is a small aside next to that, not a
+          // same-size peer. Fixed small thumbnail + title/domain in a row.
+          <div className="flex items-center gap-3 p-3">
             {post.linkImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.linkImage} alt="" className="w-full aspect-video object-cover bg-ink" />
+              <img src={post.linkImage} alt="" className="w-16 h-16 rounded-lg object-cover bg-ink flex-shrink-0" />
             ) : (
-              <div className="w-full aspect-video bg-brandLight flex items-center justify-center text-4xl">
+              <div className="w-16 h-16 rounded-lg bg-brandLight flex items-center justify-center text-2xl flex-shrink-0">
                 🔗
               </div>
             )}
-            <div className="flex items-center gap-2 px-3 py-2 border-t border-line/10">
-              <div className="min-w-0">
-                <p className="text-xs text-ink/50 truncate">{post.linkDomain}</p>
-                <p className="text-sm font-medium truncate">{post.linkTitle || post.linkUrl}</p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs text-ink/50 truncate">{post.linkDomain}</p>
+              <p className="text-sm font-medium truncate">{post.linkTitle || post.linkUrl}</p>
             </div>
           </div>
         )}
@@ -210,12 +212,13 @@ export default function PostCard({
             {/* `prizeEligible` is set true on nearly every photo/video post the moment it's
                 created (see nominateForPrize in functions/index.js) — it means "entered," not
                 "in the running to actually win." Only show the trophy once a post has crossed
-                the 30-like qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and isn't opted out,
-                so it isn't just noise on every single post. */}
+                the 30-like qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and isn't opted out
+                — EXCEPT for the post's own owner, who can still tap in on an opted-out post to
+                opt back in (otherwise opting out became a one-way door with no way to undo it
+                from here). */}
             {(post.type === "photo" || post.type === "video") &&
-              post.prizeEligible &&
-              !post.prizeOptOut &&
-              (post.likeCount ?? 0) >= 30 && (
+              ((post.prizeEligible && !prizeOptOut && (post.likeCount ?? 0) >= 30) ||
+                (prizeOptOut && currentUserId === post.ownerId)) && (
                 <button
                   onClick={() => setPrizeOpen(true)}
                   className="hover:text-ink"
@@ -233,9 +236,11 @@ export default function PostCard({
       <PrizeInfoModal
         open={prizeOpen}
         onClose={() => setPrizeOpen(false)}
+        postId={post.id}
         likeCount={post.likeCount ?? 0}
         eligible={post.prizeEligible}
-        optedOut={post.prizeOptOut}
+        optedOut={prizeOptOut}
+        onOptedIn={() => setOptedInOverride(true)}
       />
     </article>
   );

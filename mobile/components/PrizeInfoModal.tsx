@@ -1,6 +1,11 @@
-import { Modal, View, Text, TouchableOpacity } from "react-native";
+import { useState } from "react";
+import { Modal, View, Text, TouchableOpacity, Alert } from "react-native";
 import { router } from "expo-router";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
 import { colors } from "@/lib/styles";
+
+const optInToPrizeFn = httpsCallable(functions, "optInToPrize");
 
 const THRESHOLD = 30;
 
@@ -13,22 +18,44 @@ function daysLeftInMonth() {
 export default function PrizeInfoModal({
   visible,
   onClose,
+  postId,
   likeCount = 0,
   eligible,
   optedOut,
   generic,
+  onOptedIn,
 }: {
   visible: boolean;
   onClose: () => void;
+  // Required to actually call optInToPrize below — only missing when generic is true (shown
+  // from the composer before a post exists yet), in which case optedOut is never true anyway.
+  postId?: string;
   likeCount?: number;
   eligible?: boolean;
   optedOut?: boolean;
   // Pass true when there's no post yet (e.g. shown from the composer, before posting) —
   // skips the per-post progress bar/eligible/opted-out states in favour of a plain explainer.
   generic?: boolean;
+  // Lets the parent (which holds the actual post data) clear its own optedOut flag once this
+  // succeeds, since this modal doesn't own that state itself.
+  onOptedIn?: () => void;
 }) {
   const pct = Math.min(100, Math.round((likeCount / THRESHOLD) * 100));
   const daysLeft = daysLeftInMonth();
+  const [optingIn, setOptingIn] = useState(false);
+
+  async function handleOptIn() {
+    if (!postId || optingIn) return;
+    setOptingIn(true);
+    try {
+      await optInToPrizeFn({ postId });
+      onOptedIn?.();
+    } catch (err: any) {
+      Alert.alert("Couldn't opt back in", err.message ?? "Please try again.");
+    } finally {
+      setOptingIn(false);
+    }
+  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -66,9 +93,18 @@ export default function PrizeInfoModal({
           {generic ? null : optedOut ? (
             <View style={{ backgroundColor: colors.paper, borderRadius: 12, padding: 12, marginBottom: 16 }}>
               <Text style={{ fontSize: 15, fontWeight: "600" }}>You've opted this post out</Text>
-              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
-                It won't be entered into this month's draw. Message us if you change your mind.
+              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 10 }}>
+                It won't be entered into this month's draw.
               </Text>
+              <TouchableOpacity
+                onPress={handleOptIn}
+                disabled={optingIn}
+                style={{ alignSelf: "flex-start", backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, opacity: optingIn ? 0.6 : 1 }}
+              >
+                <Text style={{ color: "white", fontSize: 13, fontWeight: "600" }}>
+                  {optingIn ? "Opting back in…" : "Opt back in"}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : eligible ? (
             <View style={{ backgroundColor: colors.brandLight, borderRadius: 12, padding: 12, marginBottom: 16 }}>
