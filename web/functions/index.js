@@ -1835,18 +1835,32 @@ async function getBlockedSet(uid) {
   return new Set([...(data.blockedUserIds || []), ...(data.blockedByUserIds || [])]);
 }
 
-// Capped so this can't be used to force a full unbounded collection scan on every call (an
-// unauthenticated caller could otherwise hit this repeatedly as the post count grows, driving
-// up Firestore read costs with no bound at all). 500 is comfortably above today's post volume;
-// revisit with real cursor-based pagination in the client once the app has more posts than that.
+// Used by getUserPosts (profile view) below, which isn't paginated — a single profile's own
+// post count is naturally bounded enough that 500 is still a reasonable cap there.
 const FEED_PAGE_LIMIT = 500;
+
+// getFeed itself IS cursor-paginated (see below) — this is just its page size. Was previously
+// fetching all 500 posts (FEED_PAGE_LIMIT) on every single Home load regardless of how many the
+// screen actually shows, which is a big part of why Home was slow to load as post volume grew.
+const FEED_PAGE_SIZE = 20;
 
 exports.getFeed = onCall(async (request) => {
   const callerUid = request.auth?.uid || null;
-  const [snap, blockedSet] = await Promise.all([
-    db.collection("posts").orderBy("createdAt", "desc").limit(FEED_PAGE_LIMIT).get(),
-    getBlockedSet(callerUid),
-  ]);
+  const cursorId = request.data?.cursor;
+  // Callers can ask for a bigger page (e.g. the "Following" scope, which filters this same feed
+  // client-side and needs a wider sample to find enough matches) — capped well below the old
+  // fixed 500 so a caller can't force a full unbounded scan.
+  const pageSize = Math.min(Math.max(Number(request.data?.pageSize) || FEED_PAGE_SIZE, 1), 100);
+
+  let query = db.collection("posts").orderBy("createdAt", "desc").limit(pageSize);
+  if (cursorId) {
+    const cursorSnap = await db.doc(`posts/${cursorId}`).get();
+    if (cursorSnap.exists) {
+      query = query.startAfter(cursorSnap);
+    }
+  }
+
+  const [snap, blockedSet] = await Promise.all([query.get(), getBlockedSet(callerUid)]);
   // Private posts never belong in the general public feed — not even the owner's own. (Their
   // own profile page, via getUserPosts below, is where they see those.) This was previously
   // missing, so making a post "Private" only hid it from other users, not from showing up in
@@ -1854,7 +1868,12 @@ exports.getFeed = onCall(async (request) => {
   const posts = snap.docs
     .map(serializePost)
     .filter((p) => p.visibility !== "private" && isVisibleTo(p, callerUid, blockedSet));
-  return { posts };
+
+  // nextCursor is the last RAW doc from this page (before the private/blocked filter above), not
+  // the last post actually returned — otherwise a page that filtered something out would skip
+  // straight past posts the next page should still visit.
+  const lastDoc = snap.docs[snap.docs.length - 1];
+  return { posts, nextCursor: lastDoc ? lastDoc.id : null, hasMore: snap.docs.length === pageSize };
 });
 
 exports.getUserPosts = onCall(async (request) => {

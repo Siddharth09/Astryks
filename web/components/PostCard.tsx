@@ -144,7 +144,7 @@ export default function PostCard({
         )}
         {post.type === "photo" && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.mediaUrl} alt={post.title || "Post"} className="w-full aspect-video object-cover bg-ink" />
+          <img src={post.mediaUrl} alt={post.title || "Post"} loading="lazy" className="w-full aspect-video object-cover bg-ink" />
         )}
         {post.type === "text" && (
           <p className="font-display text-lg font-bold p-4 whitespace-pre-wrap">{post.body}</p>
@@ -156,7 +156,7 @@ export default function PostCard({
           <div className="flex items-center gap-3 p-3">
             {post.linkImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.linkImage} alt="" className="w-16 h-16 rounded-lg object-cover bg-ink flex-shrink-0" />
+              <img src={post.linkImage} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover bg-ink flex-shrink-0" />
             ) : (
               <div className="w-16 h-16 rounded-lg bg-brandLight flex items-center justify-center text-2xl flex-shrink-0">
                 🔗

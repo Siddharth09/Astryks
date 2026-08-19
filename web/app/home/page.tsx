@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
@@ -20,14 +20,25 @@ export default function HomePage() {
   const [posts, setPosts] = useState<any[] | null>(null);
   const [scope, setScope] = useState<"everyone" | "following">("everyone");
   const [searchQuery, setSearchQuery] = useState("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     if (!user) return;
+    setPosts(null);
+    setCursor(null);
+    setHasMore(true);
     // Fetched via a Cloud Function rather than a direct Firestore query: Firestore security
     // rules can't filter a list query, so a broad "all posts" read has to be done server-side
     // (with the Admin SDK) to correctly hide other people's private posts.
-    const result = await getFeed();
-    let all: any[] = (result.data as any).posts;
+    // "Following" filters this same feed client-side, so it asks for a wider page up front
+    // (still capped server-side) rather than the small page "Everyone" pages through — otherwise
+    // it'd usually come back empty since most of a small first page won't be people you follow.
+    const result = await getFeed(scope === "following" ? { pageSize: 100 } : {});
+    const data = result.data as any;
+    let all: any[] = data.posts;
 
     if (scope === "following") {
       const followsSnap = await getDocs(
@@ -38,11 +49,49 @@ export default function HomePage() {
       all = all.filter((p) => followingIds.has(p.ownerId));
     }
     setPosts(all);
+    setCursor(data.nextCursor);
+    setHasMore(data.hasMore);
+  }
+
+  async function loadMore() {
+    if (!user || loadingMore || !hasMore || !cursor) return;
+    setLoadingMore(true);
+    try {
+      const result = await getFeed(scope === "following" ? { cursor, pageSize: 100 } : { cursor });
+      const data = result.data as any;
+      let more: any[] = data.posts;
+      if (scope === "following") {
+        const followsSnap = await getDocs(
+          query(collection(db, "follows"), where("followerId", "==", user.uid))
+        );
+        const followingIds = new Set(followsSnap.docs.map((d) => d.data().followingId));
+        followingIds.add(user.uid);
+        more = more.filter((p) => followingIds.has(p.ownerId));
+      }
+      setPosts((prev) => (prev ? [...prev, ...more] : more));
+      setCursor(data.nextCursor);
+      setHasMore(data.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   useEffect(() => {
     if (user) load();
   }, [user, scope]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) loadMore();
+      },
+      { rootMargin: "600px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [posts, hasMore, loadingMore, cursor, scope, user]);
 
   if (authLoading || !user) {
     return <p className="text-ink/50 text-center py-16">Loading…</p>;
@@ -109,6 +158,11 @@ export default function HomePage() {
               onDeleted={(id) => setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev))}
             />
           ))}
+          {!q && hasMore && (
+            <div ref={sentinelRef} className="py-6 text-center text-xs text-ink/40">
+              {loadingMore ? "Loading more…" : ""}
+            </div>
+          )}
         </div>
       )}
     </div>

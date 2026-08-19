@@ -58,6 +58,9 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [prizeInfoOpen, setPrizeInfoOpen] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -72,13 +75,33 @@ export default function HomeScreen() {
     // Fetched via a Cloud Function rather than a direct Firestore query: Firestore security
     // rules can't filter a list query, so a broad "all posts" read has to be done server-side
     // (with the Admin SDK) to correctly hide other people's private posts.
-    const result = await getFeed();
-    setAllPosts((result.data as any).posts);
+    // "Following" filters this same feed client-side, so it asks for a wider page up front
+    // (still capped server-side) rather than the small page "Everyone" pages through — otherwise
+    // it'd usually come back empty since most of a small first page won't be people you follow.
+    const result = await getFeed(scope === "following" ? { pageSize: 100 } : {});
+    const data = result.data as any;
+    setAllPosts(data.posts);
+    setCursor(data.nextCursor);
+    setHasMore(data.hasMore);
   }
 
   useEffect(() => {
     if (user) load();
-  }, [user]);
+  }, [user, scope]);
+
+  async function loadMore() {
+    if (!user || loadingMore || !hasMore || !cursor) return;
+    setLoadingMore(true);
+    try {
+      const result = await getFeed(scope === "following" ? { cursor, pageSize: 100 } : { cursor });
+      const data = result.data as any;
+      setAllPosts((prev) => (prev ? [...prev, ...data.posts] : data.posts));
+      setCursor(data.nextCursor);
+      setHasMore(data.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function onRefresh() {
     setRefreshing(true);
@@ -363,6 +386,11 @@ export default function HomeScreen() {
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ink} />}
+        onEndReached={searchQ ? undefined : loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? <ActivityIndicator style={{ marginVertical: 20 }} color={colors.ink} /> : null
+        }
         ListEmptyComponent={
           <Text style={{ textAlign: "center", color: colors.muted, marginTop: 40 }}>
             {searchQ ? `No posts match "${searchQuery}".` : "Nothing here yet."}
