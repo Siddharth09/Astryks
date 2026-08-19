@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "astryks-5f31c"
+  },
+  "targets": {},
+  "etags": {
+    "astryks-5f31c": {
+      "extensionInstances": {
+        "storage-resize-images": "a4dfb0fb13b298c9ae8b604e4281ca6281b60e930268f52792f1ccbbf958015f"
+      }
+    }
   }
 }
