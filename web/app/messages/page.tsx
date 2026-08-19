@@ -207,8 +207,8 @@ export default function MessagesPage() {
       ) : (
         <div className="space-y-2">
           {conversations.map((c) => {
-            const otherIndex = c.participants.findIndex((id: string) => id !== user.uid);
-            const otherId = c.participants[otherIndex];
+            const otherIndex = (c.participants ?? []).findIndex((id: string) => id !== user.uid);
+            const otherId = c.participants?.[otherIndex];
             const otherName = c.participantNames?.[otherIndex] ?? "Member";
             const isBot = BOT_UIDS.includes(otherId);
             return (

@@ -42,9 +42,9 @@ export default function ChatThreadPage() {
     getDoc(doc(db, "conversations", params.conversationId)).then((snap) => {
       const data = snap.data();
       if (!data || !user) return;
-      const otherIndex = data.participants.findIndex((id: string) => id !== user.uid);
+      const otherIndex = (data.participants ?? []).findIndex((id: string) => id !== user.uid);
       setOtherName(data.participantNames?.[otherIndex] ?? "Member");
-      setOtherIsBot(BOT_UIDS.includes(data.participants[otherIndex]));
+      setOtherIsBot(BOT_UIDS.includes(data.participants?.[otherIndex]));
     });
   }, [params.conversationId, user]);
 

@@ -187,9 +187,9 @@ export default function MessagesScreen() {
             </Text>
           }
           renderItem={({ item }) => {
-            const otherIndex = item.participants.findIndex((id: string) => id !== user.uid);
+            const otherIndex = (item.participants ?? []).findIndex((id: string) => id !== user.uid);
             const otherName = item.participantNames?.[otherIndex] ?? "Member";
-            const isBot = BOT_UIDS.includes(item.participants[otherIndex]);
+            const isBot = BOT_UIDS.includes(item.participants?.[otherIndex]);
             return (
               <TouchableOpacity
                 onPress={() => router.push(`/messages/${item.id}`)}
