@@ -40,6 +40,14 @@
         { "fieldPath": "subscriptionStatus", "order": "ASCENDING" },
         { "fieldPath": "canceledAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "clientErrors",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "resolved", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
