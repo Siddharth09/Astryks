@@ -32,6 +32,7 @@ import { colors } from "@/lib/styles";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const deleteMyAccount = httpsCallable(functions, "deleteMyAccount");
+const notifySignOut = httpsCallable(functions, "notifySignOut");
 
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
@@ -350,7 +351,14 @@ export default function MeScreen() {
             )}
           </View>
         </View>
-        <TouchableOpacity onPress={() => signOut(auth)}>
+        <TouchableOpacity
+          onPress={() => {
+            // Fire-and-forget, and called before signOut() while the auth token is still valid —
+            // notifySignOut needs request.auth, which is gone the instant signOut() completes.
+            notifySignOut().catch(() => {});
+            signOut(auth);
+          }}
+        >
           <Text style={{ color: colors.muted, fontSize: 17 }}>Log out</Text>
         </TouchableOpacity>
       </View>

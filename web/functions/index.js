@@ -1646,6 +1646,19 @@ exports.approvePrizeWinnerAnnouncement = onCall(
 // what App Store/Play Store now require: an in-app path for a user to delete their own
 // account and data, not just an admin-only tool.
 async function deleteAccountInternal(uid, bunnyApiKey, stripeSecretValue) {
+  // Captured up front, before anything below deletes the actual auth user — there's no way to
+  // look up an email address for a uid that no longer exists, so this is the only chance to get
+  // it for the deletion-confirmation email sent at the very end of this function.
+  let deletedUserEmail = null;
+  let deletedUserName = null;
+  try {
+    const authUser = await admin.auth().getUser(uid);
+    deletedUserEmail = authUser.email || null;
+    deletedUserName = authUser.displayName || null;
+  } catch (err) {
+    console.error(`deleteAccountInternal: couldn't look up auth user ${uid} before deletion`, err);
+  }
+
   // Cancel any active Stripe subscription FIRST, before anything else below deletes
   // users/{uid} (the only place stripeCustomerId is stored). Without this, someone who
   // deletes their own account keeps being billed by Stripe on schedule — Stripe has no idea
@@ -1743,12 +1756,20 @@ async function deleteAccountInternal(uid, bunnyApiKey, stripeSecretValue) {
   // Delete their Firestore user doc, then their actual login.
   await db.doc(`users/${uid}`).delete();
   await admin.auth().deleteUser(uid);
+
+  if (deletedUserEmail) {
+    try {
+      await sendBrandedEmail(deletedUserEmail, buildAccountDeletedEmail(deletedUserName));
+    } catch (err) {
+      console.error(`deleteAccountInternal: failed to send deletion confirmation to ${deletedUserEmail}`, err);
+    }
+  }
 }
 
 // ---------- Callable: admin-only — permanently delete a user's account and their content ----------
 
 exports.deleteUserAccount = onCall(
-  { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret] },
+  { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -1783,7 +1804,7 @@ exports.deleteUserAccount = onCall(
 // create an account in-app must also be able to delete it and their data in-app, without
 // having to email support. Web: called from app/me/page.tsx. Mobile: called from
 // app/(tabs)/me.tsx.
-exports.deleteMyAccount = onCall({ secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret] }, async (request) => {
+exports.deleteMyAccount = onCall({ secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -2410,6 +2431,11 @@ Astryks`;
                     View your winning post
                   </a>
                 </div>
+                <div style="text-align:center;margin:14px 0 8px;">
+                  <a href="https://astryks.com/prizes" style="color:#17130F;opacity:0.6;text-decoration:underline;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;">
+                    See this month's leaderboard
+                  </a>
+                </div>
               </td>
             </tr>
             <tr>
@@ -2496,6 +2522,25 @@ exports.sendTestWelcomeEmail = onCall(
     return { sentTo: request.auth.token.email };
   }
 );
+
+// ---------- Callable: sign-out confirmation ----------
+// Called from the client right before signOut() actually runs (see the "Log out" button on
+// web/mobile), while the caller's auth token is still valid — after signOut() there'd be nothing
+// left to authenticate this call with. Deliberately NOT called from the account-deletion flow's
+// own signOut() — that gets buildAccountDeletedEmail instead, from deleteAccountInternal.
+exports.notifySignOut = onCall({ secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const email = request.auth.token.email;
+  if (!email) return { ok: false };
+  try {
+    await sendBrandedEmail(email, buildSignOutEmail(request.auth.token.name));
+  } catch (err) {
+    console.error(`notifySignOut: failed to send to ${email}`, err);
+  }
+  return { ok: true };
+});
 
 // ---------- Subscription lifecycle emails: subscribed / canceled / refunded ----------
 // Same visual template as the welcome email above (kept inline rather than factored into a
@@ -2629,6 +2674,11 @@ The Astryks team`;
                   Your account itself isn't going anywhere: you can still post, browse, and enter the monthly
                   Creative Prize for free, any time.
                 </p>
+                <div style="text-align:center;margin:8px 0 16px;">
+                  <a href="https://astryks.com/me" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Reactivate my subscription
+                  </a>
+                </div>
                 <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#17130F;opacity:0.75;">
                   If this was a mistake, or something wasn't working for you, just reply to this email — we read
                   every reply.
@@ -2700,6 +2750,236 @@ The Astryks team`;
                   You're always welcome to keep posting and browsing for free, and if you'd like the expert-led
                   classes again down the line, you can resubscribe any time. Thanks for giving Astryks a try.
                 </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+// ---------- Creative Prize nomination: fires the moment a post first clears the like bar ----------
+// Not the same as being "entered" (every photo/video post is entered for free the moment it's
+// posted, see nominateForPrize) — this is the "you've actually cleared the bar and are in the
+// running to win" moment, which only happens once a post reaches PRIZE_LIKE_THRESHOLD likes.
+// Triggered once per post from onLikeCreated below — guarded by prizeNominationEmailSent so
+// unliking/reliking around the threshold can't re-send it.
+function buildPrizeNominationEmail(displayName, postId, likeCount) {
+  const name = displayName || "there";
+  const subject = `🏆 Your post just cleared ${PRIZE_LIKE_THRESHOLD} likes — you're in the running!`;
+  const postUrl = `https://astryks.com/post/${postId}`;
+  const leaderboardUrl = "https://astryks.com/prizes";
+
+  const text = `Hi ${name},
+
+Your post just crossed ${PRIZE_LIKE_THRESHOLD} likes — that means it's officially in the running for this month's AU$${PRIZE_AUD} Astryks Creative Prize.
+
+Nothing to do on your end. The post with the most likes when the month ends wins, and yours is now a real contender. Keep sharing it, or just see where it stands.
+
+Your post: ${postUrl}
+This month's leaderboard: ${leaderboardUrl}
+
+Good luck,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#F7DEDB;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0 0 6px;font-size:30px;line-height:1;">🏆</p>
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">
+                  You're in the running
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Your post just crossed <strong>${likeCount} likes</strong> — clearing the ${PRIZE_LIKE_THRESHOLD}-like bar
+                  means it's now officially in the running for this month's <strong>AU$${PRIZE_AUD} Astryks Creative Prize</strong>.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Nothing to do on your end — the post with the most likes when the month ends wins, and yours is a
+                  real contender now. Keep sharing it, or just see where it stands.
+                </p>
+                <div style="text-align:center;margin:4px 0 8px;">
+                  <a href="${postUrl}" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    View your post
+                  </a>
+                </div>
+                <div style="text-align:center;margin:14px 0 8px;">
+                  <a href="${leaderboardUrl}" style="color:#17130F;opacity:0.6;text-decoration:underline;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;">
+                    See this month's leaderboard
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Good luck,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+// ---------- Sign-out confirmation: fires only from an explicit "Log out" tap ----------
+// Deliberately NOT wired to every place the client calls signOut() — e.g. right before account
+// deletion also calls signOut(), but that gets its own dedicated deletion email instead, so
+// sending this one too would be redundant. See notifySignOut below for the one call site.
+function buildSignOutEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "You've been signed out of Astryks";
+
+  const text = `Hi ${name},
+
+Just confirming you've been signed out of Astryks.
+
+If that wasn't you, someone else may have access to your account — reply to this email and we'll help you secure it.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#DCE6F2;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Signed out</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Just confirming you've been signed out of Astryks.
+                </p>
+                <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#17130F;opacity:0.75;">
+                  If that wasn't you, someone else may have access to your account — reply to this email and we'll
+                  help you secure it.
+                </p>
+                <div style="text-align:center;margin:20px 0 8px;">
+                  <a href="https://astryks.com/login" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Sign back in
+                  </a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+// ---------- Account deletion confirmation ----------
+// Sent from deleteAccountInternal, which is shared by both deleteUserAccount (admin-initiated)
+// and deleteMyAccount (self-service) — the email address is captured at the very start of that
+// function, before anything is actually deleted, since there's no account left to look it up
+// from afterwards.
+function buildAccountDeletedEmail(displayName) {
+  const name = displayName || "there";
+  const subject = "Your Astryks account has been deleted";
+
+  const text = `Hi ${name},
+
+Confirming your Astryks account and everything in it — posts, messages, lesson progress, subscription — has been permanently deleted.
+
+If you had an active subscription, it's been canceled and you won't be charged again.
+
+We're sorry to see you go. If you ever want to come back, you're welcome to create a new account any time.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#E8E6E1;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Account deleted</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${name},
+                </p>
+                <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Confirming your Astryks account and everything in it — posts, messages, lesson progress,
+                  subscription — has been permanently deleted.
+                </p>
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  If you had an active subscription, it's been canceled and you won't be charged again.
+                </p>
+                <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#17130F;opacity:0.75;">
+                  We're sorry to see you go. If you ever want to come back, you're welcome to create a new account
+                  any time.
+                </p>
+                <div style="text-align:center;margin:20px 0 8px;">
+                  <a href="https://astryks.com/signup" style="display:inline-block;background-color:#E85D5D;color:#FFFFFF;text-decoration:none;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;">
+                    Come back any time
+                  </a>
+                </div>
               </td>
             </tr>
             <tr>
@@ -3108,6 +3388,24 @@ exports.sendTestLifecycleNudgeEmails = onCall(
   }
 );
 
+// Previews the three newer lifecycle emails to your own inbox — nomination and account-deletion
+// don't have a safe way to trigger for real on demand (nomination needs a real post to actually
+// cross the like threshold; deletion would mean actually deleting your own account), and
+// sign-out is already trivially testable by just logging out for real, so it's not included here.
+exports.sendTestNewLifecycleEmails = onCall(
+  { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (request) => {
+    if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
+      throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+    }
+    const name = request.auth.token.name || "there";
+    const email = request.auth.token.email;
+    await sendBrandedEmail(email, buildPrizeNominationEmail(name, "preview-post-id", PRIZE_LIKE_THRESHOLD));
+    await sendBrandedEmail(email, buildAccountDeletedEmail(name));
+    return { sentTo: email, count: 2 };
+  }
+);
+
 // ---------- Trigger: enter every new creative post into that month's prize ----------
 // Fires immediately on post creation (not on reaching any like count — see nominateForPrize's
 // comment for why there's no minimum). Scoped to actual creative uploads (photo/video) — plain
@@ -3212,23 +3510,52 @@ exports.moderatePostMedia = onDocumentCreated(
 // A count() read always reflects the true number of like docs regardless of how many times
 // this trigger happens to run for the same event, so it self-corrects instead of drifting —
 // worth the extra read for a number that feeds directly into a real cash payout.
-exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async (event) => {
-  const { postId, userId } = event.params;
-  const postRef = db.doc(`posts/${postId}`);
-  const postSnap = await postRef.get();
-  if (!postSnap.exists) return;
+exports.onLikeCreated = onDocumentCreated(
+  { document: "posts/{postId}/likes/{userId}", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
+  async (event) => {
+    const { postId, userId } = event.params;
+    const postRef = db.doc(`posts/${postId}`);
+    const postSnap = await postRef.get();
+    if (!postSnap.exists) return;
 
-  const post = postSnap.data();
-  const countSnap = await postRef.collection("likes").count().get();
-  await postRef.update({ likeCount: countSnap.data().count });
+    const post = postSnap.data();
+    const countSnap = await postRef.collection("likes").count().get();
+    const newLikeCount = countSnap.data().count;
+    await postRef.update({ likeCount: newLikeCount });
 
-  if (post.ownerId === userId) return;
+    // Prize nomination email — the "you've cleared the bar and are actually in the running"
+    // moment, separate from mere entry (every photo/video post is entered for free on creation).
+    // Guarded by prizeNominationEmailSent so this can only ever fire once per post, no matter how
+    // many times its like count crosses back and forth over the threshold from unlikes/relikes.
+    if (
+      ["photo", "video"].includes(post.type) &&
+      post.prizeEligible &&
+      !post.prizeOptOut &&
+      !post.prizeNominationEmailSent &&
+      newLikeCount >= PRIZE_LIKE_THRESHOLD
+    ) {
+      try {
+        const ownerAuth = await admin.auth().getUser(post.ownerId);
+        if (ownerAuth.email) {
+          await postRef.set({ prizeNominationEmailSent: true }, { merge: true });
+          await sendBrandedEmail(
+            ownerAuth.email,
+            buildPrizeNominationEmail(post.ownerName || ownerAuth.displayName, postId, newLikeCount)
+          );
+        }
+      } catch (err) {
+        console.error(`onLikeCreated: failed to send prize nomination email for post ${postId}`, err);
+      }
+    }
 
-  const likerSnap = await db.doc(`users/${userId}`).get();
-  const likerName = likerSnap.data()?.displayName || "Someone";
+    if (post.ownerId === userId) return;
 
-  await sendPush(post.ownerId, "New like", `${likerName} liked "${post.title || "your post"}"`);
-});
+    const likerSnap = await db.doc(`users/${userId}`).get();
+    const likerName = likerSnap.data()?.displayName || "Someone";
+
+    await sendPush(post.ownerId, "New like", `${likerName} liked "${post.title || "your post"}"`);
+  }
+);
 
 exports.onLikeDeleted = onDocumentDeleted("posts/{postId}/likes/{userId}", async (event) => {
   const { postId } = event.params;

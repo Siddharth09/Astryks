@@ -35,6 +35,7 @@ import ReferralAndBilling from "@/components/ReferralAndBilling";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const deleteMyAccount = httpsCallable(functions, "deleteMyAccount");
+const notifySignOut = httpsCallable(functions, "notifySignOut");
 
 const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
@@ -358,7 +359,12 @@ export default function MePage() {
           </div>
         </div>
         <button
-          onClick={() => signOut(auth).catch(() => alert("Couldn't log out — please try again."))}
+          onClick={() => {
+            // Fire-and-forget, and called before signOut() while the auth token is still valid —
+            // notifySignOut needs an authenticated caller, which is gone once signOut() completes.
+            notifySignOut().catch(() => {});
+            signOut(auth).catch(() => alert("Couldn't log out — please try again."));
+          }}
           className="ml-auto text-sm text-ink/40"
         >
           Log out

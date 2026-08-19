@@ -12,6 +12,7 @@ const resolveReportFn = httpsCallable(functions, "resolveReport");
 const backfillLessonPlaybackFn = httpsCallable(functions, "backfillLessonPlayback");
 const backfillYoutubeLinkPreviewsFn = httpsCallable(functions, "backfillYoutubeLinkPreviews");
 const sendTestWelcomeEmailFn = httpsCallable(functions, "sendTestWelcomeEmail");
+const sendTestNewLifecycleEmailsFn = httpsCallable(functions, "sendTestNewLifecycleEmails");
 
 const TARGET_LABELS: Record<string, string> = { post: "Post", comment: "Comment", user: "User" };
 
@@ -26,6 +27,8 @@ export default function AdminReportsPage() {
   const [youtubeBackfillResult, setYoutubeBackfillResult] = useState<string | null>(null);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
+  const [sendingNewLifecycleEmails, setSendingNewLifecycleEmails] = useState(false);
+  const [newLifecycleEmailsResult, setNewLifecycleEmailsResult] = useState<string | null>(null);
 
   // Sends the real welcome-email template to your own inbox, so you can see exactly how it
   // renders in an actual mail client (Gmail/Apple Mail/etc. all render HTML email slightly
@@ -40,6 +43,21 @@ export default function AdminReportsPage() {
       setTestEmailResult(`Error: ${err.message ?? "Something went wrong."}`);
     } finally {
       setSendingTestEmail(false);
+    }
+  }
+
+  // Previews the prize-nomination and account-deletion emails. Sign-out isn't included since
+  // it's already trivially testable for real — just log out.
+  async function handleSendNewLifecycleEmails() {
+    setSendingNewLifecycleEmails(true);
+    setNewLifecycleEmailsResult(null);
+    try {
+      const result = await sendTestNewLifecycleEmailsFn();
+      setNewLifecycleEmailsResult(`Sent ${(result.data as any)?.count ?? 2} emails to ${(result.data as any)?.sentTo ?? "your inbox"}.`);
+    } catch (err: any) {
+      setNewLifecycleEmailsResult(`Error: ${err.message ?? "Something went wrong."}`);
+    } finally {
+      setSendingNewLifecycleEmails(false);
     }
   }
 
@@ -164,6 +182,22 @@ export default function AdminReportsPage() {
           {sendingTestEmail ? "Sending…" : "Send me a test copy"}
         </button>
         {testEmailResult && <p className="text-xs text-ink/60 mt-2">{testEmailResult}</p>}
+      </div>
+
+      <div className="card p-4 mb-6 bg-paper/60">
+        <p className="text-sm font-medium mb-1">Preview prize-nomination & account-deletion emails</p>
+        <p className="text-xs text-ink/50 mb-3">
+          Sends both to your own inbox. Sign-out isn't included here — it's already testable for
+          real by just logging out and back in.
+        </p>
+        <button
+          onClick={handleSendNewLifecycleEmails}
+          disabled={sendingNewLifecycleEmails}
+          className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+        >
+          {sendingNewLifecycleEmails ? "Sending…" : "Send me test copies"}
+        </button>
+        {newLifecycleEmailsResult && <p className="text-xs text-ink/60 mt-2">{newLifecycleEmailsResult}</p>}
       </div>
 
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
