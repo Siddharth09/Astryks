@@ -17,6 +17,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import PageBackground from "@/components/PageBackground";
+import { BOT_UIDS } from "@/lib/botUsers";
 
 const getMessageSuggestions = httpsCallable(functions, "getMessageSuggestions");
 const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
@@ -206,19 +207,27 @@ export default function MessagesPage() {
       ) : (
         <div className="space-y-2">
           {conversations.map((c) => {
-            const otherName = c.participantNames?.find((n: string, i: number) => c.participants[i] !== user.uid) ?? "Member";
+            const otherIndex = c.participants.findIndex((id: string) => id !== user.uid);
+            const otherId = c.participants[otherIndex];
+            const otherName = c.participantNames?.[otherIndex] ?? "Member";
+            const isBot = BOT_UIDS.includes(otherId);
             return (
               <Link
                 key={c.id}
                 href={`/messages/${c.id}`}
                 className="flex items-center gap-3 border border-line/15 rounded-xl p-3 bg-white"
               >
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0"
-                  style={{ background: "#E85D5D" }}
-                >
-                  {otherName[0]}
-                </div>
+                {isBot ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src="/logo-mark.png" alt="" className="w-10 h-10 rounded-full flex-shrink-0" />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0"
+                    style={{ background: "#E85D5D" }}
+                  >
+                    {otherName[0]}
+                  </div>
+                )}
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{otherName}</p>
                   <p className="text-xs text-ink/50 truncate">{c.lastMessage}</p>

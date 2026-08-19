@@ -6,6 +6,8 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
+import { BOT_UIDS } from "@/lib/botUsers";
+import BrandMark from "@/components/BrandMark";
 
 const optOutOfPrizeFn = httpsCallable(functions, "optOutOfPrize");
 const submitPrizePayoutDetailsFn = httpsCallable(functions, "submitPrizePayoutDetails");
@@ -27,6 +29,8 @@ export default function ChatThreadScreen() {
   // one of them blocked the other. Fetch the other participant's block status the same way the
   // profile screen does, and use it to shut down sending here too.
   const [isBlocked, setIsBlocked] = useState(false);
+  const [otherName, setOtherName] = useState<string | null>(null);
+  const [otherIsBot, setOtherIsBot] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -35,9 +39,16 @@ export default function ChatThreadScreen() {
     (async () => {
       try {
         const convoSnap = await getDoc(doc(db, "conversations", conversationId));
-        const participants: string[] = convoSnap.data()?.participants ?? [];
-        const otherId = participants.find((id) => id !== user.uid);
+        const data = convoSnap.data();
+        const participants: string[] = data?.participants ?? [];
+        const otherIndex = participants.findIndex((id) => id !== user.uid);
+        const otherId = participants[otherIndex];
         if (!otherId) return;
+        if (!cancelled) {
+          setOtherName(data?.participantNames?.[otherIndex] ?? "Member");
+          setOtherIsBot(BOT_UIDS.includes(otherId));
+        }
+        if (BOT_UIDS.includes(otherId)) return; // not a real profile — nothing to block-check
         const result = await getPublicProfile({ uid: otherId });
         const profile = result.data as { blockedByMe?: boolean; blockedMe?: boolean };
         if (!cancelled) setIsBlocked(!!(profile?.blockedByMe || profile?.blockedMe));
@@ -121,6 +132,18 @@ export default function ChatThreadScreen() {
         <Text style={{ fontSize: 22 }}>←</Text>
         <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
       </TouchableOpacity>
+      {otherName && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, marginBottom: 8 }}>
+          {otherIsBot ? (
+            <BrandMark size={36} />
+          ) : (
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#E85D5D", alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: "white", fontWeight: "600" }}>{otherName[0]}</Text>
+            </View>
+          )}
+          <Text style={{ fontSize: 18, fontWeight: "600", color: colors.ink }}>{otherName}</Text>
+        </View>
+      )}
       <FlatList
         ref={listRef}
         data={messages}

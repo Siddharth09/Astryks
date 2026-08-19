@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   doc,
+  getDoc,
   collection,
   query,
   orderBy,
@@ -16,6 +17,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import PageBackground from "@/components/PageBackground";
+import { BOT_UIDS } from "@/lib/botUsers";
 
 const optOutOfPrizeFn = httpsCallable(functions, "optOutOfPrize");
 const submitPrizePayoutDetailsFn = httpsCallable(functions, "submitPrizePayoutDetails");
@@ -32,7 +34,19 @@ export default function ChatThreadPage() {
   const [payoutDetails, setPayoutDetails] = useState<Record<string, string>>({});
   const [payoutState, setPayoutState] = useState<Record<string, "loading" | "done">>({});
   const [stripeSetupLoading, setStripeSetupLoading] = useState<Record<string, boolean>>({});
+  const [otherName, setOtherName] = useState<string | null>(null);
+  const [otherIsBot, setOtherIsBot] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getDoc(doc(db, "conversations", params.conversationId)).then((snap) => {
+      const data = snap.data();
+      if (!data || !user) return;
+      const otherIndex = data.participants.findIndex((id: string) => id !== user.uid);
+      setOtherName(data.participantNames?.[otherIndex] ?? "Member");
+      setOtherIsBot(BOT_UIDS.includes(data.participants[otherIndex]));
+    });
+  }, [params.conversationId, user]);
 
   // Redirects to Stripe's own hosted onboarding form — their bank details go straight to
   // Stripe, never through Astryks at all. Same "share payout details" moment as the manual
@@ -144,6 +158,22 @@ export default function ChatThreadPage() {
   return (
     <div className="pb-32">
       <PageBackground color="#FAF6EF" />
+      {otherName && (
+        <div className="flex items-center gap-2.5 mb-4">
+          {otherIsBot ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/logo-mark.png" alt="" className="w-9 h-9 rounded-full" />
+          ) : (
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium"
+              style={{ background: "#E85D5D" }}
+            >
+              {otherName[0]}
+            </div>
+          )}
+          <p className="text-sm font-semibold">{otherName}</p>
+        </div>
+      )}
       <div className="space-y-3 mb-4">
         {messages.map((m) => (
           <div

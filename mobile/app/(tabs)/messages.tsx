@@ -6,6 +6,8 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
+import { BOT_UIDS } from "@/lib/botUsers";
+import BrandMark from "@/components/BrandMark";
 
 const getMessageSuggestions = httpsCallable(functions, "getMessageSuggestions");
 const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
@@ -185,16 +187,21 @@ export default function MessagesScreen() {
             </Text>
           }
           renderItem={({ item }) => {
-            const otherName =
-              item.participantNames?.find((n: string, i: number) => item.participants[i] !== user.uid) ?? "Member";
+            const otherIndex = item.participants.findIndex((id: string) => id !== user.uid);
+            const otherName = item.participantNames?.[otherIndex] ?? "Member";
+            const isBot = BOT_UIDS.includes(item.participants[otherIndex]);
             return (
               <TouchableOpacity
                 onPress={() => router.push(`/messages/${item.id}`)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "white", borderRadius: 12, padding: 12, marginBottom: 8 }}
               >
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#E85D5D", alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ color: "white", fontWeight: "600" }}>{otherName[0]}</Text>
-                </View>
+                {isBot ? (
+                  <BrandMark size={40} />
+                ) : (
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#E85D5D", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "white", fontWeight: "600" }}>{otherName[0]}</Text>
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontWeight: "600", fontSize: 18 }}>{otherName}</Text>
                   <Text style={{ color: colors.muted, fontSize: 16 }} numberOfLines={1}>{item.lastMessage}</Text>
