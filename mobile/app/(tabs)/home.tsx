@@ -15,6 +15,7 @@ import BrandMark from "@/components/BrandMark";
 import SuggestionsRow from "@/components/SuggestionsRow";
 import PrizeInfoModal from "@/components/PrizeInfoModal";
 import { colors } from "@/lib/styles";
+import { guessMediaUploadInfo } from "@/lib/mediaUpload";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const getFeed = httpsCallable(functions, "getFeed");
@@ -52,7 +53,7 @@ export default function HomeScreen() {
   // it actually uploads — previously shareMedia() uploaded and posted the instant something was
   // picked, with no chance to choose visibility at all (unlike web, which always showed this
   // choice for photo/video posts).
-  const [pendingMedia, setPendingMedia] = useState<{ uri: string; type: "photo" | "video" } | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<{ uri: string; type: "photo" | "video"; mimeType?: string | null; fileName?: string | null } | null>(null);
   // Shared caption field for both the photo/video and link composers below — previously neither
   // flow captured any user-written text at all, so a shared link or photo/video posted zero
   // context of your own alongside it.
@@ -152,7 +153,12 @@ export default function HomeScreen() {
     });
     if (result.canceled || !user) return;
     const asset = result.assets[0];
-    setPendingMedia({ uri: asset.uri, type: asset.type === "video" ? "video" : "photo" });
+    setPendingMedia({
+      uri: asset.uri,
+      type: asset.type === "video" ? "video" : "photo",
+      mimeType: asset.mimeType,
+      fileName: asset.fileName,
+    });
     setIsPublic(true);
   }
 
@@ -166,10 +172,13 @@ export default function HomeScreen() {
     // serving the file — see the posts/{userId}/{postId}/{fileName} match block there. Without
     // the postId in the path, Storage has no way to know which post a file belongs to, so a
     // "private" post's media stayed just as publicly fetchable as a public one's.
+    // A real extension + explicit content-type (rather than a bare timestamp and whatever type
+    // the blob happened to carry) matters most for video — see guessMediaUploadInfo's comment.
+    const { contentType, extension } = guessMediaUploadInfo(pendingMedia);
     const postRef = doc(collection(db, "posts"));
-    const path = `posts/${user.uid}/${postRef.id}/${Date.now()}`;
+    const path = `posts/${user.uid}/${postRef.id}/${Date.now()}.${extension}`;
     const storageRef = ref(storage, path);
-    const task = uploadBytesResumable(storageRef, blob);
+    const task = uploadBytesResumable(storageRef, blob, { contentType });
 
     await new Promise<void>((resolve, reject) => {
       task.on("state_changed", undefined, reject, () => resolve());

@@ -29,6 +29,7 @@ function PostThumb({ post }: { post: any }) {
 import ReferralAndBilling from "@/components/ReferralAndBilling";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
+import { guessMediaUploadInfo } from "@/lib/mediaUpload";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const deleteMyAccount = httpsCallable(functions, "deleteMyAccount");
@@ -63,7 +64,7 @@ export default function MeScreen() {
   const [nameError, setNameError] = useState<string | null>(null);
 
   const [showAddMedia, setShowAddMedia] = useState(false);
-  const [mediaAsset, setMediaAsset] = useState<{ uri: string; type: "photo" | "video" } | null>(null);
+  const [mediaAsset, setMediaAsset] = useState<{ uri: string; type: "photo" | "video"; mimeType?: string | null; fileName?: string | null } | null>(null);
   const [mediaTitle, setMediaTitle] = useState("");
   const [mediaPublic, setMediaPublic] = useState(true);
   const [mediaUploading, setMediaUploading] = useState(false);
@@ -202,7 +203,12 @@ export default function MeScreen() {
     });
     if (result.canceled) return;
     const asset = result.assets[0];
-    setMediaAsset({ uri: asset.uri, type: asset.type === "video" ? "video" : "photo" });
+    setMediaAsset({
+      uri: asset.uri,
+      type: asset.type === "video" ? "video" : "photo",
+      mimeType: asset.mimeType,
+      fileName: asset.fileName,
+    });
   }
 
   async function handleAddMedia() {
@@ -217,11 +223,14 @@ export default function MeScreen() {
       // This upload path used to write to the old flat posts/{uid}/{fileName} layout, which
       // storage.rules keeps world-readable for backward compatibility — so a post marked
       // "Private" here still had a fully public, unauthenticated file URL underneath it.
+      // A real extension + explicit content-type (rather than a bare timestamp and whatever type
+      // the blob happened to carry) matters most for video — see guessMediaUploadInfo's comment.
+      const { contentType, extension } = guessMediaUploadInfo(mediaAsset);
       const postRef = doc(collection(db, "posts"));
-      const path = `posts/${user.uid}/${postRef.id}/${Date.now()}`;
+      const path = `posts/${user.uid}/${postRef.id}/${Date.now()}.${extension}`;
       const storageRef = ref(storage, path);
       await new Promise<void>((resolve, reject) => {
-        const task = uploadBytesResumable(storageRef, blob);
+        const task = uploadBytesResumable(storageRef, blob, { contentType });
         task.on("state_changed", undefined, reject, () => resolve());
       });
       const mediaUrl = await getDownloadURL(storageRef);
