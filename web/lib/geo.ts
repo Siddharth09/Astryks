@@ -1,11 +1,7 @@
-// Best-effort, zero-cost country detection — used only to show an illustrative localized
-// price before someone subscribes (e.g. "₹400/week" instead of a literal, too-low "₹5/week").
-// It is NOT the source of truth for what anyone is actually charged: Stripe captures the
-// real billing country during checkout (see the stripeWebhook function), and that's what
-// gets saved as `countryCode` on the user's profile — the authoritative value used for the
-// leaderboard flag and anything else once someone has subscribed. A wrong guess here just
-// means the marketing page's illustrative price is off; Stripe's own Checkout page still
-// shows and charges the correct localized amount.
+// Best-effort, zero-cost country detection — used for the leaderboard flag and similar
+// country-specific display once someone has subscribed. NOT the source of truth: Stripe
+// captures the real billing country during checkout (see the stripeWebhook function), and
+// that's what gets saved as `countryCode` on the user's profile.
 
 const TIMEZONE_COUNTRY: Record<string, string> = {
   // Australia
@@ -52,36 +48,41 @@ const TIMEZONE_COUNTRY: Record<string, string> = {
   "Asia/Manila": "PH",
 };
 
-const EUROZONE = new Set([
-  "FR", "DE", "ES", "IT", "NL", "BE", "IE", "PT", "AT", "FI", "GR", "LU", "SI", "SK", "EE", "LV", "LT", "MT", "CY",
-]);
-
 export type PriceInfo = {
   currency: string;
   symbol: string;
   amount: number;
   display: string;
-  // Illustrative annual price only (weekly amount * 50 — "2 weeks free" vs. paying weekly all
-  // year). The actual amount charged is whatever the STRIPE_ANNUAL_PRICE_ID Price is configured
-  // for in the dashboard — keep that set to match this multiplier per currency, or this display
-  // number and the real charge will drift apart.
   annualAmount: number;
   annualDisplay: string;
 };
 
-// Sid's fixed weekly prices per market — deliberately NOT a literal FX conversion. Weak
-// currencies (INR, PHP) are rounded well above the raw conversion of AU$5 so the price still
-// reflects real value rather than reading as "basically free." Update this table (and the
-// matching currency_options on the Stripe Price in the dashboard) together if prices change.
+const EUROZONE = new Set([
+  "FR", "DE", "ES", "IT", "NL", "BE", "IE", "PT", "AT", "FI", "GR", "LU", "SI", "SK", "EE", "LV", "LT", "MT", "CY",
+]);
+
+// USD is the anchor price everyone is actually charged against — $4.99/week, $199/year — and
+// what's shown to a US visitor. Every other row here is an ILLUSTRATIVE approximation of what
+// that converts to (rounded to a normal-looking local price, not a literal live FX rate), purely
+// so a visitor in, say, Germany or India sees a number in their own currency instead of having
+// to convert $4.99 in their head. The real charge is always computed for real at checkout —
+// Stripe/Apple/Google apply the actual current rate — so this table only ever has to be roughly
+// right, not exactly right; see PRICE_CURRENCY_NOTE, which should be shown as a footnote
+// wherever this is displayed to make that clear.
 const PRICING_BY_COUNTRY: Record<string, PriceInfo> = {
-  AU: { currency: "AUD", symbol: "AU$", amount: 5, display: "AU$5/week", annualAmount: 250, annualDisplay: "AU$250/year" },
-  US: { currency: "USD", symbol: "$", amount: 5, display: "$5/week", annualAmount: 250, annualDisplay: "$250/year" },
-  GB: { currency: "GBP", symbol: "£", amount: 5, display: "£5/week", annualAmount: 250, annualDisplay: "£250/year" },
-  IN: { currency: "INR", symbol: "₹", amount: 400, display: "₹400/week", annualAmount: 20000, annualDisplay: "₹20,000/year" },
-  PH: { currency: "PHP", symbol: "₱", amount: 250, display: "₱250/week", annualAmount: 12500, annualDisplay: "₱12,500/year" },
+  US: { currency: "USD", symbol: "$", amount: 4.99, display: "$4.99/week", annualAmount: 199, annualDisplay: "$199/year" },
+  AU: { currency: "AUD", symbol: "A$", amount: 4.99, display: "A$4.99/week", annualAmount: 199, annualDisplay: "A$199/year" },
+  GB: { currency: "GBP", symbol: "£", amount: 4.99, display: "£4.99/week", annualAmount: 199, annualDisplay: "£199/year" },
+  IN: { currency: "INR", symbol: "₹", amount: 399, display: "₹399/week", annualAmount: 15999, annualDisplay: "₹15,999/year" },
+  PH: { currency: "PHP", symbol: "₱", amount: 249, display: "₱249/week", annualAmount: 9999, annualDisplay: "₱9,999/year" },
 };
-const EUR_PRICE: PriceInfo = { currency: "EUR", symbol: "€", amount: 5, display: "€5/week", annualAmount: 250, annualDisplay: "€250/year" };
-const DEFAULT_PRICE: PriceInfo = { currency: "USD", symbol: "$", amount: 5, display: "$5/week", annualAmount: 250, annualDisplay: "$250/year" };
+const EUR_PRICE: PriceInfo = { currency: "EUR", symbol: "€", amount: 4.99, display: "€4.99/week", annualAmount: 199, annualDisplay: "€199/year" };
+const DEFAULT_PRICE: PriceInfo = PRICING_BY_COUNTRY.US;
+
+// Shown as a footnote wherever a price from this file is displayed, so it's clear the figure is
+// USD-anchored and approximate for non-US visitors rather than a locked-in local price.
+export const PRICE_CURRENCY_NOTE =
+  "Prices are set in USD; local-currency amounts shown are approximate. Stripe, Apple, or Google will show your exact charge in your currency at checkout.";
 
 export function detectCountryCode(): string | null {
   try {
@@ -89,7 +90,7 @@ export function detectCountryCode(): string | null {
     // Time zone first: it's a much more reliable signal for "where is this person" than
     // the browser/OS locale, which just reflects a language/region preference (e.g. a
     // UK-English macOS install used from Sydney reports locale "en-GB" but timeZone
-    // "Australia/Sydney" — we want AU pricing for that visitor, not GBP).
+    // "Australia/Sydney").
     if (TIMEZONE_COUNTRY[timeZone]) return TIMEZONE_COUNTRY[timeZone];
     const region = locale?.split("-")[1]?.toUpperCase();
     if (region && region.length === 2) return region;
@@ -106,15 +107,12 @@ export function getLocalizedPricing(countryCode: string | null): PriceInfo {
   return DEFAULT_PRICE;
 }
 
-// What paying weekly all year (52 weeks) would add up to, formatted the same way as the
-// display strings above. Meant to be shown struck through next to the actual annual price, so
-// the saving is obvious at a glance instead of relying on wording like "2 weeks free" — which
-// read too much like the separate 10-minute-preview trial and confused people about whether
-// annual subscribers got some kind of free period before being charged. They don't; this is
-// purely a per-year discount for paying upfront.
-export function annualFullPriceDisplay(price: PriceInfo): string {
-  const fullYearAmount = price.amount * 52;
-  return `${price.symbol}${new Intl.NumberFormat("en-US").format(fullYearAmount)}`;
+// The annual plan's cost expressed per week, formatted the same way as the weekly display
+// string above. Meant to be shown next to the weekly price struck through, so the saving reads
+// at a glance: "~~$4.99/week~~ $3.83/week" rather than making someone compare two yearly totals.
+export function annualWeeklyEquivalentDisplay(price: PriceInfo): string {
+  const perWeek = price.annualAmount / 52;
+  return `${price.symbol}${perWeek.toFixed(2)}/week`;
 }
 
 // Converts a 2-letter ISO-3166 country code into its flag emoji via Unicode regional

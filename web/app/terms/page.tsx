@@ -41,10 +41,9 @@ export default function TermsPage() {
         may change or discontinue it at any time without notice.
       </p>
       <p className="mb-4">
-        Astryks is offered as a recurring weekly or annual subscription, at your choice. The price shown
-        to you depends on your billing country/currency (see our{" "}
-        <Link href="/privacy" className="link-accent">Privacy Policy</Link> for how we determine that).
-        Your subscription renews automatically at the end of each billing period until you cancel — you
+        Astryks is offered as a recurring weekly or annual subscription, at your choice. Prices are quoted
+        in USD; if you're billed in another currency, Stripe, Apple, or Google converts the charge at
+        checkout. Your subscription renews automatically at the end of each billing period until you cancel — you
         can cancel any time from your account settings (or, on iOS/Android, through your device's app
         store subscription settings), and cancellation takes effect at the end of the current billing
         period, with no partial-period refund for canceling early. Prices may change with notice;

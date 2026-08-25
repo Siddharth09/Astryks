@@ -1,11 +1,7 @@
-// Best-effort, zero-cost country detection — used only to show an illustrative localized
-// price before someone subscribes (e.g. "₹400/week" instead of a literal, too-low "₹5/week").
-// It is NOT the source of truth for what anyone is actually charged: Stripe captures the
-// real billing country during checkout (see the stripeWebhook function), and that's what
-// gets saved as `countryCode` on the user's profile — the authoritative value used for the
-// leaderboard flag and anything else once someone has subscribed. A wrong guess here just
-// means the marketing page's illustrative price is off; Stripe's own Checkout page still
-// shows and charges the correct localized amount.
+// Best-effort, zero-cost country detection — used for the leaderboard flag and similar
+// country-specific display. NOT used for pricing (see PRICE below) or as the source of truth
+// for anything billing-related: the App Store/Play Store capture the real billing country at
+// purchase time, independent of this guess.
 
 const TIMEZONE_COUNTRY: Record<string, string> = {
   // Australia
@@ -52,25 +48,40 @@ const TIMEZONE_COUNTRY: Record<string, string> = {
   "Asia/Manila": "PH",
 };
 
+export type PriceInfo = {
+  currency: string;
+  symbol: string;
+  amount: number;
+  display: string;
+  annualAmount: number;
+  annualDisplay: string;
+};
+
 const EUROZONE = new Set([
   "FR", "DE", "ES", "IT", "NL", "BE", "IE", "PT", "AT", "FI", "GR", "LU", "SI", "SK", "EE", "LV", "LT", "MT", "CY",
 ]);
 
-export type PriceInfo = { currency: string; symbol: string; amount: number; display: string };
-
-// Sid's fixed weekly prices per market — deliberately NOT a literal FX conversion. Weak
-// currencies (INR, PHP) are rounded well above the raw conversion of AU$5 so the price still
-// reflects real value rather than reading as "basically free." Update this table (and the
-// matching currency_options on the Stripe Price in the dashboard) together if prices change.
+// USD is the anchor price the App Store/Play Store products are actually priced at — $4.99/week,
+// $199/year. Every other row here is an ILLUSTRATIVE approximation of what that converts to
+// (rounded to a normal-looking local price, not a literal live FX rate), purely so a visitor in,
+// say, Germany or India sees a number in their own currency instead of having to convert $4.99
+// in their head. The store's own purchase sheet always shows and charges the real current-rate
+// local price — this table only ever has to be roughly right; see PRICE_CURRENCY_NOTE, which
+// should be shown as a footnote wherever this is displayed to make that clear.
 const PRICING_BY_COUNTRY: Record<string, PriceInfo> = {
-  AU: { currency: "AUD", symbol: "AU$", amount: 5, display: "AU$5/week" },
-  US: { currency: "USD", symbol: "$", amount: 5, display: "$5/week" },
-  GB: { currency: "GBP", symbol: "£", amount: 5, display: "£5/week" },
-  IN: { currency: "INR", symbol: "₹", amount: 400, display: "₹400/week" },
-  PH: { currency: "PHP", symbol: "₱", amount: 250, display: "₱250/week" },
+  US: { currency: "USD", symbol: "$", amount: 4.99, display: "$4.99/week", annualAmount: 199, annualDisplay: "$199/year" },
+  AU: { currency: "AUD", symbol: "A$", amount: 4.99, display: "A$4.99/week", annualAmount: 199, annualDisplay: "A$199/year" },
+  GB: { currency: "GBP", symbol: "£", amount: 4.99, display: "£4.99/week", annualAmount: 199, annualDisplay: "£199/year" },
+  IN: { currency: "INR", symbol: "₹", amount: 399, display: "₹399/week", annualAmount: 15999, annualDisplay: "₹15,999/year" },
+  PH: { currency: "PHP", symbol: "₱", amount: 249, display: "₱249/week", annualAmount: 9999, annualDisplay: "₱9,999/year" },
 };
-const EUR_PRICE: PriceInfo = { currency: "EUR", symbol: "€", amount: 5, display: "€5/week" };
-const DEFAULT_PRICE: PriceInfo = { currency: "USD", symbol: "$", amount: 5, display: "$5/week" };
+const EUR_PRICE: PriceInfo = { currency: "EUR", symbol: "€", amount: 4.99, display: "€4.99/week", annualAmount: 199, annualDisplay: "€199/year" };
+const DEFAULT_PRICE: PriceInfo = PRICING_BY_COUNTRY.US;
+
+// Shown as a footnote wherever a price from this file is displayed, so it's clear the figure is
+// USD-anchored and approximate for non-US visitors rather than a locked-in local price.
+export const PRICE_CURRENCY_NOTE =
+  "Prices are set in USD; local-currency amounts shown are approximate. The App Store or Play Store will show your exact charge in your currency at checkout.";
 
 export function detectCountryCode(): string | null {
   try {
@@ -88,6 +99,14 @@ export function getLocalizedPricing(countryCode: string | null): PriceInfo {
   if (PRICING_BY_COUNTRY[countryCode]) return PRICING_BY_COUNTRY[countryCode];
   if (EUROZONE.has(countryCode)) return EUR_PRICE;
   return DEFAULT_PRICE;
+}
+
+// The annual plan's cost expressed per week, formatted the same way as the weekly display
+// string above. Meant to be shown next to the weekly price struck through, so the saving reads
+// at a glance: "~~$4.99/week~~ $3.83/week" rather than making someone compare two yearly totals.
+export function annualWeeklyEquivalentDisplay(price: PriceInfo): string {
+  const perWeek = price.annualAmount / 52;
+  return `${price.symbol}${perWeek.toFixed(2)}/week`;
 }
 
 // Converts a 2-letter ISO-3166 country code into its flag emoji via Unicode regional

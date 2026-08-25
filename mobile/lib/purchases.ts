@@ -18,7 +18,7 @@ import Qonversion, {
 // Sid: see MOBILE_IAP_SETUP.md in the repo root for the full step-by-step of what to create
 // in Qonversion / App Store Connect / Google Play Console, and where to paste the resulting
 // key in here.
-const QONVERSION_PROJECT_KEY = "REPLACE_WITH_QONVERSION_PROJECT_KEY";
+const QONVERSION_PROJECT_KEY = "kSzWfRt8hXZu44-i_ZaF-gpFTS3Fif1Z";
 
 // The Qonversion "entitlement" identifier you'll create in the Qonversion dashboard to
 // represent "has an active Astryks subscription" — attach both the iOS and Android weekly
@@ -61,23 +61,30 @@ export function initPurchases(uid: string) {
   }
 }
 
+export type PlanId = "weekly" | "annual";
+
+// Must match the Product IDs created in App Store Connect / Google Play Console, and the
+// Qonversion dashboard Product entries mapped to them (see MOBILE_IAP_SETUP.md step 3).
+const PRODUCT_IDS: Record<PlanId, string> = {
+  weekly: "astryks_weekly",
+  annual: "astryks_annual",
+};
+
 // Qonversion's RN SDK has no RevenueCat-style "offering" wrapper — `products()` returns a flat
-// Map<string, Product> of everything configured in the dashboard. We only ever sell one
-// subscription product, so we just grab whichever one comes back first.
-async function getFirstProduct(): Promise<Product | null> {
+// Map<string, Product> of everything configured in the dashboard, keyed by Product ID.
+async function getProduct(planId: PlanId): Promise<Product | null> {
   try {
     const products = await Qonversion.getSharedInstance().products();
-    const first = products.values().next();
-    return first.done ? null : first.value;
+    return products.get(PRODUCT_IDS[planId]) ?? null;
   } catch {
     return null;
   }
 }
 
 /** Returns true if the purchase succeeded and the entitlement is now active. */
-export async function purchaseSubscription(): Promise<{ success: boolean; error?: string }> {
+export async function purchaseSubscription(planId: PlanId): Promise<{ success: boolean; error?: string }> {
   try {
-    const product = await getFirstProduct();
+    const product = await getProduct(planId);
     if (!product) {
       return { success: false, error: "Subscriptions aren't set up yet — check back soon." };
     }

@@ -5,7 +5,7 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/aut
 import { auth } from "@/lib/firebase";
 import { styles, colors } from "@/lib/styles";
 import BrandMark from "@/components/BrandMark";
-import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 
 const SUBJECT_DETAILS = [
   {
@@ -64,7 +64,7 @@ export default function LoginScreen() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  // Illustrative only — see lib/geo.ts. The actual charge is determined by Stripe at checkout.
+  // Illustrative only — see lib/geo.ts. The App Store/Play Store determine the actual charge.
   const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
 
   useEffect(() => {
@@ -263,8 +263,12 @@ export default function LoginScreen() {
           <Text style={{ fontSize: 15, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
             Weekly subscription
           </Text>
-          <Text style={{ fontSize: 31, fontWeight: "900", color: colors.ink, marginBottom: 14 }}>
+          <Text style={{ fontSize: 31, fontWeight: "900", color: colors.ink, marginBottom: 4 }}>
             {pricing.symbol}{pricing.amount} <Text style={{ fontSize: 17, fontWeight: "400", color: colors.muted }}>per week</Text>
+          </Text>
+          <Text style={{ fontSize: 15, color: colors.muted, marginBottom: 14 }}>
+            or save with annual — <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.display}</Text>{" "}
+            {annualWeeklyEquivalentDisplay(pricing)} ({pricing.annualDisplay})
           </Text>
           {PRICING_FEATURES.map((f) => (
             <View key={f} style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
@@ -275,6 +279,7 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => router.push("/signup")} style={[styles.buttonPrimary, { marginTop: 6 }]}>
             <Text style={styles.buttonPrimaryText}>Get started</Text>
           </TouchableOpacity>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 10 }}>{PRICE_CURRENCY_NOTE}</Text>
         </View>
       </View>
 

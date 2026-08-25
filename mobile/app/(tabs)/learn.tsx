@@ -9,7 +9,8 @@ import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
-import { purchaseSubscription } from "@/lib/purchases";
+import { purchaseSubscription, PlanId } from "@/lib/purchases";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 
 const completeLessonFn = httpsCallable(functions, "completeLesson");
 const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
@@ -68,12 +69,16 @@ export default function LearnScreen() {
   // (getLessonPlayback/reportPreviewProgress responses), never computed purely client-side.
   const [previewRemainingBySubject, setPreviewRemainingBySubject] = useState<Record<string, number>>({});
   const [previewExhaustedSubject, setPreviewExhaustedSubject] = useState<{ id: string; name: string } | null>(null);
-  const [subscribeLoading, setSubscribeLoading] = useState(false);
+  const [subscribeLoadingPlan, setSubscribeLoadingPlan] = useState<PlanId | null>(null);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
+  const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
 
   useEffect(() => {
     if (!user) return;
-    getDoc(doc(db, "users", user.uid)).then((snap) => setSubscribed(snap.data()?.subscriptionStatus === "active"));
+    getDoc(doc(db, "users", user.uid)).then((snap) => {
+      setSubscribed(snap.data()?.subscriptionStatus === "active");
+      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
+    });
   }, [user]);
 
   useEffect(() => {
@@ -225,11 +230,11 @@ export default function LearnScreen() {
     return () => clearInterval(interval);
   }, [playingId, previewRemainingBySubject, playback, subjects]);
 
-  async function handleSubscribeFromPreview() {
-    if (!user) return;
-    setSubscribeLoading(true);
+  async function handleSubscribeFromPreview(planId: PlanId) {
+    if (!user || subscribeLoadingPlan) return;
+    setSubscribeLoadingPlan(planId);
     setSubscribeError(null);
-    const result = await purchaseSubscription();
+    const result = await purchaseSubscription(planId);
     if (result.success) {
       setSubscribed(true);
       setPreviewExhaustedSubject(null);
@@ -241,7 +246,7 @@ export default function LearnScreen() {
     } else if (result.error) {
       setSubscribeError(result.error);
     }
-    setSubscribeLoading(false);
+    setSubscribeLoadingPlan(null);
   }
 
   if (authLoading || !user || subjects === null) {
@@ -415,14 +420,32 @@ export default function LearnScreen() {
               <Text style={{ fontSize: 14, color: "#B3261E", marginBottom: 10, textAlign: "center" }}>{subscribeError}</Text>
             )}
             <TouchableOpacity
-              onPress={handleSubscribeFromPreview}
-              disabled={subscribeLoading}
-              style={{ width: "100%", marginBottom: 10, backgroundColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoading ? 0.6 : 1 }}
+              onPress={() => handleSubscribeFromPreview("weekly")}
+              disabled={subscribeLoadingPlan !== null}
+              style={{ width: "100%", marginBottom: 8, backgroundColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoadingPlan !== null ? 0.6 : 1 }}
             >
               <Text style={{ color: "white", fontSize: 17, fontWeight: "700", textAlign: "center" }}>
-                {subscribeLoading ? "Loading…" : "Subscribe"}
+                {subscribeLoadingPlan === "weekly" ? "Loading…" : `Subscribe Weekly · ${pricing.display}`}
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleSubscribeFromPreview("annual")}
+              disabled={subscribeLoadingPlan !== null}
+              style={{ width: "100%", marginBottom: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoadingPlan !== null ? 0.6 : 1 }}
+            >
+              <Text style={{ color: colors.ink, fontSize: 17, fontWeight: "700", textAlign: "center" }}>
+                {subscribeLoadingPlan === "annual" ? (
+                  "Loading…"
+                ) : (
+                  <>
+                    Subscribe Annual ·{" "}
+                    <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.display}</Text>{" "}
+                    {annualWeeklyEquivalentDisplay(pricing)}
+                  </>
+                )}
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", marginBottom: 10 }}>{PRICE_CURRENCY_NOTE}</Text>
             <TouchableOpacity onPress={() => setPreviewExhaustedSubject(null)}>
               <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>Maybe later</Text>
             </TouchableOpacity>

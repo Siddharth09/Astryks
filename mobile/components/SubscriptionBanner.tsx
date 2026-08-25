@@ -5,13 +5,13 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import TrailersSection from "@/components/TrailersSection";
 import { colors } from "@/lib/styles";
-import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
-import { purchaseSubscription } from "@/lib/purchases";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { purchaseSubscription, PlanId } from "@/lib/purchases";
 
 export default function SubscriptionBanner() {
   const { user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
 
@@ -27,18 +27,18 @@ export default function SubscriptionBanner() {
   // Stripe — App Store/Play Store rules require digital subscriptions to use their own
   // billing. The `qonversionWebhook` Cloud Function flips subscriptionStatus to "active" once
   // the purchase completes; we also optimistically set it here so the banner updates instantly.
-  async function handleSubscribe() {
-    if (!user) return;
-    setLoading(true);
+  async function handleSubscribe(planId: PlanId) {
+    if (!user || loadingPlan) return;
+    setLoadingPlan(planId);
     setError(null);
-    const result = await purchaseSubscription();
+    const result = await purchaseSubscription(planId);
     if (result.success) {
       setStatus("active");
       await setDoc(doc(db, "users", user.uid), { subscriptionStatus: "active" }, { merge: true }).catch(() => {});
     } else if (result.error) {
       setError(result.error);
     }
-    setLoading(false);
+    setLoadingPlan(null);
   }
 
   if (status === null || status === "active") return null;
@@ -51,14 +51,40 @@ export default function SubscriptionBanner() {
           <Text style={{ fontSize: 17, fontWeight: "600" }}>
             {status === "canceled" ? "Your subscription has ended" : "Subscribe to unlock all lessons"}
           </Text>
-          <Text style={{ fontSize: 15, color: "#8A8A8D" }}>{pricing.display} · cancel anytime</Text>
+          <Text style={{ fontSize: 15, color: "#8A8A8D" }}>cancel anytime</Text>
         </View>
-        <TouchableOpacity onPress={handleSubscribe} disabled={loading} style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
-          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
-            {loading ? "Loading…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
+      </View>
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+        <TouchableOpacity
+          onPress={() => handleSubscribe("weekly")}
+          disabled={loadingPlan !== null}
+          style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}
+        >
+          <Text style={{ color: "white", fontSize: 15, fontWeight: "600" }}>
+            {loadingPlan === "weekly"
+              ? "Loading…"
+              : `${status === "canceled" ? "Resubscribe" : "Subscribe"} Weekly · ${pricing.display}`}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleSubscribe("annual")}
+          disabled={loadingPlan !== null}
+          style={{ backgroundColor: "white", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.ink }}
+        >
+          <Text style={{ color: colors.ink, fontSize: 15, fontWeight: "600" }}>
+            {loadingPlan === "annual" ? (
+              "Loading…"
+            ) : (
+              <>
+                {status === "canceled" ? "Resubscribe" : "Subscribe"} Annual ·{" "}
+                <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.display}</Text>{" "}
+                {annualWeeklyEquivalentDisplay(pricing)}
+              </>
+            )}
           </Text>
         </TouchableOpacity>
       </View>
+      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>{PRICE_CURRENCY_NOTE}</Text>
       <TrailersSection compact />
       {error && (
         <Text style={{ fontSize: 14, color: "#B3261E", marginTop: 8 }}>{error}</Text>

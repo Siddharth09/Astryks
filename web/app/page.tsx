@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { detectCountryCode, getLocalizedPricing } from "@/lib/geo";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 
 const SUBJECT_DETAILS = [
   {
@@ -281,9 +281,11 @@ export default function Home() {
             <p className="font-display text-4xl font-black mb-1">
               {pricing.symbol}{pricing.amount} <span className="text-base font-normal text-ink/50 font-body">per week</span>
             </p>
-            <p className="text-xs text-ink/40 mb-5">
-              or save with annual — {pricing.annualDisplay} (2 weeks free vs. paying weekly). Pick whichever plan when you subscribe from your account.
+            <p className="text-xs text-ink/40 mb-2">
+              or save with annual — <span className="line-through opacity-50">{pricing.display}</span>{" "}
+              {annualWeeklyEquivalentDisplay(pricing)} ({pricing.annualDisplay}). Pick whichever plan when you subscribe from your account.
             </p>
+            <p className="text-[11px] text-ink/30 mb-5">{PRICE_CURRENCY_NOTE}</p>
             <ul className="space-y-2.5 mb-6">
               {PRICING_FEATURES.map((f) => (
                 <li key={f} className="text-sm text-ink/70 flex items-start gap-2">

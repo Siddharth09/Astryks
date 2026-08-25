@@ -3337,7 +3337,7 @@ exports.sendTestSubscriptionEmail = onCall(
     }
     await sendBrandedEmail(
       request.auth.token.email,
-      buildSubscriptionConfirmationEmail(request.auth.token.name || "there", "AU$5/week")
+      buildSubscriptionConfirmationEmail(request.auth.token.name || "there", "$4.99/week")
     );
     return { sentTo: request.auth.token.email };
   }
@@ -3381,7 +3381,7 @@ exports.sendTestLifecycleNudgeEmails = onCall(
     const name = request.auth.token.name || "there";
     const email = request.auth.token.email;
     await sendBrandedEmail(email, buildTryLessonEmail(name));
-    await sendBrandedEmail(email, buildSubscribeNudgeEmail(name, "AU$5/week"));
+    await sendBrandedEmail(email, buildSubscribeNudgeEmail(name, "$4.99/week"));
     await sendBrandedEmail(email, buildWeMissYouEmail(name));
     await sendBrandedEmail(email, buildWinBackEmail(name));
     return { sentTo: email, count: 4 };
@@ -4671,14 +4671,10 @@ exports.dailyStreakReminder = onSchedule("every day 18:00", async () => {
   );
 });
 
-// Cosmetic-only display price for the onboarding nudge emails below — NOT the source of truth
-// for what anyone is actually charged (same caveat as web/lib/geo.ts's PRICING_BY_COUNTRY,
-// which this intentionally mirrors — keep the two in sync if prices ever change; a real Cloud
-// Function can't import a Next.js app's .ts file directly, hence the small duplicate here
-// rather than a shared import).
-const NUDGE_PRICE_BY_COUNTRY = { AU: "AU$5/week", US: "$5/week", GB: "£5/week", IN: "₹400/week", PH: "₱250/week" };
-function nudgePriceDisplay(countryCode) {
-  return NUDGE_PRICE_BY_COUNTRY[countryCode] || "$5/week";
+// Cosmetic-only display price for the onboarding nudge emails below — fixed USD everywhere,
+// same as web/lib/geo.ts. NOT the source of truth for what anyone is actually charged.
+function nudgePriceDisplay() {
+  return "$4.99/week";
 }
 
 // ---------- Scheduled: onboarding drip — the two nudges for signups who've gone quiet ----------

@@ -88,7 +88,7 @@ export default function TrailerUploadPage() {
       <h1 className="font-display text-2xl font-bold mb-2">Add a trailer</h1>
       <p className="text-sm text-ink/60 mb-6">
         Short preview clips shown on the home feed and next to the subscribe prompt, to help people considering
-        the $5/week plan see what they'd actually be getting.
+        the $4.99/week plan see what they'd actually be getting.
       </p>
       <form onSubmit={handleUpload} className="space-y-4">
         <select className="input" value={subjectTag} onChange={(e) => setSubjectTag(e.target.value)}>

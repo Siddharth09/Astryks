@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import TrailersSection from "@/components/TrailersSection";
-import { annualFullPriceDisplay, detectCountryCode, getLocalizedPricing } from "@/lib/geo";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 
 const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
 
@@ -126,11 +126,13 @@ export default function SubscriptionBanner() {
           ) : (
             <>
               {status === "canceled" ? "Resubscribe" : "Subscribe"} Annual ·{" "}
-              <span className="line-through opacity-50">{annualFullPriceDisplay(pricing)}</span> {pricing.annualDisplay}
+              <span className="line-through opacity-50">{pricing.display}</span> {annualWeeklyEquivalentDisplay(pricing)} (
+              {pricing.annualDisplay})
             </>
           )}
         </button>
       </div>
+      <p className="text-[11px] text-ink/30 mt-2">{PRICE_CURRENCY_NOTE}</p>
       {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}
 
       <TrailersSection compact />
