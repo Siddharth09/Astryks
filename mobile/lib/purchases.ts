@@ -112,6 +112,28 @@ export async function purchaseSubscription(planId: PlanId): Promise<{ success: b
     if (!product) {
       return { success: false, error: "Subscriptions aren't set up yet — check back soon." };
     }
+
+    // Re-check the real entitlement (via the store, not our own possibly-stale Firestore/local
+    // state) right before buying. Every "Subscribe" button is already hidden once our local
+    // subscriptionStatus reads "active", but that value is a one-time fetch with no live
+    // listener — subscribing on another device, or the webhook landing a beat after this screen
+    // loaded, can leave it stale. Since Apple treats weekly/annual as the same subscription
+    // group, buying the second plan while the first is still active doesn't double-charge, but
+    // it does throw a confusing native "you're currently subscribed to this" dialog instead of
+    // our own clear messaging — checking here catches that case before the store ever sees it.
+    try {
+      const currentEntitlements = await Qonversion.getSharedInstance().checkEntitlements();
+      if (currentEntitlements?.get(ENTITLEMENT_ID)?.isActive) {
+        return {
+          success: true,
+          error: "You're already subscribed — manage your plan from Settings if you'd like to switch.",
+        };
+      }
+    } catch {
+      // Entitlement check failed (offline, etc.) — fall through and let the purchase attempt
+      // itself be the source of truth, same as before this guard existed.
+    }
+
     const result = await Qonversion.getSharedInstance().purchaseWithResult(product);
     if (result.isCanceled) return { success: false };
     if (result.isPending) {
@@ -120,8 +142,17 @@ export async function purchaseSubscription(planId: PlanId): Promise<{ success: b
     if (result.isError) {
       return { success: false, error: result.error?.description ?? "Purchase failed." };
     }
-    const active = !!result.entitlements?.get(ENTITLEMENT_ID)?.isActive;
-    return { success: active };
+    // Trust the store's own success signal (result.isSuccess) rather than requiring the
+    // ENTITLEMENT_ID to already show as active in this same result's entitlements map. Apple/
+    // Google have already charged the user by this point — the native "purchase successful"
+    // sheet has already shown — but entitlement attachment can lag a beat behind that. Checking
+    // the entitlement map instead of isSuccess meant a purchase that fully succeeded at the
+    // store level could still come back as { success: false } with no error message, silently
+    // leaving both "Subscribe Weekly"/"Subscribe Annual" buttons back on screen with no
+    // indication anything had happened — which is exactly what let someone attempt (and get
+    // most of the way through) a second purchase for the other plan moments after the first
+    // one succeeded.
+    return { success: result.isSuccess };
   } catch (err: any) {
     return { success: false, error: err?.message ?? "Purchase failed." };
   }

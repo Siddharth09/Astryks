@@ -252,7 +252,8 @@ export default function LearnScreen() {
       // (which remounts SubscriptionBanner) re-reads the stale pre-webhook value and shows the
       // "Subscribe" banner again right after someone just subscribed.
       updateDoc(doc(db, "users", user.uid), { subscriptionStatus: "active" }).catch(() => {});
-    } else if (result.error) {
+    }
+    if (result.error) {
       setSubscribeError(result.error);
     }
     setSubscribeLoadingPlan(null);

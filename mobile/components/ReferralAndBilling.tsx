@@ -45,7 +45,8 @@ export default function ReferralAndBilling() {
     if (result.success) {
       setStatus("active");
       await setDoc(doc(db, "users", user.uid), { subscriptionStatus: "active" }, { merge: true }).catch(() => {});
-    } else if (result.error) {
+    }
+    if (result.error) {
       setError(result.error);
     }
     setLoadingPlan(null);
