@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import * as tus from "tus-js-client";
 import { httpsCallable } from "firebase/functions";
-import { collection, addDoc, doc, updateDoc, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, doc, updateDoc, getDocs, query, orderBy } from "firebase/firestore";
 import { functions, db } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { isAdmin } from "@/lib/admin";
@@ -11,6 +11,7 @@ import { isAdmin } from "@/lib/admin";
 const SUBJECT_LABEL: Record<string, string> = { music: "Music", art: "Art" };
 
 const createBunnyUpload = httpsCallable(functions, "createBunnyUpload");
+const createLessonFn = httpsCallable(functions, "createLesson");
 const deleteLessonFn = httpsCallable(functions, "deleteLesson");
 
 export default function LessonUploadPage() {
@@ -118,14 +119,16 @@ export default function LessonUploadPage() {
       });
 
       setStatus("Saving lesson…");
-      await addDoc(collection(db, "lessons"), {
+      // Playback credentials (bunnyVideoId/bunnyLibraryId) are written server-side, straight into
+      // the gated lessonPlayback doc — never onto the public lessons doc. See createLesson in
+      // functions/index.js for why that matters.
+      await createLessonFn({
         subjectId,
         title,
         order,
         pinned,
         bunnyVideoId: videoId,
         bunnyLibraryId: libraryId,
-        createdAt: new Date(),
       });
 
       setStatus("Done!");

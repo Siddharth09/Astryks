@@ -5,21 +5,24 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import TrailersSection from "@/components/TrailersSection";
 import { colors } from "@/lib/styles";
-import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 import { purchaseSubscription, PlanId } from "@/lib/purchases";
+import { fallbackDisplayPricing, resolveDisplayPricing, DisplayPricing } from "@/lib/pricing";
 
 export default function SubscriptionBanner() {
   const { user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
+  const [pricing, setPricing] = useState<DisplayPricing>(() => fallbackDisplayPricing(getLocalizedPricing(null)));
 
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "users", user.uid)).then((snap) => {
       setStatus(snap.data()?.subscriptionStatus ?? "none");
-      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
+      const fallback = getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode());
+      setPricing(fallbackDisplayPricing(fallback));
+      resolveDisplayPricing(fallback).then(setPricing);
     });
   }, [user]);
 
@@ -63,7 +66,7 @@ export default function SubscriptionBanner() {
           <Text style={{ color: "white", fontSize: 15, fontWeight: "600" }}>
             {loadingPlan === "weekly"
               ? "Loading…"
-              : `${status === "canceled" ? "Resubscribe" : "Subscribe"} Weekly · ${pricing.display}`}
+              : `${status === "canceled" ? "Resubscribe" : "Subscribe"} Weekly · ${pricing.weeklyDisplay}`}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -77,14 +80,14 @@ export default function SubscriptionBanner() {
             ) : (
               <>
                 {status === "canceled" ? "Resubscribe" : "Subscribe"} Annual ·{" "}
-                <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.display}</Text>{" "}
-                {annualWeeklyEquivalentDisplay(pricing)}
+                <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.weeklyDisplay}</Text>{" "}
+                {pricing.annualPerWeekDisplay}
               </>
             )}
           </Text>
         </TouchableOpacity>
       </View>
-      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>{PRICE_CURRENCY_NOTE}</Text>
+      {!pricing.isExact && <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>{PRICE_CURRENCY_NOTE}</Text>}
       <TrailersSection compact />
       {error && (
         <Text style={{ fontSize: 14, color: "#B3261E", marginTop: 8 }}>{error}</Text>

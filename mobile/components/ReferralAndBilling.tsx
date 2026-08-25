@@ -4,8 +4,9 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
-import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 import { purchaseSubscription, PlanId } from "@/lib/purchases";
+import { fallbackDisplayPricing, resolveDisplayPricing, DisplayPricing } from "@/lib/pricing";
 
 // Mobile subscriptions are Apple/Google in-app purchases (via Qonversion) rather than Stripe —
 // so "managing" a subscription (cancel, change plan, see receipts) happens in the native store
@@ -18,14 +19,17 @@ const MANAGE_SUBSCRIPTION_URL =
 export default function ReferralAndBilling() {
   const { user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
-  const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
+  const [pricing, setPricing] = useState<DisplayPricing>(() => fallbackDisplayPricing(getLocalizedPricing(null)));
   const [loadingPlan, setLoadingPlan] = useState<PlanId | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "users", user.uid)).then((snap) => {
       setStatus(snap.data()?.subscriptionStatus ?? "none");
-      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
+      const fallback = getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode());
+      setPricing(fallbackDisplayPricing(fallback));
+      resolveDisplayPricing(fallback).then(setPricing);
     });
   }, [user]);
 
@@ -36,10 +40,13 @@ export default function ReferralAndBilling() {
   async function subscribe(planId: PlanId) {
     if (!user || loadingPlan) return;
     setLoadingPlan(planId);
+    setError(null);
     const result = await purchaseSubscription(planId);
     if (result.success) {
       setStatus("active");
       await setDoc(doc(db, "users", user.uid), { subscriptionStatus: "active" }, { merge: true }).catch(() => {});
+    } else if (result.error) {
+      setError(result.error);
     }
     setLoadingPlan(null);
   }
@@ -51,7 +58,7 @@ export default function ReferralAndBilling() {
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 17, fontWeight: "600" }}>Subscription</Text>
             <Text style={{ fontSize: 15, color: colors.muted }}>
-              {status === "active" ? `Active — ${pricing.display}` : status === "canceled" ? "Canceled" : "Not subscribed"}
+              {status === "active" ? `Active — ${pricing.weeklyDisplay}` : status === "canceled" ? "Canceled" : "Not subscribed"}
             </Text>
           </View>
           {status === "active" && (
@@ -71,7 +78,7 @@ export default function ReferralAndBilling() {
               style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
             >
               <Text style={{ fontSize: 15, color: "white", fontWeight: "600" }}>
-                {loadingPlan === "weekly" ? "Loading…" : `Weekly · ${pricing.display}`}
+                {loadingPlan === "weekly" ? "Loading…" : `Weekly · ${pricing.weeklyDisplay}`}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -84,17 +91,18 @@ export default function ReferralAndBilling() {
                   "Loading…"
                 ) : (
                   <>
-                    Annual · <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.display}</Text>{" "}
-                    {annualWeeklyEquivalentDisplay(pricing)}
+                    Annual · <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.weeklyDisplay}</Text>{" "}
+                    {pricing.annualPerWeekDisplay}
                   </>
                 )}
               </Text>
             </TouchableOpacity>
           </View>
         )}
-        {status !== "active" && (
+        {status !== "active" && !pricing.isExact && (
           <Text style={{ fontSize: 11, color: colors.muted, marginTop: 8 }}>{PRICE_CURRENCY_NOTE}</Text>
         )}
+        {error && <Text style={{ fontSize: 14, color: "#B3261E", marginTop: 8 }}>{error}</Text>}
       </View>
     </View>
   );

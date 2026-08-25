@@ -81,6 +81,30 @@ async function getProduct(planId: PlanId): Promise<Product | null> {
   }
 }
 
+export type RealProductPrice = { pretty: string; amount: number; currencyCode: string };
+
+// The store (Apple/Google) converts our USD-anchored price into the shopper's actual local
+// currency and tier — e.g. our $4.99 USD weekly product becomes A$7.99 for an Australian
+// storefront, not the "A$4.99" a naive same-number-different-symbol guess would produce. Once
+// Qonversion has loaded the real Product objects (which mirror what the store's own purchase
+// sheet will show), this is the only source of truth for what to display pre-checkout — see
+// lib/pricing.ts, which prefers this over lib/geo.ts's static approximate table.
+export async function getRealProductPrices(): Promise<Record<PlanId, RealProductPrice | null>> {
+  try {
+    const products = await Qonversion.getSharedInstance().products();
+    const toPrice = (product: Product | undefined): RealProductPrice | null => {
+      if (!product?.prettyPrice || product.price == null || !product.currencyCode) return null;
+      return { pretty: product.prettyPrice, amount: product.price, currencyCode: product.currencyCode };
+    };
+    return {
+      weekly: toPrice(products.get(PRODUCT_IDS.weekly)),
+      annual: toPrice(products.get(PRODUCT_IDS.annual)),
+    };
+  } catch {
+    return { weekly: null, annual: null };
+  }
+}
+
 /** Returns true if the purchase succeeded and the entitlement is now active. */
 export async function purchaseSubscription(planId: PlanId): Promise<{ success: boolean; error?: string }> {
   try {

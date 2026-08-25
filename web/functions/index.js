@@ -734,16 +734,56 @@ exports.deleteLesson = onCall(
       await playbackRef.delete();
     }
 
-    // Clean up everyone's progress records for this lesson too.
+    // Clean up everyone's progress records for this lesson too. Chunked at 400 (below
+    // Firestore's 500-write batch cap) since a well-attended lesson can have more progress
+    // records than a single batch allows.
     const progressSnap = await db.collection("lessonProgress").where("lessonId", "==", lessonId).get();
-    const batch = db.batch();
-    progressSnap.docs.forEach((d) => batch.delete(d.ref));
-    if (!progressSnap.empty) await batch.commit();
+    for (let i = 0; i < progressSnap.docs.length; i += 400) {
+      const batch = db.batch();
+      progressSnap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
 
     await lessonRef.delete();
     return { ok: true };
   }
 );
+
+// ---------- Callable: admin-only — create a lesson without ever exposing playback credentials ----------
+//
+// Writing bunnyVideoId/bunnyLibraryId onto the public `lessons` doc directly (even briefly) and
+// relying on migrateLessonPlaybackFields below to scrub them afterward leaves a real window —
+// the trigger fires asynchronously, and a cold start can take seconds — during which anyone
+// reading the public `lessons` collection (including a signed-out visitor, and including our
+// own client polling it on every Learn tab load) gets the raw credentials and can bypass the
+// paywall entirely. This callable closes that window by never letting those fields reach the
+// public doc in the first place: the credentials go straight into the gated `lessonPlayback`
+// doc, and the public `lessons` doc is created without them from the start.
+exports.createLesson = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  if (!(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+
+  const { subjectId, title, order, pinned, bunnyVideoId, bunnyLibraryId } = request.data || {};
+  if (!subjectId || !title || !bunnyVideoId || !bunnyLibraryId) {
+    throw new HttpsError("invalid-argument", "subjectId, title, bunnyVideoId, and bunnyLibraryId are required.");
+  }
+
+  const lessonRef = db.collection("lessons").doc();
+  await lessonRef.set({
+    subjectId,
+    title,
+    order: order ?? 1,
+    pinned: !!pinned,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.doc(`lessonPlayback/${lessonRef.id}`).set({ bunnyVideoId, bunnyLibraryId });
+
+  return { lessonId: lessonRef.id };
+});
 
 // ---------- Trigger + callable: keep lesson playback credentials out of the public lessons doc ----------
 //
@@ -925,12 +965,16 @@ exports.reportPreviewProgress = onCall(async (request) => {
 // this admin-privileged function delete media it doesn't actually own — a "confused deputy"
 // attack.
 async function deletePostInternal(postRef, post, bunnyApiKey) {
-  // Clean up likes and comments subcollections.
+  // Clean up likes and comments subcollections. Chunked at 400 (below Firestore's 500-write
+  // batch cap) since a popular post — especially one that crossed the Creative Prize's 30-like
+  // threshold — can easily have more likes/comments than a single batch allows.
   for (const sub of ["likes", "comments"]) {
     const subSnap = await postRef.collection(sub).get();
-    const batch = db.batch();
-    subSnap.docs.forEach((d) => batch.delete(d.ref));
-    if (!subSnap.empty) await batch.commit();
+    for (let i = 0; i < subSnap.docs.length; i += 400) {
+      const batch = db.batch();
+      subSnap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
   }
 
   // Regular posts never legitimately reference a Bunny video — that's only ever used by the
@@ -1684,10 +1728,16 @@ async function deleteAccountInternal(uid, bunnyApiKey, stripeSecretValue) {
   }
 
   // Delete all of this user's posts, with the same cleanup deletePost does for each one
-  // (this also cleans up that post's own prizePayouts doc — see deletePostInternal).
+  // (this also cleans up that post's own prizePayouts doc — see deletePostInternal). One post
+  // failing to clean up (e.g. a transient Storage error) shouldn't abort the account deletion
+  // for every other post and leave the Auth account undeleted — log and move on instead.
   const postsSnap = await db.collection("posts").where("ownerId", "==", uid).get();
   for (const postDoc of postsSnap.docs) {
-    await deletePostInternal(postDoc.ref, postDoc.data(), bunnyApiKey);
+    try {
+      await deletePostInternal(postDoc.ref, postDoc.data(), bunnyApiKey);
+    } catch (err) {
+      console.error(`deleteAccountInternal: failed to clean up post ${postDoc.id} for ${uid} — continuing`, err);
+    }
   }
 
   // Remove follow edges in both directions.
@@ -4449,6 +4499,15 @@ exports.stripeWebhook = onRequest(
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const uid = session.client_reference_id;
+      if (!uid) {
+        // Every session createCheckoutSession creates sets this — a session missing it wasn't
+        // created through our own flow (e.g. a manual test session from the Stripe dashboard).
+        // Ack the event so Stripe doesn't retry, but don't write to the literal path
+        // `users/undefined`.
+        console.error("stripeWebhook: checkout.session.completed with no client_reference_id, skipping", session.id);
+        res.json({ received: true });
+        return;
+      }
       const referrerUid = session.metadata?.referrerUid;
 
       // Billing country/currency from the actual payment — this is the authoritative source
@@ -4653,8 +4712,17 @@ exports.checkReferralPayouts = onSchedule("every day 09:00", async () => {
     const referredUserSnap = await db.doc(`users/${ref.referredUid}`).get();
     if (referredUserSnap.data()?.subscriptionStatus !== "active") continue;
 
-    await db.doc(`users/${ref.referrerUid}`).set({ payoutOwed: admin.firestore.FieldValue.increment(50) }, { merge: true });
-    await refDoc.ref.set({ paid: true, payoutMarkedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    // Claim this referral's payout atomically — re-checks `paid` inside the transaction so two
+    // overlapping runs of this scheduled function (a Cloud Scheduler retry racing the original,
+    // say) can't both read `paid: false` and both credit the same $50 twice.
+    const claimed = await db.runTransaction(async (tx) => {
+      const freshSnap = await tx.get(refDoc.ref);
+      if (freshSnap.data()?.paid !== false) return false;
+      tx.set(db.doc(`users/${ref.referrerUid}`), { payoutOwed: admin.firestore.FieldValue.increment(50) }, { merge: true });
+      tx.set(refDoc.ref, { paid: true, payoutMarkedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      return true;
+    });
+    if (!claimed) continue;
     await sendPush(ref.referrerUid, "You earned $50!", "A friend you referred has stuck around for 3 months.");
   }
 });
@@ -4730,7 +4798,7 @@ exports.sendOnboardingNudges = onSchedule(
 
         const userRecord = await admin.auth().getUser(doc.id);
         if (!userRecord.email) continue;
-        const priceDisplay = nudgePriceDisplay(userSnap.data()?.countryCode);
+        const priceDisplay = nudgePriceDisplay();
         await sendBrandedEmail(
           userRecord.email,
           buildSubscribeNudgeEmail(userRecord.displayName || data.displayName, priceDisplay)

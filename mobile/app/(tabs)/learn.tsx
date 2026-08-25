@@ -10,7 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
 import { purchaseSubscription, PlanId } from "@/lib/purchases";
-import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { fallbackDisplayPricing, resolveDisplayPricing, DisplayPricing } from "@/lib/pricing";
 
 const completeLessonFn = httpsCallable(functions, "completeLesson");
 const getLessonPlaybackFn = httpsCallable(functions, "getLessonPlayback");
@@ -71,13 +72,15 @@ export default function LearnScreen() {
   const [previewExhaustedSubject, setPreviewExhaustedSubject] = useState<{ id: string; name: string } | null>(null);
   const [subscribeLoadingPlan, setSubscribeLoadingPlan] = useState<PlanId | null>(null);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
-  const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
+  const [pricing, setPricing] = useState<DisplayPricing>(() => fallbackDisplayPricing(getLocalizedPricing(null)));
 
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "users", user.uid)).then((snap) => {
       setSubscribed(snap.data()?.subscriptionStatus === "active");
-      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
+      const fallback = getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode());
+      setPricing(fallbackDisplayPricing(fallback));
+      resolveDisplayPricing(fallback).then(setPricing);
     });
   }, [user]);
 
@@ -425,7 +428,7 @@ export default function LearnScreen() {
               style={{ width: "100%", marginBottom: 8, backgroundColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoadingPlan !== null ? 0.6 : 1 }}
             >
               <Text style={{ color: "white", fontSize: 17, fontWeight: "700", textAlign: "center" }}>
-                {subscribeLoadingPlan === "weekly" ? "Loading…" : `Subscribe Weekly · ${pricing.display}`}
+                {subscribeLoadingPlan === "weekly" ? "Loading…" : `Subscribe Weekly · ${pricing.weeklyDisplay}`}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -439,13 +442,15 @@ export default function LearnScreen() {
                 ) : (
                   <>
                     Subscribe Annual ·{" "}
-                    <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.display}</Text>{" "}
-                    {annualWeeklyEquivalentDisplay(pricing)}
+                    <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.weeklyDisplay}</Text>{" "}
+                    {pricing.annualPerWeekDisplay}
                   </>
                 )}
               </Text>
             </TouchableOpacity>
-            <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", marginBottom: 10 }}>{PRICE_CURRENCY_NOTE}</Text>
+            {!pricing.isExact && (
+              <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", marginBottom: 10 }}>{PRICE_CURRENCY_NOTE}</Text>
+            )}
             <TouchableOpacity onPress={() => setPreviewExhaustedSubject(null)}>
               <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>Maybe later</Text>
             </TouchableOpacity>
