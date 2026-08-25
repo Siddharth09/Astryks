@@ -15,9 +15,17 @@ export default function BlockedAccountsScreen() {
   const [unblockingId, setUnblockingId] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     getBlockedUsers()
-      .then((result) => setUsers((result.data as any).users))
-      .catch(() => setUsers([]));
+      .then((result) => {
+        if (!cancelled) setUsers((result.data as any).users);
+      })
+      .catch(() => {
+        if (!cancelled) setUsers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleUnblock(uid: string) {

@@ -11,9 +11,9 @@ import LikeButton from "@/components/LikeButton";
 import Comments from "@/components/Comments";
 import ShareMenu from "@/components/ShareMenu";
 import { colors } from "@/lib/styles";
+import { ADMIN_EMAILS } from "@/lib/admin";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 // "link" posts store an arbitrary URL supplied by whoever created the post — Firestore rules
 // only check the post's type/ownerId, not the contents of linkUrl. Without this check, any
@@ -42,6 +42,7 @@ export default function PostDetailScreen() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       let snap;
       try {
@@ -49,19 +50,26 @@ export default function PostDetailScreen() {
       } catch (err: any) {
         // A private post that isn't ours surfaces as permission-denied rather than "not found".
         if (err?.code === "permission-denied") {
-          setBlocked(true);
-          setLoading(false);
+          if (!cancelled) {
+            setBlocked(true);
+            setLoading(false);
+          }
           return;
         }
         throw err;
       }
+      if (cancelled) return;
       if (snap.exists()) {
         setPost({ id: snap.id, ...snap.data() });
         const commentsSnap = await getDocs(query(collection(db, "posts", id, "comments"), orderBy("createdAt", "asc")));
+        if (cancelled) return;
         setComments(commentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       }
       setLoading(false);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (blocked) {

@@ -15,6 +15,7 @@ export default function Comments({ postId, initialComments }: { postId: string; 
   const [comments, setComments] = useState(initialComments);
   const [body, setBody] = useState("");
   const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   const [reportingComment, setReportingComment] = useState<{ id: string; userId: string } | null>(null);
 
   async function handleReportComment(reason: string, details: string) {
@@ -26,22 +27,30 @@ export default function Comments({ postId, initialComments }: { postId: string; 
     if (!body.trim()) return;
     if (!user) return router.push("/login");
     setPosting(true);
+    setPostError(null);
 
-    // commentCount itself is maintained server-side (onCommentCreated in functions/index.js) —
-    // the client only ever creates the comment doc now.
-    const commentsRef = collection(db, "posts", postId, "comments");
-    const newCommentRef = doc(commentsRef);
+    try {
+      // commentCount itself is maintained server-side (onCommentCreated in functions/index.js) —
+      // the client only ever creates the comment doc now.
+      const commentsRef = collection(db, "posts", postId, "comments");
+      const newCommentRef = doc(commentsRef);
 
-    await setDoc(newCommentRef, {
-      body,
-      userId: user.uid,
-      userName: user.displayName ?? "Member",
-      createdAt: serverTimestamp(),
-    });
+      await setDoc(newCommentRef, {
+        body,
+        userId: user.uid,
+        userName: user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+      });
 
-    setComments((prev) => [...prev, { id: newCommentRef.id, body, userId: user.uid, userName: user.displayName ?? "Member" }]);
-    setBody("");
-    setPosting(false);
+      setComments((prev) => [...prev, { id: newCommentRef.id, body, userId: user.uid, userName: user.displayName ?? "Member" }]);
+      setBody("");
+    } catch (err: any) {
+      // Without this, a failed write (offline, blocked user, rules rejection) threw before
+      // setPosting(false) ever ran, leaving the Post button permanently disabled.
+      setPostError(err.message ?? "Couldn't post that comment — please try again.");
+    } finally {
+      setPosting(false);
+    }
   }
 
   return (
@@ -67,7 +76,9 @@ export default function Comments({ postId, initialComments }: { postId: string; 
             <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      ) : null}
+      {postError && <Text style={{ color: "#B3261E", fontSize: 14, marginTop: 6 }}>{postError}</Text>}
+      {!user && (
         <Text style={{ color: colors.muted, fontSize: 17 }}>Log in to comment.</Text>
       )}
       <ReportModal

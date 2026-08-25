@@ -14,10 +14,10 @@ import ReportModal from "@/components/ReportModal";
 import PrizeInfoModal from "@/components/PrizeInfoModal";
 import ShareMenu from "@/components/ShareMenu";
 import { useResizedImageUrl } from "@/lib/resizedImage";
+import { ADMIN_EMAILS } from "@/lib/admin";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const submitReportFn = httpsCallable(functions, "submitReport");
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 export default function PostCard({
   post,

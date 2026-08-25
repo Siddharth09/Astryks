@@ -2318,6 +2318,16 @@ exports.getMessageSuggestions = onCall(async (request) => {
   return { suggestions };
 });
 
+// Escapes a user-controlled string (display name) before it's interpolated into an HTML email
+// body — display names come from the profile-creation flow or Stripe Checkout's billing form,
+// both editable by the account holder, so a crafted name could otherwise break the email's
+// markup or embed a misleading element. Only used in the `html` half of each template below;
+// the plain-text `text` half interpolates the raw name, since escaping would show literal
+// "&amp;"-style entities to a human reading plain text.
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 // ---------- Welcome email: branded HTML template + sender ----------
 // Brand colours pulled straight from tailwind.config.ts so this actually matches the rest of
 // the site (paper background, ink text, the coral "brand" accent, and the soft brandLight
@@ -2326,6 +2336,7 @@ exports.getMessageSuggestions = onCall(async (request) => {
 // stripped by a lot of mail clients (Gmail included, in some views), a hosted URL doesn't.
 function buildWelcomeEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "Welcome to Astryks 🎉";
 
   const text = `Hi ${name},
@@ -2360,7 +2371,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   We're really glad you're here — welcome to the community.
@@ -2421,6 +2432,7 @@ The Astryks team`;
 // astryks.com/admin/prizes. That's the "seeking your approval first" gate you asked for.
 function buildWinnerCongratsEmail(displayName, monthLabel, postId) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = `🎉 You won this month's Astryks Creative Prize!`;
   const postUrl = `https://astryks.com/post/${postId}`;
 
@@ -2461,7 +2473,7 @@ Astryks`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   I'm genuinely delighted to tell you — your post won ${monthLabel}'s Astryks Creative Prize.
@@ -2600,6 +2612,7 @@ exports.notifySignOut = onCall({ secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PAS
 
 function buildSubscriptionConfirmationEmail(displayName, priceDisplay) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "You're subscribed — welcome to full access 🎉";
 
   const text = `Hi ${name},
@@ -2632,7 +2645,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Thanks for subscribing! You now have full access to every lesson in the library, billed at
@@ -2685,6 +2698,7 @@ The Astryks team`;
 
 function buildCancellationEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "Your Astryks subscription has been canceled";
 
   const text = `Hi ${name},
@@ -2714,7 +2728,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Confirming your Astryks subscription has been canceled — you won't be charged again, and you'll
@@ -2757,6 +2771,7 @@ The Astryks team`;
 
 function buildRefundConfirmationEmail(displayName, amountDisplay) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = `Your ${amountDisplay} refund has been issued`;
 
   const text = `Hi ${name},
@@ -2789,7 +2804,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Your refund of <strong>${amountDisplay}</strong> has been approved and sent back to your original
@@ -2830,6 +2845,7 @@ The Astryks team`;
 // unliking/reliking around the threshold can't re-send it.
 function buildPrizeNominationEmail(displayName, postId, likeCount) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = `🏆 Your post just cleared ${PRIZE_LIKE_THRESHOLD} likes — you're in the running!`;
   const postUrl = `https://astryks.com/post/${postId}`;
   const leaderboardUrl = "https://astryks.com/prizes";
@@ -2865,7 +2881,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Your post just crossed <strong>${likeCount} likes</strong> — clearing the ${PRIZE_LIKE_THRESHOLD}-like bar
@@ -2913,6 +2929,7 @@ The Astryks team`;
 // sending this one too would be redundant. See notifySignOut below for the one call site.
 function buildSignOutEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "You've been signed out of Astryks";
 
   const text = `Hi ${name},
@@ -2940,7 +2957,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Just confirming you've been signed out of Astryks.
@@ -2983,6 +3000,7 @@ The Astryks team`;
 // from afterwards.
 function buildAccountDeletedEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "Your Astryks account has been deleted";
 
   const text = `Hi ${name},
@@ -3012,7 +3030,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   Confirming your Astryks account and everything in it — posts, messages, lesson progress,
@@ -3059,6 +3077,7 @@ The Astryks team`;
 
 function buildTryLessonEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "Haven't picked a lesson yet? Here's where to start";
 
   const text = `Hi ${name},
@@ -3091,7 +3110,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   You signed up a couple of days ago — welcome again! We noticed you haven't started a
@@ -3131,6 +3150,7 @@ The Astryks team`;
 
 function buildSubscribeNudgeEmail(displayName, priceDisplay) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "Still deciding? Here's exactly what you get";
 
   const text = `Hi ${name},
@@ -3169,7 +3189,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   You've been exploring Astryks for a few days now, so here's exactly what subscribing
@@ -3226,6 +3246,7 @@ The Astryks team`;
 
 function buildWeMissYouEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "We miss you at Astryks";
 
   const text = `Hi ${name},
@@ -3258,7 +3279,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   It's been a couple of weeks since we've seen you around — no big deal, life gets busy.
@@ -3298,6 +3319,7 @@ The Astryks team`;
 
 function buildWinBackEmail(displayName) {
   const name = displayName || "there";
+  const safeName = escapeHtml(name);
   const subject = "Come back any time — here's what's new";
 
   const text = `Hi ${name},
@@ -3330,7 +3352,7 @@ The Astryks team`;
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
-                  Hi ${name},
+                  Hi ${safeName},
                 </p>
                 <p style="margin:0 0 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
                   It's been a few weeks since your Astryks subscription ended, and we genuinely hope it
@@ -4064,16 +4086,29 @@ exports.requestRefund = onCall(
     const userEmail = userSnap.data()?.email || request.auth.token.email || "";
     const amountDisplay = formatCents(totalCents, currency);
 
-    const reqRef = await db.collection("refundRequests").add({
-      uid,
-      userName,
-      userEmail,
-      stripeCustomerId: customerId,
-      totalCents,
-      currency,
-      status: "pending",
-      requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    // A deterministic per-user doc ID (rather than the pendingSnap query above, which only
+    // catches a duplicate that's already committed) is what actually closes the race: two
+    // near-simultaneous calls from the same account can both pass the query check before either
+    // write lands, but only one of them can win this transactional create.
+    const reqRef = db.doc(`refundRequests/pending_${uid}`);
+    const created = await db.runTransaction(async (tx) => {
+      const existing = await tx.get(reqRef);
+      if (existing.exists && existing.data()?.status === "pending") return false;
+      tx.set(reqRef, {
+        uid,
+        userName,
+        userEmail,
+        stripeCustomerId: customerId,
+        totalCents,
+        currency,
+        status: "pending",
+        requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return true;
     });
+    if (!created) {
+      throw new HttpsError("already-exists", "You already have a refund request awaiting review.");
+    }
 
     await notifyAdmin(
       `💸 Refund requested — ${amountDisplay}`,

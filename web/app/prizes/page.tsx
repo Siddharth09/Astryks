@@ -24,8 +24,17 @@ export default function PrizesPage() {
 
   useEffect(() => {
     if (!user) return;
-    getPrizeLeaderboardFn().then((res) => setLeaderboard((res.data as any).leaderboard));
-    getLatestPrizeWinnerFn().then((res) => setWinner((res.data as any).winner));
+    getPrizeLeaderboardFn()
+      .then((res) => setLeaderboard((res.data as any).leaderboard))
+      .catch((err) => {
+        // Without this, a failed call left `leaderboard` at its initial `null` forever, so the
+        // "Loading…" text below never went away.
+        console.error("Couldn't load the prize leaderboard", err);
+        setLeaderboard([]);
+      });
+    getLatestPrizeWinnerFn()
+      .then((res) => setWinner((res.data as any).winner))
+      .catch((err) => console.error("Couldn't load the latest prize winner", err));
   }, [user]);
 
   if (authLoading || !user) {

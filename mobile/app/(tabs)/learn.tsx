@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Modal, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Modal, Image, Alert } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { collection, getDocs, query, where, orderBy, doc, updateDoc, increment, getDoc } from "firebase/firestore";
@@ -142,12 +142,18 @@ export default function LearnScreen() {
   );
 
   async function markComplete(lessonId: string) {
-    const result = await completeLessonFn({ lessonId });
-    setCompleted((prev) => new Set(prev).add(lessonId));
-    const mastered = (result.data as any)?.masteredSubject;
-    if (mastered && active) {
-      setJustMastered(active.name);
-      setTimeout(() => setJustMastered(null), 5000);
+    try {
+      const result = await completeLessonFn({ lessonId });
+      setCompleted((prev) => new Set(prev).add(lessonId));
+      const mastered = (result.data as any)?.masteredSubject;
+      if (mastered && active) {
+        setJustMastered(active.name);
+        setTimeout(() => setJustMastered(null), 5000);
+      }
+    } catch (err: any) {
+      // Without this, a failed call left `completed` untouched with zero feedback — tapping
+      // "Mark done" looked like it silently did nothing.
+      Alert.alert("Couldn't mark this lesson complete", err.message ?? "Please try again.");
     }
   }
 

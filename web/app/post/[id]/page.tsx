@@ -9,9 +9,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import LikeButton from "@/components/LikeButton";
 import Comments from "@/components/Comments";
 import ShareMenu from "@/components/ShareMenu";
+import { ADMIN_EMAILS } from "@/lib/admin";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
-const ADMIN_EMAILS = ["mehta.siddharth09@gmail.com"];
 
 // "link" posts store a URL supplied by whoever created the post — Firestore rules only check
 // post type/ownerId, not the contents of linkUrl. React doesn't sanitize <a href> the way it

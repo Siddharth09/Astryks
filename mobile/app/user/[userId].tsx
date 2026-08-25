@@ -86,6 +86,7 @@ export default function UserProfileScreen() {
       router.replace("/(tabs)/me");
       return;
     }
+    let cancelled = false;
     (async () => {
       // Fetched via a Cloud Function rather than a direct getDoc: firestore.rules restricts
       // users/{uid} reads to that document's own owner (it also holds stripeCustomerId/
@@ -96,10 +97,13 @@ export default function UserProfileScreen() {
         const result = await getPublicProfile({ uid: userId });
         profileData = result.data;
       } catch (err) {
-        setMissing(true);
-        setLoading(false);
+        if (!cancelled) {
+          setMissing(true);
+          setLoading(false);
+        }
         return;
       }
+      if (cancelled) return;
       setProfile(profileData);
 
       // Fetched via a Cloud Function rather than a direct Firestore query: Firestore security
@@ -110,6 +114,7 @@ export default function UserProfileScreen() {
         getDocs(query(collection(db, "follows"), where("followingId", "==", userId))),
         getDocs(query(collection(db, "follows"), where("followerId", "==", userId))),
       ]);
+      if (cancelled) return;
       const postsData = result.data as { posts: any[]; blocked: boolean };
       setPosts(postsData.posts);
       setPostsBlocked(postsData.blocked);
@@ -117,6 +122,9 @@ export default function UserProfileScreen() {
       setFollowingCount(followingSnap.size);
       setLoading(false);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [currentUser, userId]);
 
   async function openConversation() {

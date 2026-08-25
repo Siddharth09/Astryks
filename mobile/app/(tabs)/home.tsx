@@ -59,6 +59,12 @@ export default function HomeScreen() {
   // context of your own alongside it.
   const [captionInput, setCaptionInput] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  // Shared across all three compose flows below (text/link/media) — previously none of them
+  // had any loading or error state at all, so a failed post (offline, a rules rejection) just
+  // silently did nothing: no feedback, and the compose UI stayed open with the pending
+  // caption/media as if nothing had been tried.
+  const [composeLoading, setComposeLoading] = useState(false);
+  const [composeError, setComposeError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -164,82 +170,106 @@ export default function HomeScreen() {
 
   async function postMedia() {
     if (!pendingMedia || !user) return;
-    const { uri, type } = pendingMedia;
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    // Pre-generate the post's Firestore doc ID and fold it into the storage path (rather than
-    // a bare timestamp) so storage.rules can look up *this exact post's* visibility before
-    // serving the file — see the posts/{userId}/{postId}/{fileName} match block there. Without
-    // the postId in the path, Storage has no way to know which post a file belongs to, so a
-    // "private" post's media stayed just as publicly fetchable as a public one's.
-    // A real extension + explicit content-type (rather than a bare timestamp and whatever type
-    // the blob happened to carry) matters most for video — see guessMediaUploadInfo's comment.
-    const { contentType, extension } = guessMediaUploadInfo(pendingMedia);
-    const postRef = doc(collection(db, "posts"));
-    const path = `posts/${user.uid}/${postRef.id}/${Date.now()}.${extension}`;
-    const storageRef = ref(storage, path);
-    const task = uploadBytesResumable(storageRef, blob, { contentType });
+    setComposeLoading(true);
+    setComposeError(null);
+    try {
+      const { uri, type } = pendingMedia;
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      // Pre-generate the post's Firestore doc ID and fold it into the storage path (rather than
+      // a bare timestamp) so storage.rules can look up *this exact post's* visibility before
+      // serving the file — see the posts/{userId}/{postId}/{fileName} match block there. Without
+      // the postId in the path, Storage has no way to know which post a file belongs to, so a
+      // "private" post's media stayed just as publicly fetchable as a public one's.
+      // A real extension + explicit content-type (rather than a bare timestamp and whatever type
+      // the blob happened to carry) matters most for video — see guessMediaUploadInfo's comment.
+      const { contentType, extension } = guessMediaUploadInfo(pendingMedia);
+      const postRef = doc(collection(db, "posts"));
+      const path = `posts/${user.uid}/${postRef.id}/${Date.now()}.${extension}`;
+      const storageRef = ref(storage, path);
+      const task = uploadBytesResumable(storageRef, blob, { contentType });
 
-    await new Promise<void>((resolve, reject) => {
-      task.on("state_changed", undefined, reject, () => resolve());
-    });
-    const mediaUrl = await getDownloadURL(storageRef);
+      await new Promise<void>((resolve, reject) => {
+        task.on("state_changed", undefined, reject, () => resolve());
+      });
+      const mediaUrl = await getDownloadURL(storageRef);
 
-    await setDoc(postRef, {
-      type,
-      title: captionInput.trim() || null,
-      mediaUrl,
-      mediaPath: path,
-      visibility: isPublic ? "public" : "private",
-      ownerId: user.uid,
-      ownerName: user.displayName ?? "Member",
-      createdAt: serverTimestamp(),
-      likeCount: 0,
-      commentCount: 0,
-    });
-    setPendingMedia(null);
-    setCaptionInput("");
-    load();
+      await setDoc(postRef, {
+        type,
+        title: captionInput.trim() || null,
+        mediaUrl,
+        mediaPath: path,
+        visibility: isPublic ? "public" : "private",
+        ownerId: user.uid,
+        ownerName: user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+        likeCount: 0,
+        commentCount: 0,
+      });
+      setPendingMedia(null);
+      setCaptionInput("");
+      load();
+    } catch (err: any) {
+      setComposeError(err.message ?? "Couldn't post that — please try again.");
+    } finally {
+      setComposeLoading(false);
+    }
   }
 
   async function shareText() {
     if (!textInput || !textInput.trim() || !user) return;
-    await addDoc(collection(db, "posts"), {
-      type: "text",
-      body: textInput,
-      visibility: isPublic ? "public" : "private",
-      ownerId: user.uid,
-      ownerName: user.displayName ?? "Member",
-      createdAt: serverTimestamp(),
-      likeCount: 0,
-      commentCount: 0,
-    });
-    setTextInput(null);
-    load();
+    setComposeLoading(true);
+    setComposeError(null);
+    try {
+      await addDoc(collection(db, "posts"), {
+        type: "text",
+        body: textInput,
+        visibility: isPublic ? "public" : "private",
+        ownerId: user.uid,
+        ownerName: user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+        likeCount: 0,
+        commentCount: 0,
+      });
+      setTextInput(null);
+      load();
+    } catch (err: any) {
+      setComposeError(err.message ?? "Couldn't post that — please try again.");
+    } finally {
+      setComposeLoading(false);
+    }
   }
 
   async function shareLink() {
     if (!linkInput || !user) return;
-    const result = await fetchLinkPreview({ url: linkInput });
-    const preview = result.data as { title: string; image: string | null; domain: string };
+    setComposeLoading(true);
+    setComposeError(null);
+    try {
+      const result = await fetchLinkPreview({ url: linkInput });
+      const preview = result.data as { title: string; image: string | null; domain: string };
 
-    await addDoc(collection(db, "posts"), {
-      type: "link",
-      title: captionInput.trim() || null,
-      linkUrl: linkInput,
-      linkTitle: preview.title,
-      linkImage: preview.image,
-      linkDomain: preview.domain,
-      visibility: isPublic ? "public" : "private",
-      ownerId: user.uid,
-      ownerName: user.displayName ?? "Member",
-      createdAt: serverTimestamp(),
-      likeCount: 0,
-      commentCount: 0,
-    });
-    setLinkInput(null);
-    setCaptionInput("");
-    load();
+      await addDoc(collection(db, "posts"), {
+        type: "link",
+        title: captionInput.trim() || null,
+        linkUrl: linkInput,
+        linkTitle: preview.title,
+        linkImage: preview.image,
+        linkDomain: preview.domain,
+        visibility: isPublic ? "public" : "private",
+        ownerId: user.uid,
+        ownerName: user.displayName ?? "Member",
+        createdAt: serverTimestamp(),
+        likeCount: 0,
+        commentCount: 0,
+      });
+      setLinkInput(null);
+      setCaptionInput("");
+      load();
+    } catch (err: any) {
+      setComposeError(err.message ?? "Couldn't fetch that link — please try again.");
+    } finally {
+      setComposeLoading(false);
+    }
   }
 
   if (authLoading || !user) {
@@ -302,12 +332,13 @@ export default function HomeScreen() {
             autoFocus
           />
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
+          {composeError && <Text style={{ color: "#B3261E", fontSize: 14 }}>{composeError}</Text>}
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity onPress={() => setTextInput(null)} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => { setTextInput(null); setComposeError(null); }} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={shareText} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
-              <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
+            <TouchableOpacity onPress={shareText} disabled={composeLoading} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center", opacity: composeLoading ? 0.6 : 1 }}>
+              <Text style={{ color: "white", fontWeight: "600" }}>{composeLoading ? "Posting…" : "Post"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -321,11 +352,11 @@ export default function HomeScreen() {
               onChangeText={setLinkInput}
               autoFocus
             />
-            <TouchableOpacity onPress={() => { setLinkInput(null); setCaptionInput(""); }} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => { setLinkInput(null); setCaptionInput(""); setComposeError(null); }} style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingHorizontal: 14, justifyContent: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={shareLink} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" }}>
-              <Text style={{ color: "white", fontWeight: "600" }}>Share</Text>
+            <TouchableOpacity onPress={shareLink} disabled={composeLoading} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center", opacity: composeLoading ? 0.6 : 1 }}>
+              <Text style={{ color: "white", fontWeight: "600" }}>{composeLoading ? "Sharing…" : "Share"}</Text>
             </TouchableOpacity>
           </View>
           <TextInput
@@ -336,6 +367,7 @@ export default function HomeScreen() {
             multiline
           />
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
+          {composeError && <Text style={{ color: "#B3261E", fontSize: 14 }}>{composeError}</Text>}
         </View>
       ) : pendingMedia !== null ? (
         <View style={{ padding: 12, gap: 8 }}>
@@ -351,12 +383,13 @@ export default function HomeScreen() {
             autoFocus
           />
           <VisibilityToggle isPublic={isPublic} setIsPublic={setIsPublic} />
+          {composeError && <Text style={{ color: "#B3261E", fontSize: 14 }}>{composeError}</Text>}
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity onPress={() => { setPendingMedia(null); setCaptionInput(""); }} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
+            <TouchableOpacity onPress={() => { setPendingMedia(null); setCaptionInput(""); setComposeError(null); }} style={{ flex: 1, borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: "white" }}>
               <Text style={{ color: colors.ink, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={postMedia} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
-              <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
+            <TouchableOpacity onPress={postMedia} disabled={composeLoading} style={{ flex: 1, backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 10, alignItems: "center", opacity: composeLoading ? 0.6 : 1 }}>
+              <Text style={{ color: "white", fontWeight: "600" }}>{composeLoading ? "Posting…" : "Post"}</Text>
             </TouchableOpacity>
           </View>
         </View>

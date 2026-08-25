@@ -39,13 +39,20 @@ export default function ChatThreadPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getDoc(doc(db, "conversations", params.conversationId)).then((snap) => {
-      const data = snap.data();
-      if (!data || !user) return;
-      const otherIndex = (data.participants ?? []).findIndex((id: string) => id !== user.uid);
-      setOtherName(data.participantNames?.[otherIndex] ?? "Member");
-      setOtherIsBot(BOT_UIDS.includes(data.participants?.[otherIndex]));
-    });
+    getDoc(doc(db, "conversations", params.conversationId))
+      .then((snap) => {
+        const data = snap.data();
+        if (!data || !user) return;
+        const otherIndex = (data.participants ?? []).findIndex((id: string) => id !== user.uid);
+        setOtherName(data.participantNames?.[otherIndex] ?? "Member");
+        setOtherIsBot(BOT_UIDS.includes(data.participants?.[otherIndex]));
+      })
+      .catch(() => {
+        // Most likely a permission-denied (not a participant in this conversation) — leave the
+        // header blank rather than an unhandled rejection; the message list below will fail the
+        // same way and show its own empty state.
+        setOtherName(null);
+      });
   }, [params.conversationId, user]);
 
   // Redirects to Stripe's own hosted onboarding form — their bank details go straight to

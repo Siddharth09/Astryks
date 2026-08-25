@@ -16,6 +16,7 @@ export default function FollowButton({
 }) {
   const [following, setFollowing] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
   const followId = currentUserId ? `${currentUserId}_${targetUserId}` : null;
 
   useEffect(() => {
@@ -30,21 +31,29 @@ export default function FollowButton({
   if (!currentUserId || currentUserId === targetUserId) return null;
 
   async function toggle() {
-    if (!followId || !currentUserId) return;
-    const ref = doc(db, "follows", followId);
-    if (following) {
-      await deleteDoc(ref);
-      setFollowing(false);
-    } else {
-      await setDoc(ref, { followerId: currentUserId, followingId: targetUserId, createdAt: serverTimestamp() });
-      setFollowing(true);
+    if (!followId || !currentUserId || busy) return;
+    setBusy(true);
+    try {
+      const ref = doc(db, "follows", followId);
+      if (following) {
+        await deleteDoc(ref);
+        setFollowing(false);
+      } else {
+        await setDoc(ref, { followerId: currentUserId, followingId: targetUserId, createdAt: serverTimestamp() });
+        setFollowing(true);
+      }
+    } catch {
+      // Not fatal — local state just stays as it was, matching what's still true in Firestore
+      // since the write never landed.
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <TouchableOpacity
       onPress={toggle}
-      disabled={!checked}
+      disabled={!checked || busy}
       style={[
         {
           paddingHorizontal: 10,

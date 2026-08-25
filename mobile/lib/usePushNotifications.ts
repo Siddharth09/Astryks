@@ -1,9 +1,20 @@
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+
+// Android 8+ requires a notification channel to display notifications reliably (and to control
+// importance/sound) — without one, notifications can be silently dropped or shown with
+// undesirable default behavior. No-op on iOS, which has no channel concept.
+if (Platform.OS === "android") {
+  Notifications.setNotificationChannelAsync("default", {
+    name: "Default",
+    importance: Notifications.AndroidImportance.DEFAULT,
+  });
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
