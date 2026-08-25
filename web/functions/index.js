@@ -319,14 +319,16 @@ async function nominateForPrize(postId, post) {
   await sendPrizeBotMessage(
     post.ownerId,
     post.ownerName,
-    `🎉 Your post is officially entered into this month's Astryks Creative Prize — AU$${PRIZE_AUD}! The only ` +
-      `requirement is that a post needs at least ${PRIZE_LIKE_THRESHOLD} likes to qualify for that month's prize — ` +
-      `we ask this because we want our community to lift each other up, cheering on the beautiful things people ` +
-      `are creating here. Whoever's entry has the most likes (and clears ${PRIZE_LIKE_THRESHOLD}) at the end of ` +
-      `the month takes it home. If you'd rather not be entered, just tap "Opt out" below. You can also share your ` +
-      `payout details (bank transfer or PayID) right here now, so we're ready to send the cash instantly if you ` +
-      `win — note that international transfers from Australia may be subject to market FX rates and other ` +
-      `overseas transfer considerations.`,
+    `🎉 Your post is officially entered into this month's Astryks Creative Prize — AU$${PRIZE_AUD}! Two things ` +
+      `keep this fair: it needs at least ${PRIZE_LIKE_THRESHOLD} likes to qualify — free for anyone to give, so ` +
+      `it's really your community cheering you on — and before any cash goes out, a real person on our team ` +
+      `takes a look to make sure it's genuine creative work, not a repost or a meme just farming likes. It really ` +
+      `helps that review along if you share a quick note (or a link to a process/timelapse video) about how you ` +
+      `made it — totally optional, and you can add it anytime by tapping the trophy icon on your post. If you'd ` +
+      `rather not be entered at all, just tap "Opt out" below. You can also share your payout details (bank ` +
+      `transfer or PayID) right here now, so we're ready to send the cash instantly if you win — note that ` +
+      `international transfers from Australia may be subject to market FX rates and other overseas transfer ` +
+      `considerations.`,
     { type: "prizeNomination", postId }
   );
 }
@@ -1346,6 +1348,62 @@ exports.optInToPrize = onCall(async (request) => {
   return { ok: true };
 });
 
+// ---------- Callable: let a post's owner share how they made it, for the Creative Prize ----------
+// Purely informational for the human review step in sendMonthlyPrizeReport/approvePrizeWinnerAnnouncement
+// below — it's never a technical gate on entry (see the legal-review comment on nominateForPrize for why
+// entry itself has to stay free and automatic). Firestore rules already let a post's owner write any field
+// on their own post directly, so this callable exists for the rate limit, the confirmation message, and a
+// single validated place both apps can call rather than each hand-rolling their own writes.
+exports.submitPrizeProcessNote = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  await enforceRateLimit(request.auth.uid, "submitPrizeProcessNote", { max: 30, windowMs: 60 * 60 * 1000 });
+  const { postId, note, videoUrl } = request.data ?? {};
+  if (!postId) {
+    throw new HttpsError("invalid-argument", "postId is required.");
+  }
+  if (note != null && typeof note !== "string") {
+    throw new HttpsError("invalid-argument", "note must be a string.");
+  }
+  if (videoUrl != null && typeof videoUrl !== "string") {
+    throw new HttpsError("invalid-argument", "videoUrl must be a string.");
+  }
+  let safeVideoUrl = null;
+  if (videoUrl) {
+    try {
+      const parsed = new URL(videoUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("bad scheme");
+      }
+      safeVideoUrl = videoUrl.slice(0, 500);
+    } catch {
+      throw new HttpsError("invalid-argument", "That doesn't look like a valid link — please use a full http(s) URL.");
+    }
+  }
+
+  const postRef = db.doc(`posts/${postId}`);
+  const postSnap = await postRef.get();
+  if (!postSnap.exists) {
+    throw new HttpsError("not-found", "This post no longer exists.");
+  }
+  const post = postSnap.data();
+  if (post.ownerId !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "Only the post's owner can add this.");
+  }
+
+  await postRef.set(
+    {
+      prizeProcessNote: note ? note.trim().slice(0, 600) : null,
+      prizeProcessVideoUrl: safeVideoUrl,
+      prizeProcessUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return { ok: true };
+});
+
 // ---------- Callable: this month's top creative posts, for the in-app leaderboard ----------
 // Scoped to posts created since the start of the current calendar month (mirrors the monthly
 // report's "this month's own posts only" rule) — a client can't list-query `posts` directly
@@ -1682,6 +1740,59 @@ exports.approvePrizeWinnerAnnouncement = onCall(
     return { ok: true, notifiedEmail: email };
   }
 );
+
+// ---------- Callable: admin-only — swap in a different nominee as the recorded winner ----------
+// The monthly job always auto-picks whoever has the most likes, but likes alone can't tell a genuine
+// creative post from a meme or a repost that farmed engagement — that judgment call is exactly what this
+// exists for. Only works before approvePrizeWinnerAnnouncement has fired (once someone's been told they
+// won, that can't be walked back), and the replacement must be one of that month's own recorded nominees.
+exports.overridePrizeWinner = onCall(async (request) => {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const { month, postId } = request.data ?? {};
+  if (!month || !postId) {
+    throw new HttpsError("invalid-argument", "month and postId are required.");
+  }
+
+  const winnerRef = db.doc(`prizeWinners/${month}`);
+  const winnerSnap = await winnerRef.get();
+  if (!winnerSnap.exists) {
+    throw new HttpsError("not-found", "No winner recorded for that month.");
+  }
+  const current = winnerSnap.data();
+  if (current.announced) {
+    throw new HttpsError("failed-precondition", "This winner has already been notified — that can't be undone.");
+  }
+  const nominee = (current.nominees ?? []).find((n) => n.postId === postId);
+  if (!nominee) {
+    throw new HttpsError("invalid-argument", "That post isn't one of this month's recorded nominees.");
+  }
+
+  const postSnap = await db.doc(`posts/${postId}`).get();
+  if (!postSnap.exists) {
+    throw new HttpsError("not-found", "That post no longer exists.");
+  }
+  const post = postSnap.data();
+
+  await winnerRef.set(
+    {
+      postId,
+      ownerId: post.ownerId,
+      ownerName: post.ownerName || nominee.ownerName || "Member",
+      likeCount: post.likeCount ?? nominee.likeCount ?? 0,
+      title: post.title || null,
+      mediaUrl: post.type === "photo" ? post.mediaUrl : null,
+      type: post.type,
+      processNote: post.prizeProcessNote || null,
+      processVideoUrl: post.prizeProcessVideoUrl || null,
+      overriddenFrom: current.postId !== postId ? current.postId : current.overriddenFrom ?? null,
+    },
+    { merge: true }
+  );
+
+  return { ok: true };
+});
 
 // ---------- Shared: permanently delete a uid's posts, edges, and account ----------
 //
@@ -4993,10 +5104,14 @@ exports.sendMonthlyPrizeReport = onSchedule(
         title: winner.title || null,
         mediaUrl: winner.type === "photo" ? winner.mediaUrl : null,
         type: winner.type,
+        processNote: winner.prizeProcessNote || null,
+        processVideoUrl: winner.prizeProcessVideoUrl || null,
         nominees: candidates.slice(0, 10).map((p) => ({
           postId: p.id,
           ownerName: p.ownerName || "Member",
           likeCount: p.likeCount ?? 0,
+          processNote: p.prizeProcessNote || null,
+          processVideoUrl: p.prizeProcessVideoUrl || null,
         })),
         paid: false,
         paidAt: null,
@@ -5028,10 +5143,16 @@ exports.sendMonthlyPrizeReport = onSchedule(
               ? `   Payout details on file (${winnerPayout.method}): ${winnerPayout.details}`
               : "   No payout details on file yet — ask them via Messages, or check the admin Prize winners page."
             : null;
+        const processLine = p.prizeProcessNote
+          ? `   📝 Their process: "${p.prizeProcessNote}"${p.prizeProcessVideoUrl ? ` (video: ${p.prizeProcessVideoUrl})` : ""}`
+          : i === 0
+          ? "   ⚠️ No process note shared yet — worth a look before approving, or message them to ask."
+          : "   No process note shared.";
         return [
           `${i + 1}. ${p.ownerName || "Member"} (${email}) — ${p.likeCount} likes — "${title}"`,
           `   https://astryks.com/post/${p.id}`,
           payoutLine,
+          processLine,
         ]
           .filter(Boolean)
           .join("\n");
@@ -5047,8 +5168,10 @@ exports.sendMonthlyPrizeReport = onSchedule(
 
     const payoutStatusLine = PRIZE_PAYOUTS_ENABLED
       ? `#1 is this month's winner — AU$${PRIZE_AUD}. Nothing has been sent to them yet and no public announcement ` +
-        `has gone out: review the details below, then go to astryks.com/admin/prizes and click "Approve & notify ` +
-        `winner" when you're ready. That's what actually emails/messages them the congratulations and lets the ` +
+        `has gone out: review the details below — including their process note, so you can confirm this is genuine ` +
+        `creative work and not a repost or a meme that just farmed likes — then go to astryks.com/admin/prizes and ` +
+        `click "Approve & notify winner" when you're ready. That page also lets you pick a different nominee instead ` +
+        `if #1 doesn't hold up. That's what actually emails/messages them the congratulations and lets the ` +
         `public banner show them as the winner — until then, only you know.\nOnce you've sent the AU$${PRIZE_AUD} ` +
         `yourself, mark it paid on that same page. Reminder if they're overseas: transfers from Australia may be ` +
         `subject to market FX rates and international transfer fees — check with your bank/provider before sending.`

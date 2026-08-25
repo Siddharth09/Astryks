@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 
 const optInToPrizeFn = httpsCallable(functions, "optInToPrize");
+const submitPrizeProcessNoteFn = httpsCallable(functions, "submitPrizeProcessNote");
 
 const THRESHOLD = 30;
 
@@ -23,6 +24,9 @@ export default function PrizeInfoModal({
   eligible,
   optedOut,
   generic,
+  isOwner,
+  processNote,
+  processVideoUrl,
   onOptedIn,
 }: {
   open: boolean;
@@ -36,11 +40,33 @@ export default function PrizeInfoModal({
   // Pass true when there's no post yet (e.g. shown from the composer, before posting) —
   // skips the per-post progress bar/eligible/opted-out states in favour of a plain explainer.
   generic?: boolean;
+  // Only the post's owner can add/edit its process note — everyone else who taps the trophy
+  // just sees the explainer (the server would reject the write anyway, but there's no reason
+  // to show a stranger a form for someone else's post).
+  isOwner?: boolean;
+  processNote?: string | null;
+  processVideoUrl?: string | null;
   // Lets the parent (which holds the actual post data) clear its own optedOut flag once this
   // succeeds, since this modal doesn't own that state itself.
   onOptedIn?: () => void;
 }) {
   const [optingIn, setOptingIn] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(processNote ?? "");
+  const [videoDraft, setVideoDraft] = useState(processVideoUrl ?? "");
+  const [savingProcess, setSavingProcess] = useState(false);
+  const [processSaved, setProcessSaved] = useState(false);
+  const [processError, setProcessError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setNoteDraft(processNote ?? "");
+      setVideoDraft(processVideoUrl ?? "");
+      setProcessSaved(false);
+      setProcessError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   if (!open) return null;
 
   const pct = Math.min(100, Math.round((likeCount / THRESHOLD) * 100));
@@ -56,6 +82,24 @@ export default function PrizeInfoModal({
       alert(err.message ?? "Couldn't opt back in — please try again.");
     } finally {
       setOptingIn(false);
+    }
+  }
+
+  async function handleSaveProcess() {
+    if (!postId || savingProcess) return;
+    setSavingProcess(true);
+    setProcessError(null);
+    try {
+      await submitPrizeProcessNoteFn({
+        postId,
+        note: noteDraft.trim() || null,
+        videoUrl: videoDraft.trim() || null,
+      });
+      setProcessSaved(true);
+    } catch (err: any) {
+      setProcessError(err.message ?? "Couldn't save that — please try again.");
+    } finally {
+      setSavingProcess(false);
     }
   }
 
@@ -84,6 +128,12 @@ export default function PrizeInfoModal({
           takes a second, and it's how we get to cheer on the beautiful things people are making
           here. Just one winner is picked each month; if nothing reaches {THRESHOLD} likes in a
           given month, no winner is picked that month.
+        </p>
+        <p className="text-sm text-ink/70 mb-2 leading-relaxed">
+          Before any cash goes out, a real person on the Astryks team takes a look at the winning
+          post — just to make sure it's genuine creative work, not a repost or a meme that
+          happened to farm likes. That's the only manual step in the whole process, and it's there
+          to keep the prize meaningful for people actually making things.
         </p>
         <p className="text-xs text-ink/40 mb-4 leading-relaxed">
           International transfers from Australia may be subject to market foreign exchange rates and
@@ -121,6 +171,45 @@ export default function PrizeInfoModal({
             <div className="h-2 rounded-full bg-ink/10 overflow-hidden">
               <div className="h-full bg-brand rounded-full" style={{ width: `${pct}%` }} />
             </div>
+          </div>
+        )}
+
+        {!generic && isOwner && !optedOut && (
+          <div className="rounded-xl border border-line/15 p-3 mb-4">
+            <p className="text-sm font-medium mb-1">Show your process</p>
+            <p className="text-xs text-ink/60 mb-3 leading-relaxed">
+              Totally optional, but it's the easiest way to show us the story behind what you
+              made — a quick note, or a link to a timelapse/process video, is plenty. This is
+              what our team looks at during that review step above.
+            </p>
+            <textarea
+              value={noteDraft}
+              onChange={(e) => {
+                setNoteDraft(e.target.value);
+                setProcessSaved(false);
+              }}
+              maxLength={600}
+              rows={3}
+              placeholder="e.g. Sketched thumbnails first, then blocked in color over a weekend…"
+              className="input mb-2 text-sm resize-none"
+            />
+            <input
+              value={videoDraft}
+              onChange={(e) => {
+                setVideoDraft(e.target.value);
+                setProcessSaved(false);
+              }}
+              placeholder="Link to a process video (optional)"
+              className="input mb-2 text-sm"
+            />
+            {processError && <p className="text-xs text-red-600 mb-2">{processError}</p>}
+            <button
+              onClick={handleSaveProcess}
+              disabled={savingProcess}
+              className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50"
+            >
+              {savingProcess ? "Saving…" : processSaved ? "Saved ✓" : "Save"}
+            </button>
           </div>
         )}
 

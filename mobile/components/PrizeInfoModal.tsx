@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Modal, View, Text, TouchableOpacity, Alert } from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { colors } from "@/lib/styles";
 
 const optInToPrizeFn = httpsCallable(functions, "optInToPrize");
+const submitPrizeProcessNoteFn = httpsCallable(functions, "submitPrizeProcessNote");
 
 const THRESHOLD = 30;
 
@@ -23,6 +24,9 @@ export default function PrizeInfoModal({
   eligible,
   optedOut,
   generic,
+  isOwner,
+  processNote,
+  processVideoUrl,
   onOptedIn,
 }: {
   visible: boolean;
@@ -36,6 +40,12 @@ export default function PrizeInfoModal({
   // Pass true when there's no post yet (e.g. shown from the composer, before posting) —
   // skips the per-post progress bar/eligible/opted-out states in favour of a plain explainer.
   generic?: boolean;
+  // Only the post's owner can add/edit its process note — everyone else who taps the trophy
+  // just sees the explainer (the server would reject the write anyway, but there's no reason
+  // to show a stranger a form for someone else's post).
+  isOwner?: boolean;
+  processNote?: string | null;
+  processVideoUrl?: string | null;
   // Lets the parent (which holds the actual post data) clear its own optedOut flag once this
   // succeeds, since this modal doesn't own that state itself.
   onOptedIn?: () => void;
@@ -43,6 +53,21 @@ export default function PrizeInfoModal({
   const pct = Math.min(100, Math.round((likeCount / THRESHOLD) * 100));
   const daysLeft = daysLeftInMonth();
   const [optingIn, setOptingIn] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(processNote ?? "");
+  const [videoDraft, setVideoDraft] = useState(processVideoUrl ?? "");
+  const [savingProcess, setSavingProcess] = useState(false);
+  const [processSaved, setProcessSaved] = useState(false);
+  const [processError, setProcessError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setNoteDraft(processNote ?? "");
+      setVideoDraft(processVideoUrl ?? "");
+      setProcessSaved(false);
+      setProcessError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   async function handleOptIn() {
     if (!postId || optingIn) return;
@@ -57,10 +82,29 @@ export default function PrizeInfoModal({
     }
   }
 
+  async function handleSaveProcess() {
+    if (!postId || savingProcess) return;
+    setSavingProcess(true);
+    setProcessError(null);
+    try {
+      await submitPrizeProcessNoteFn({
+        postId,
+        note: noteDraft.trim() || null,
+        videoUrl: videoDraft.trim() || null,
+      });
+      setProcessSaved(true);
+    } catch (err: any) {
+      setProcessError(err.message ?? "Couldn't save that — please try again.");
+    } finally {
+      setSavingProcess(false);
+    }
+  }
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 }}>
-        <View style={{ backgroundColor: "white", borderRadius: 16, padding: 20 }}>
+        <View style={{ backgroundColor: "white", borderRadius: 16, padding: 20, maxHeight: "85%" }}>
+        <ScrollView showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 15, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
             Creative prize
           </Text>
@@ -83,6 +127,12 @@ export default function PrizeInfoModal({
             and takes a second, and it's how we get to cheer on the beautiful things people are
             making here. Just one winner is picked each month; if nothing reaches {THRESHOLD}{" "}
             likes in a given month, no winner is picked that month.
+          </Text>
+          <Text style={{ fontSize: 17, color: colors.ink, opacity: 0.75, lineHeight: 19, marginBottom: 8 }}>
+            Before any cash goes out, a real person on the Astryks team takes a look at the
+            winning post — just to make sure it's genuine creative work, not a repost or a meme
+            that happened to farm likes. That's the only manual step in the whole process, and
+            it's there to keep the prize meaningful for people actually making things.
           </Text>
           <Text style={{ fontSize: 15, color: colors.muted, lineHeight: 15, marginBottom: 16 }}>
             International transfers from Australia may be subject to market foreign exchange rates and
@@ -125,6 +175,80 @@ export default function PrizeInfoModal({
             </View>
           )}
 
+          {!generic && isOwner && !optedOut && (
+            <View style={{ borderWidth: 1, borderColor: colors.line + "26", borderRadius: 12, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 17, fontWeight: "600", marginBottom: 4 }}>Show your process</Text>
+              <Text style={{ fontSize: 15, color: colors.muted, lineHeight: 18, marginBottom: 10 }}>
+                Totally optional, but it's the easiest way to show us the story behind what you
+                made — a quick note, or a link to a timelapse/process video, is plenty. This is
+                what our team looks at during that review step above.
+              </Text>
+              <TextInput
+                value={noteDraft}
+                onChangeText={(t) => {
+                  setNoteDraft(t);
+                  setProcessSaved(false);
+                }}
+                maxLength={600}
+                multiline
+                numberOfLines={3}
+                placeholder="e.g. Sketched thumbnails first, then blocked in color over a weekend…"
+                placeholderTextColor={colors.muted}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.line + "26",
+                  borderRadius: 10,
+                  padding: 10,
+                  fontSize: 16,
+                  color: colors.ink,
+                  marginBottom: 8,
+                  minHeight: 70,
+                  textAlignVertical: "top",
+                }}
+              />
+              <TextInput
+                value={videoDraft}
+                onChangeText={(t) => {
+                  setVideoDraft(t);
+                  setProcessSaved(false);
+                }}
+                placeholder="Link to a process video (optional)"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.line + "26",
+                  borderRadius: 10,
+                  padding: 10,
+                  fontSize: 16,
+                  color: colors.ink,
+                  marginBottom: 8,
+                }}
+              />
+              {processError && (
+                <Text style={{ fontSize: 14, color: "#B91C1C", marginBottom: 8 }}>{processError}</Text>
+              )}
+              <TouchableOpacity
+                onPress={handleSaveProcess}
+                disabled={savingProcess}
+                style={{
+                  alignSelf: "flex-start",
+                  borderWidth: 1,
+                  borderColor: colors.line + "26",
+                  borderRadius: 999,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  opacity: savingProcess ? 0.6 : 1,
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "600" }}>
+                  {savingProcess ? "Saving…" : processSaved ? "Saved ✓" : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <TouchableOpacity
             onPress={() => {
               onClose();
@@ -140,6 +264,7 @@ export default function PrizeInfoModal({
           <TouchableOpacity onPress={onClose} style={{ backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}>
             <Text style={{ color: "white", fontWeight: "600" }}>Got it</Text>
           </TouchableOpacity>
+        </ScrollView>
         </View>
       </View>
     </Modal>

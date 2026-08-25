@@ -14,6 +14,7 @@ const runPrizeReportNowFn = httpsCallable(functions, "runPrizeReportNow");
 const approvePrizeWinnerAnnouncementFn = httpsCallable(functions, "approvePrizeWinnerAnnouncement");
 const sendPayoutReminderFn = httpsCallable(functions, "sendPayoutReminder");
 const payWinnerViaStripeFn = httpsCallable(functions, "payWinnerViaStripe");
+const overridePrizeWinnerFn = httpsCallable(functions, "overridePrizeWinner");
 
 const METHOD_LABELS: Record<string, string> = { bank: "Bank transfer", payid: "PayID" };
 
@@ -65,6 +66,8 @@ export default function AdminPrizesPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [payingMonth, setPayingMonth] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  const [overridingMonth, setOverridingMonth] = useState<string | null>(null);
+  const [overrideError, setOverrideError] = useState<string | null>(null);
 
   async function load() {
     const result = await getPrizeWinnersFn();
@@ -172,6 +175,29 @@ export default function AdminPrizesPage() {
     }
   }
 
+  // Swaps in a different nominee as the recorded winner — for when the top-liked post doesn't
+  // hold up as genuine creative work once you actually look at it (a meme, a repost, no process
+  // shown). Only available before "Approve & notify winner" has been clicked.
+  async function overrideWinner(month: string, nomineeName: string, postId: string) {
+    if (
+      !confirm(
+        `Make ${nomineeName} this month's winner instead? Nobody has been notified of any winner yet, so this is safe to change.`
+      )
+    ) {
+      return;
+    }
+    setOverridingMonth(month);
+    setOverrideError(null);
+    try {
+      await overridePrizeWinnerFn({ month, postId });
+      await load();
+    } catch (err: any) {
+      setOverrideError(err.message ?? "Couldn't switch the winner.");
+    } finally {
+      setOverridingMonth(null);
+    }
+  }
+
   async function togglePaid(month: string, currentlyPaid: boolean) {
     setUpdatingMonth(month);
     setError(null);
@@ -213,6 +239,7 @@ export default function AdminPrizesPage() {
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
       {approveError && <p className="text-sm text-red-600 mb-4">{approveError}</p>}
       {payError && <p className="text-sm text-red-600 mb-4">{payError}</p>}
+      {overrideError && <p className="text-sm text-red-600 mb-4">{overrideError}</p>}
 
       {winners === null ? (
         <p className="text-ink/50 text-sm">Loading…</p>
@@ -240,6 +267,24 @@ export default function AdminPrizesPage() {
                   not the public site. Review everything below, then click "Approve & notify winner" when ready.
                 </div>
               )}
+
+              {!w.announced &&
+                (w.processNote ? (
+                  <div className="rounded-lg bg-paper/60 p-3 mb-3 text-xs">
+                    <p className="text-ink/50 mb-1">📝 Their process:</p>
+                    <p className="text-ink/80 leading-relaxed">"{w.processNote}"</p>
+                    {w.processVideoUrl && (
+                      <a href={w.processVideoUrl} target="_blank" rel="noreferrer" className="underline text-ink/60 mt-1 inline-block">
+                        Watch their process video ↗
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-red-50 border border-red-200 p-3 mb-3 text-xs text-red-900">
+                    ⚠️ No process note shared yet — worth checking the post itself before approving, or pick a
+                    different nominee below if it doesn't look like genuine creative work.
+                  </div>
+                ))}
 
               {w.payoutHeld && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 mb-3 text-xs text-red-900">
@@ -346,10 +391,22 @@ export default function AdminPrizesPage() {
                   <summary className="cursor-pointer">
                     {w.nominees.length - 1} other nominee{w.nominees.length - 1 === 1 ? "" : "s"} that month
                   </summary>
-                  <ul className="mt-2 space-y-1">
+                  <ul className="mt-2 space-y-2">
                     {w.nominees.slice(1).map((n: any) => (
-                      <li key={n.postId}>
-                        {n.ownerName} — {n.likeCount} likes
+                      <li key={n.postId} className="flex items-center justify-between gap-2">
+                        <span>
+                          {n.ownerName} — {n.likeCount} likes
+                          {n.processNote ? " · 📝 shared their process" : " · no process shared"}
+                        </span>
+                        {!w.announced && (
+                          <button
+                            onClick={() => overrideWinner(w.month, n.ownerName, n.postId)}
+                            disabled={overridingMonth === w.month}
+                            className="text-xs rounded-lg border border-line/15 px-2 py-1 flex-shrink-0 disabled:opacity-50"
+                          >
+                            {overridingMonth === w.month ? "…" : "Make winner instead"}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>

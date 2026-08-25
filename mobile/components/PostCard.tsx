@@ -218,6 +218,9 @@ export default function PostCard({
         likeCount={post.likeCount ?? 0}
         eligible={post.prizeEligible}
         optedOut={prizeOptOut}
+        isOwner={currentUserId === post.ownerId}
+        processNote={post.prizeProcessNote}
+        processVideoUrl={post.prizeProcessVideoUrl}
         onOptedIn={() => setOptedInOverride(true)}
       />
     </View>
