@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import PageBackground from "@/components/PageBackground";
 import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
+import { ensureConversation } from "@/lib/conversations";
 
 const getUserPosts = httpsCallable(functions, "getUserPosts");
 const submitReportFn = httpsCallable(functions, "submitReport");
@@ -115,19 +116,12 @@ export default function UserProfilePage() {
     if (!currentUser || messaging) return;
     setMessaging(true);
     try {
-      const conversationId = [currentUser.uid, params.userId].sort().join("_");
-      const ref = doc(db, "conversations", conversationId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          participants: [currentUser.uid, params.userId].sort(),
-          participantNames: [currentUser.uid, params.userId]
-            .sort()
-            .map((id) => (id === params.userId ? profile?.displayName ?? "Member" : "You")),
-          lastMessage: "",
-          lastMessageAt: new Date(),
-        });
-      }
+      const conversationId = await ensureConversation(
+        currentUser.uid,
+        "You",
+        params.userId,
+        profile?.displayName ?? "Member"
+      );
       router.push(`/messages/${conversationId}`);
     } catch (err: any) {
       // Previously `messaging` was never reset on failure, so the button got stuck disabled on

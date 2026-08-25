@@ -3,21 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  getDoc,
-  setDoc,
-} from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import PageBackground from "@/components/PageBackground";
 import { BOT_UIDS } from "@/lib/botUsers";
+import { ensureConversation } from "@/lib/conversations";
 
 const getMessageSuggestions = httpsCallable(functions, "getMessageSuggestions");
 const listPublicProfiles = httpsCallable(functions, "listPublicProfiles");
@@ -73,19 +65,7 @@ export default function MessagesPage() {
     if (!user || starting) return;
     setStarting(otherId);
     try {
-      const conversationId = [user.uid, otherId].sort().join("_");
-      const ref = doc(db, "conversations", conversationId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          participants: [user.uid, otherId].sort(),
-          participantNames: [user.uid, otherId]
-            .sort()
-            .map((id) => (id === otherId ? otherName : user.displayName ?? "You")),
-          lastMessage: "",
-          lastMessageAt: new Date(),
-        });
-      }
+      const conversationId = await ensureConversation(user.uid, user.displayName ?? "You", otherId, otherName);
       router.push(`/messages/${conversationId}`);
     } catch (err: any) {
       // Previously there was no catch here — a failure produced no error message and no

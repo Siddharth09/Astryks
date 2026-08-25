@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import LikeButton from "@/components/LikeButton";
 import SaveButton from "@/components/SaveButton";
@@ -15,6 +14,7 @@ import PrizeInfoModal from "@/components/PrizeInfoModal";
 import ShareMenu from "@/components/ShareMenu";
 import { useResizedImageUrl } from "@/lib/resizedImage";
 import { ADMIN_EMAILS } from "@/lib/admin";
+import { ensureConversation } from "@/lib/conversations";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const submitReportFn = httpsCallable(functions, "submitReport");
@@ -70,19 +70,7 @@ export default function PostCard({
     if (!currentUserId || currentUserId === post.ownerId || messaging) return;
     setMessaging(true);
     try {
-      const conversationId = [currentUserId, post.ownerId].sort().join("_");
-      const ref = doc(db, "conversations", conversationId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          participants: [currentUserId, post.ownerId].sort(),
-          participantNames: [currentUserId, post.ownerId]
-            .sort()
-            .map((id) => (id === post.ownerId ? post.ownerName : "You")),
-          lastMessage: "",
-          lastMessageAt: new Date(),
-        });
-      }
+      const conversationId = await ensureConversation(currentUserId, "You", post.ownerId, post.ownerName);
       router.push(`/messages/${conversationId}`);
     } catch (err: any) {
       // Previously this had no loading state and no error handling at all — a slow network call
