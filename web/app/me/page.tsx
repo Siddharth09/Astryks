@@ -82,6 +82,8 @@ export default function MePage() {
   // Shared links: paste a link
   const [showAddLink, setShowAddLink] = useState(false);
   const [linkInput, setLinkInput] = useState("");
+  const [linkTitle, setLinkTitle] = useState("");
+  const [linkPublic, setLinkPublic] = useState(true);
   const [linkSaving, setLinkSaving] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -256,10 +258,12 @@ export default function MePage() {
 
       await addDoc(collection(db, "posts"), {
         type: "link",
+        title: linkTitle || null,
         linkUrl: linkInput.trim(),
         linkTitle: preview.title,
         linkImage: preview.image,
         linkDomain: preview.domain,
+        visibility: linkPublic ? "public" : "private",
         ownerId: user.uid,
         ownerName: nameOverride ?? user.displayName ?? "Member",
         createdAt: serverTimestamp(),
@@ -269,6 +273,8 @@ export default function MePage() {
 
       setShowAddLink(false);
       setLinkInput("");
+      setLinkTitle("");
+      setLinkPublic(true);
       await loadProfileData();
     } catch (err: any) {
       setLinkError(err.message ?? "Couldn't fetch that link.");
@@ -571,6 +577,26 @@ export default function MePage() {
                 value={linkInput}
                 onChange={(e) => setLinkInput(e.target.value)}
               />
+              <input
+                className="input"
+                placeholder="Say something about it (optional)"
+                value={linkTitle}
+                onChange={(e) => setLinkTitle(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setLinkPublic(true)}
+                  className={linkPublic ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}
+                >
+                  🌍 Public
+                </button>
+                <button
+                  onClick={() => setLinkPublic(false)}
+                  className={!linkPublic ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}
+                >
+                  🔒 Private
+                </button>
+              </div>
               {linkError && <p className="text-sm text-red-600">{linkError}</p>}
               <button onClick={handleAddLink} disabled={linkSaving || !linkInput.trim()} className="btn-primary w-full">
                 {linkSaving ? "Sharing…" : "Share"}
@@ -591,8 +617,10 @@ export default function MePage() {
                   )}
                   <div className="min-w-0">
                     <p className="text-xs text-ink/50">{l.linkDomain}</p>
-                    <p className="text-sm font-medium truncate">{l.linkTitle}</p>
+                    <p className="text-sm font-medium truncate">{l.title || l.linkTitle}</p>
+                    {l.title && <p className="text-xs text-ink/40 truncate">{l.linkTitle}</p>}
                   </div>
+                  {l.visibility === "private" && <span className="text-xs flex-shrink-0">🔒</span>}
                 </Link>
               ))}
             </div>

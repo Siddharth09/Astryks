@@ -107,6 +107,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
 
       await addDoc(collection(db, "posts"), {
         type: "link",
+        title: title || null,
         linkUrl,
         linkTitle: preview.title,
         linkImage: preview.image,
@@ -241,6 +242,12 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
             placeholder="Paste a YouTube or other link"
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Say something about it (optional)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
           />
           {visibilityToggle}
           {error && <p className="text-sm text-red-600">{error}</p>}
