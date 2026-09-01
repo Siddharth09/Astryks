@@ -305,20 +305,14 @@ export default function Home() {
         <div className="max-w-5xl mx-auto grid gap-8 sm:grid-cols-2 md:gap-16">
           <div>
             <p className="text-xs font-semibold tracking-wide uppercase text-ink/50 mb-3">Hall of Fame</p>
-            <p className="font-display text-4xl font-black mb-2">🏛️ Recognition, not a race</p>
+            <p className="font-display text-4xl font-black mb-2">🏛️ Create beautiful things, one small step at a time</p>
             <p className="text-sm text-ink/60 mb-3">
-              We want every creative student — subscriber or not — to share their work and learn
-              from each other. Astryks isn't about binge-watching one video after the next and
-              rushing to the next topic — it's about taking your time, enjoying the process, and
-              creating one thing at a time. So instead of a cash prize that rewards whoever can
-              farm the most likes fastest, we run a Hall of Fame: a gallery of the community's
-              best posts, right from the Home tab. Our team hand-picks posts we love anytime, and
-              every month we automatically add that month's 5 most-liked posts, across every
-              subject — music, art, or anything else creative.
-            </p>
-            <p className="text-xs text-ink/40">
-              There's nothing to enter, nothing to opt into, and no minimum like count — just post
-              your work and the best of it gets seen.
+              Astryks is a platform for anyone to create beautiful things in this world, and just
+              try to create something, one small step at a time. The best way to learn is to share
+              your work and learn from our community — it's free! If you want to learn from our
+              curated experts, there is a subscription, otherwise Astryks is a free platform to
+              share your videos of your work in progress or finished work, share and save the
+              videos that inspire you to learn and create new things.
             </p>
           </div>
           <div className="space-y-4">
