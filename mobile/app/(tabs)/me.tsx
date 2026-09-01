@@ -11,6 +11,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
@@ -260,6 +261,27 @@ export default function MeScreen() {
     }
   }
 
+  // The 🔒 badge on a private post's thumbnail used to be a pure indicator with nothing to tap
+  // — visibility could only ever be set once, at upload time, with no way back to public short
+  // of deleting and reposting. firestore.rules already lets the owner edit any field on their
+  // own post (visibility isn't in the excluded set), so this is just a client-side write.
+  function handleMakePublic(postId: string) {
+    Alert.alert("Make this post public?", "Anyone will be able to see it.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Make public",
+        onPress: async () => {
+          try {
+            await updateDoc(doc(db, "posts", postId), { visibility: "public" });
+            setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, visibility: "public" } : p)));
+          } catch (err: any) {
+            Alert.alert("Couldn't update", err.message ?? "Please try again.");
+          }
+        },
+      },
+    ]);
+  }
+
   async function handleAddLink() {
     if (!linkInput.trim() || !user) return;
     setLinkSaving(true);
@@ -371,48 +393,6 @@ export default function MeScreen() {
           <Text style={{ color: colors.muted, fontSize: 17 }}>Log out</Text>
         </TouchableOpacity>
       </View>
-
-      {showDeleteConfirm ? (
-        <View style={{ borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <Text style={{ fontSize: 17, fontWeight: "600", color: "#7F1D1D", marginBottom: 4 }}>
-            Permanently delete your account?
-          </Text>
-          <Text style={{ fontSize: 16, color: "#7F1D1D", marginBottom: 10 }}>
-            This deletes your posts, saved items, lesson progress, and login — it can't be undone.
-            {"\n\n"}Mobile subscriptions go through Apple/Google, not Astryks directly, so this can't
-            cancel them for you — cancel first in your iPhone/Android subscription settings, or you'll
-            keep being charged even after your account is gone.
-          </Text>
-          {deleteError && <Text style={{ fontSize: 16, color: "#B91C1C", marginBottom: 8 }}>{deleteError}</Text>}
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity
-              onPress={handleDeleteAccount}
-              disabled={deleting}
-              style={{ backgroundColor: "#DC2626", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
-            >
-              <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
-                {deleting ? "Deleting…" : "Yes, permanently delete"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setShowDeleteConfirm(false)}
-              disabled={deleting}
-              style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
-            >
-              <Text style={{ fontSize: 16 }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <View style={{ flexDirection: "row", gap: 14, marginBottom: 16 }}>
-          <TouchableOpacity onPress={() => router.push("/blocked-accounts")}>
-            <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }}>Blocked accounts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowDeleteConfirm(true)}>
-            <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {lessons.length > 0 && (
         <View style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 12, padding: 14, marginBottom: 16 }}>
@@ -545,9 +525,14 @@ export default function MeScreen() {
                   </View>
                 )}
                 {p.visibility === "private" && (
-                  <View style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
+                  <TouchableOpacity
+                    onPress={() => handleMakePublic(p.id)}
+                    accessibilityLabel="Make public"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}
+                  >
                     <Text style={{ fontSize: 13 }}>🔒</Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
               </TouchableOpacity>
             ))}
@@ -640,6 +625,47 @@ export default function MeScreen() {
       )}
 
       <View style={{ marginTop: 32, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.line + "1A", alignItems: "center" }}>
+        {showDeleteConfirm ? (
+          <View style={{ borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 16, width: "100%" }}>
+            <Text style={{ fontSize: 17, fontWeight: "600", color: "#7F1D1D", marginBottom: 4 }}>
+              Permanently delete your account?
+            </Text>
+            <Text style={{ fontSize: 16, color: "#7F1D1D", marginBottom: 10 }}>
+              This deletes your posts, saved items, lesson progress, and login — it can't be undone.
+              {"\n\n"}Mobile subscriptions go through Apple/Google, not Astryks directly, so this can't
+              cancel them for you — cancel first in your iPhone/Android subscription settings, or you'll
+              keep being charged even after your account is gone.
+            </Text>
+            {deleteError && <Text style={{ fontSize: 16, color: "#B91C1C", marginBottom: 8 }}>{deleteError}</Text>}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={handleDeleteAccount}
+                disabled={deleting}
+                style={{ backgroundColor: "#DC2626", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+              >
+                <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
+                  {deleting ? "Deleting…" : "Yes, permanently delete"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                style={{ borderWidth: 1, borderColor: colors.line + "1A", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+              >
+                <Text style={{ fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", gap: 14, marginBottom: 16 }}>
+            <TouchableOpacity onPress={() => router.push("/blocked-accounts")}>
+              <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }}>Blocked accounts</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowDeleteConfirm(true)}>
+              <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }}>Delete my account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
           <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/privacy")}>
             Privacy

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { router } from "expo-router";
-import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,10 +17,35 @@ export default function Comments({ postId, initialComments }: { postId: string; 
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [reportingComment, setReportingComment] = useState<{ id: string; userId: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleReportComment(reason: string, details: string) {
     if (!reportingComment) return;
     await submitReportFn({ targetType: "comment", targetId: reportingComment.id, postId, reason, details });
+  }
+
+  // firestore.rules already lets a comment's own author delete it directly — this was just
+  // never wired up to any UI. commentCount on the parent post updates itself server-side
+  // (onCommentDeleted in functions/index.js), so there's nothing else to do here.
+  function confirmDelete(commentId: string) {
+    Alert.alert("Delete this comment?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          setDeletingId(commentId);
+          try {
+            await deleteDoc(doc(db, "posts", postId, "comments", commentId));
+            setComments((prev) => prev.filter((c) => c.id !== commentId));
+          } catch (err: any) {
+            Alert.alert("Couldn't delete", err.message ?? "Please try again.");
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      },
+    ]);
   }
 
   async function handleSubmit() {
@@ -62,6 +87,13 @@ export default function Comments({ postId, initialComments }: { postId: string; 
           <Text style={{ fontSize: 17, flex: 1 }}>
             <Text style={{ fontWeight: "600" }}>{c.userName}</Text> <Text>{c.body}</Text>
           </Text>
+          {user && user.uid === c.userId && (
+            <TouchableOpacity onPress={() => confirmDelete(c.id)} disabled={deletingId === c.id}>
+              <Text style={{ fontSize: 15, color: "#B3261E", opacity: deletingId === c.id ? 0.5 : 1 }}>
+                {deletingId === c.id ? "…" : "Delete"}
+              </Text>
+            </TouchableOpacity>
+          )}
           {user && user.uid !== c.userId && (
             <TouchableOpacity onPress={() => setReportingComment({ id: c.id, userId: c.userId })}>
               <Text style={{ fontSize: 15, color: colors.muted }}>Report</Text>

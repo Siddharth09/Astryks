@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, TextInput, RefreshControl } from "react-native";
 import { router } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { collection, getDocs, query, where, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
@@ -44,9 +45,20 @@ function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsP
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
+  const navigation = useNavigation();
   // "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home rather
   // than its own top-level tab, replacing the old separate Prizes tab.
   const [view, setView] = useState<"feed" | "hallOfFame">("feed");
+
+  // Re-tapping the already-active Home tab previously did nothing if you were sitting on the
+  // Hall of Fame sub-tab — there was no way back to the feed except manually tapping the "Home"
+  // pill. Mirrors the same tabPress pattern learn.tsx already uses to reset itself.
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener("tabPress", () => {
+      setView("feed");
+    });
+    return unsubscribe;
+  }, [navigation]);
   const [allPosts, setAllPosts] = useState<any[] | null>(null);
   const [posts, setPosts] = useState<any[] | null>(null);
   const [scope, setScope] = useState<"everyone" | "following">("everyone");

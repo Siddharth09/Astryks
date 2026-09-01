@@ -285,8 +285,19 @@ export default function LearnScreen() {
         </TouchableOpacity>
         {/* Gated on the subscription state this screen already tracks, rather than letting
             SubscriptionBanner do its own separate (and easily stale) fetch — see
-            handleSubscribeFromPreview above for why that fetch could disagree with reality. */}
+            handleSubscribeFromPreview above for why that fetch could disagree with reality.
+            Previously there was only ever a negative signal (the banner below, shown when NOT
+            subscribed) — a subscriber had no positive confirmation anywhere on this screen that
+            their subscription was actually active, which read as ambiguous either way. */}
         {subscribed === false && <SubscriptionBanner />}
+        {subscribed === true && (
+          <View style={{ backgroundColor: colors.tealLight, borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 17 }}>✓</Text>
+            <Text style={{ color: colors.ink, fontSize: 15, fontWeight: "600" }}>
+              You&apos;re subscribed — full access to every lesson
+            </Text>
+          </View>
+        )}
         {justMastered && (
           <View style={{ backgroundColor: "#E85D5D", borderRadius: 12, padding: 12, marginBottom: 16 }}>
             <Text style={{ color: "white", fontWeight: "600", fontSize: 15, textAlign: "center" }}>
@@ -315,7 +326,7 @@ export default function LearnScreen() {
                 <Text style={{ fontSize: 13, color: colors.muted }}>{pct}%</Text>
               </View>
               <View style={{ height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
-                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.teal }} />
+                <View style={{ height: "100%", width: `${pct}%`, backgroundColor: colors.learnWatched }} />
               </View>
               {tier && (
                 <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6 }}>
@@ -334,7 +345,16 @@ export default function LearnScreen() {
           const done = completed.has(lesson.id);
           const prevDone = i === 0 || completed.has(lessons[i - 1].id);
           const locked = !done && !prevDone;
-          const isCurrent = !done && !locked;
+          // Previously a lesson only ever looked locked because of sequence — once this
+          // subject's free preview ran out, tapping a "current"/unlocked lesson still showed a
+          // plain ▶ and only revealed the paywall modal after the tap (playLesson's own error
+          // handling). That's not actually locked (tapping does something, and still should —
+          // see the untouched `locked` used below for `disabled`), but it's not really free
+          // either, so it gets the same 🔒 treatment as a real subscription signal rather than
+          // silently letting the icon imply it's simply playable.
+          const needsSubscription = !done && !locked && subscribed === false && previewRemainingBySubject[active.id] === 0;
+          const isCurrent = !done && !locked && !needsSubscription;
+          const showLock = locked || needsSubscription;
           return (
             <View key={lesson.id}>
               {i > 0 && (
@@ -342,7 +362,7 @@ export default function LearnScreen() {
                   <View
                     style={{
                       width: 4, height: 20, borderRadius: 2,
-                      backgroundColor: completed.has(lessons[i - 1].id) ? colors.teal : "rgba(0,0,0,0.1)",
+                      backgroundColor: completed.has(lessons[i - 1].id) ? colors.learnCurrent : "rgba(0,0,0,0.08)",
                     }}
                   />
                 </View>
@@ -356,32 +376,37 @@ export default function LearnScreen() {
                   <View
                     style={{
                       width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-                      backgroundColor: done ? "#E85D5D" : isCurrent ? colors.teal : "transparent",
-                      borderWidth: done || isCurrent ? 0 : 2, borderColor: "#E85D5D",
-                      shadowColor: isCurrent ? colors.teal : "transparent",
+                      backgroundColor: done ? colors.learnWatched : isCurrent ? colors.learnCurrent : colors.learnLocked,
+                      borderWidth: done || isCurrent ? 0 : 2, borderColor: colors.learnLockedBorder,
+                      shadowColor: isCurrent ? colors.learnCurrent : "transparent",
                       shadowOpacity: isCurrent ? 0.5 : 0,
                       shadowRadius: isCurrent ? 6 : 0,
                       elevation: isCurrent ? 3 : 0,
                     }}
                   >
-                    <Text style={{ color: done || isCurrent ? "white" : locked ? colors.muted : "#E85D5D" }}>
-                      {done ? "✓" : locked ? "🔒" : "▶"}
+                    <Text style={{ color: done || isCurrent ? "white" : showLock ? colors.muted : colors.learnCurrentText }}>
+                      {done ? "✓" : showLock ? "🔒" : "▶"}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: locked ? colors.muted : colors.ink }}>
+                      <Text style={{ color: showLock ? colors.muted : colors.ink }}>
                         {lesson.pinned ? "📌 " : ""}{lesson.title}
                       </Text>
                       {isCurrent && (
-                        <View style={{ backgroundColor: "#FFF6F1", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#C94A4A", textTransform: "uppercase" }}>Up next</Text>
+                        <View style={{ backgroundColor: colors.learnLocked, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.learnCurrentText, textTransform: "uppercase" }}>Up next</Text>
+                        </View>
+                      )}
+                      {needsSubscription && (
+                        <View style={{ backgroundColor: colors.learnLocked, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.learnCurrentText, textTransform: "uppercase" }}>Subscribe to unlock</Text>
                         </View>
                       )}
                     </View>
                     <Text style={{ fontSize: 13, color: colors.muted }}>Lesson {i + 1} · {lesson.viewCount ?? 0} views</Text>
                   </View>
-                  {!locked && !done && (
+                  {!locked && !needsSubscription && !done && (
                     <TouchableOpacity onPress={() => markComplete(lesson.id)}>
                       <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>Mark done</Text>
                     </TouchableOpacity>
