@@ -210,6 +210,14 @@ export default function HomeScreen() {
       });
       setPendingMedia(null);
       setCaptionInput("");
+      // A freshly-posted video landing at the top of the feed doesn't naturally trigger
+      // onViewableItemsChanged (nothing scrolled — the list just re-rendered with new data at
+      // the same scroll position), and the "seed the first post as active" effect below only
+      // fires once, the very first time the feed loads (activeId === null) — so without this,
+      // a new video sat there as a static first-frame image, playable only once you scrolled
+      // enough to trigger a fresh viewability check. postRef.id is already known (generated
+      // before the upload, for the storage.rules path above), so just mark it active directly.
+      setActiveId(postRef.id);
       load();
     } catch (err: any) {
       setComposeError(err.message ?? "Couldn't post that — please try again.");
