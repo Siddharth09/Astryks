@@ -11,12 +11,16 @@ import PageBackground from "@/components/PageBackground";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
 import TrailersSection from "@/components/TrailersSection";
 import SuggestionsRow from "@/components/SuggestionsRow";
+import HallOfFameGrid from "@/components/HallOfFameGrid";
 import { FeedSkeleton } from "@/components/Skeleton";
 
 const getFeed = httpsCallable(functions, "getFeed");
 
 export default function HomePage() {
   const { user, loading: authLoading } = useRequireAuth();
+  // "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home rather
+  // than its own top-level tab, replacing the old separate Prizes tab.
+  const [view, setView] = useState<"feed" | "hallOfFame">("feed");
   const [posts, setPosts] = useState<any[] | null>(null);
   const [scope, setScope] = useState<"everyone" | "following">("everyone");
   const [searchQuery, setSearchQuery] = useState("");
@@ -109,6 +113,24 @@ export default function HomePage() {
   return (
     <div className="pb-16">
       <PageBackground color="#F7F1E5" />
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setView("feed")}
+          className={view === "feed" ? "btn-primary text-xs px-3 py-1.5" : "btn-secondary text-xs px-3 py-1.5"}
+        >
+          Home
+        </button>
+        <button
+          onClick={() => setView("hallOfFame")}
+          className={view === "hallOfFame" ? "btn-primary text-xs px-3 py-1.5" : "btn-secondary text-xs px-3 py-1.5"}
+        >
+          🏛️ Hall of Fame
+        </button>
+      </div>
+      {view === "hallOfFame" ? (
+        <HallOfFameGrid />
+      ) : (
+        <>
       <SubscriptionBanner />
       <TrailersSection />
       <ShareComposer onPosted={load} />
@@ -164,6 +186,8 @@ export default function HomePage() {
             </div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

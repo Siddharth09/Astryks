@@ -14,16 +14,15 @@ export default function PrivacyPage() {
       <p className="mb-1"><strong>Content you create:</strong> posts (photos, videos, text, links), comments, likes, messages you send other members or our support account.</p>
       <p className="mb-1"><strong>Billing info:</strong> handled entirely by Stripe (and, on mobile, Apple/Google) — we receive your subscription status, billing country, and currency, but never your full card number.</p>
       <p className="mb-1"><strong>Usage data:</strong> lesson progress, streaks, which posts you've liked/saved, how much free-preview lesson time you've used per subject (if you're not yet subscribed), who you've blocked (so we can keep your feed and messages filtered accordingly), and basic device/app info needed to make the Service work (e.g. push notification token).</p>
-      <p className="mb-1"><strong>Location signal:</strong> we estimate your country from your IP address at sign-in (used only for this lookup, not stored) to show you an illustrative subscription price in your local currency and a flag on the Creative Prize leaderboard, and — once you subscribe — we replace that estimate with the actual billing country Stripe/Apple/Google give us. See our <Link href="/terms" className="link-accent">Terms of Service</Link> for how pricing works.</p>
+      <p className="mb-1"><strong>Location signal:</strong> we estimate your country from your IP address at sign-in (used only for this lookup, not stored) to show you an illustrative subscription price in your local currency, and — once you subscribe — we replace that estimate with the actual billing country Stripe/Apple/Google give us. See our <Link href="/terms" className="link-accent">Terms of Service</Link> for how pricing works.</p>
       <p className="mb-4"><strong>Crash &amp; error reports:</strong> if the app or website hits an unexpected error, we automatically collect the error message, a technical stack trace, and which screen you were on, so we can find and fix the bug. This happens even if you're not logged in (for example, if something breaks on the login screen itself) — logged-out reports aren't tied to an account, just a random identifier stored on your device to avoid one broken session flooding us with duplicate reports.</p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">2. How we use it</h2>
       <p className="mb-4">
         To run the Service (show your feed, process payments, deliver lesson videos, send you
-        notifications you've opted into), to run the monthly Creative Prize (see our{" "}
-        <Link href="/prize-rules" className="link-accent">Prize Rules</Link>), to keep the platform
-        safe (reviewing reports, blocking abuse), and to contact you about your account or important
-        changes. We don't sell your personal information.
+        notifications you've opted into), to decide what to feature in the Hall of Fame, to keep
+        the platform safe (reviewing reports, blocking abuse), and to contact you about your
+        account or important changes. We don't sell your personal information.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">3. Who we share it with</h2>
@@ -39,9 +38,9 @@ export default function PrivacyPage() {
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">4. Public content</h2>
       <p className="mb-4">
-        Posts you mark public, your display name, profile photo, and (if you win) your Creative Prize
-        result are visible to other members and, in the case of the prize leaderboard and winner
-        announcement, to anyone using the app. Private posts are only visible to you and our admin team.
+        Posts you mark public, your display name, and profile photo are visible to other members
+        and, if we or the automatic monthly selection feature your post in the Hall of Fame, to
+        anyone using the app. Private posts are only visible to you and our admin team.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">5. International transfers</h2>

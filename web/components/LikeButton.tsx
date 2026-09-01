@@ -16,8 +16,9 @@ export default function LikeButton({
   currentUserId: string | null;
   // Optional only so existing call sites don't break at compile time — but every call site
   // should pass this. Without it, someone could like their own post and inflate their own
-  // real-money Creative Prize likeCount (firestore.rules now blocks the write server-side
-  // too; this is what stops the button from just hanging on a denied request).
+  // likeCount (firestore.rules blocks the write server-side too, which also matters for the
+  // Hall of Fame's automatic monthly top-5 — this is what stops the button from just hanging
+  // on a denied request).
   postOwnerId?: string;
 }) {
   const router = useRouter();

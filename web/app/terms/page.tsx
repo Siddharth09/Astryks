@@ -81,8 +81,8 @@ export default function TermsPage() {
         You keep ownership of anything you post to Astryks (photos, videos, text, links — "User
         Content"). By posting, you grant Astryks a worldwide, royalty-free, non-exclusive license to
         host, store, reproduce, and display that User Content on the Service (including in the
-        creative-prize leaderboard and any public winner announcements) for as long as your post exists
-        or your account is active. You confirm you own or have the rights to everything you post, and
+        Hall of Fame, if we or the automatic monthly selection feature it) for as long as your post
+        exists or your account is active. You confirm you own or have the rights to everything you post, and
         that it doesn't infringe anyone else's rights.
       </p>
 
@@ -105,12 +105,13 @@ export default function TermsPage() {
         download, redistribute, or resell this content.
       </p>
 
-      <h2 className="font-display text-lg font-semibold mt-8 mb-2">9. The Creative Prize</h2>
+      <h2 className="font-display text-lg font-semibold mt-8 mb-2">9. The Hall of Fame</h2>
       <p className="mb-4">
-        Astryks runs a monthly cash prize for the most-liked eligible post, described on our{" "}
-        <Link href="/prize-rules" className="link-accent">Prize Rules</Link> page, which is part of
-        these Terms. Read it before entering — it covers eligibility, how a winner is chosen, and how
-        payment works.
+        Astryks periodically features member posts in the Hall of Fame — a curated gallery, not a
+        prize or sweepstakes. There's nothing to enter, no purchase or subscription required, and
+        no cash involved: some posts are picked by our team, and each calendar month the 5 posts
+        with the most likes are added automatically. Being featured doesn't transfer ownership of
+        your post — see Section 6 above.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">10. Things you agree not to do</h2>
@@ -118,8 +119,8 @@ export default function TermsPage() {
         Don't: post anything illegal, harassing, hateful, sexually exploitative (especially involving
         minors — we have zero tolerance for this and will report it to the relevant authorities), or
         infringing someone else's rights; use bots, purchased likes/followers, multiple accounts, or any
-        other artificial means to inflate likes, especially in connection with the Creative Prize; scrape
-        or resell course content; impersonate anyone; or interfere with the Service's normal operation.
+        other artificial means to inflate likes; scrape or resell course content; impersonate anyone;
+        or interfere with the Service's normal operation.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">11. Termination</h2>

@@ -648,8 +648,6 @@ export default function MePage() {
           {" · "}
           <Link href="/terms" className="hover:text-ink/70 hover:underline">Terms</Link>
           {" · "}
-          <Link href="/prize-rules" className="hover:text-ink/70 hover:underline">Prize Rules</Link>
-          {" · "}
           <Link href="/support" className="hover:text-ink/70 hover:underline">Support</Link>
         </p>
         <p className="mt-1">© 2026 Astryks. All rights reserved.</p>

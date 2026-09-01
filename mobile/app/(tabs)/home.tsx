@@ -13,7 +13,7 @@ import TrailersSection from "@/components/TrailersSection";
 import { FeedSkeleton } from "@/components/Skeleton";
 import BrandMark from "@/components/BrandMark";
 import SuggestionsRow from "@/components/SuggestionsRow";
-import PrizeInfoModal from "@/components/PrizeInfoModal";
+import HallOfFameGrid from "@/components/HallOfFameGrid";
 import { colors } from "@/lib/styles";
 import { guessMediaUploadInfo } from "@/lib/mediaUpload";
 
@@ -44,6 +44,9 @@ function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsP
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
+  // "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home rather
+  // than its own top-level tab, replacing the old separate Prizes tab.
+  const [view, setView] = useState<"feed" | "hallOfFame">("feed");
   const [allPosts, setAllPosts] = useState<any[] | null>(null);
   const [posts, setPosts] = useState<any[] | null>(null);
   const [scope, setScope] = useState<"everyone" | "following">("everyone");
@@ -68,7 +71,6 @@ export default function HomeScreen() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [prizeInfoOpen, setPrizeInfoOpen] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -310,11 +312,6 @@ export default function HomeScreen() {
   // screen one continuous scrollable list, the way Instagram's feed works.
   const listHeader = (
     <>
-      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line + "1A", flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <BrandMark size={24} />
-        <Text style={{ fontSize: 20, fontWeight: "700" }}>Astryks</Text>
-      </View>
-
       <SubscriptionBanner />
 
       <View style={{ marginTop: 12 }}>
@@ -402,13 +399,8 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity onPress={pickMedia}><Text style={{ fontSize: 18 }}>📷</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setLinkInput("")}><Text style={{ fontSize: 18 }}>🔗</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setPrizeInfoOpen(true)} accessibilityLabel="About the creative prize">
-            <Text style={{ fontSize: 18 }}>🏆</Text>
-          </TouchableOpacity>
         </View>
       )}
-
-      <PrizeInfoModal visible={prizeInfoOpen} onClose={() => setPrizeInfoOpen(false)} generic />
 
       <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
         <TextInput
@@ -440,41 +432,68 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.paper }}>
-      <FlatList
-        data={visiblePosts}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 30 }}
-        ListHeaderComponent={listHeader}
-        renderItem={({ item }) => (
-          // Horizontal padding lives here (on each post) rather than on contentContainerStyle,
-          // since the header sections above already carry their own padding — putting it on the
-          // shared container too would double it up for the header content.
-          <View style={{ paddingHorizontal: 16 }}>
-            <PostCard
-              post={item}
-              currentUserId={user.uid}
-              isActive={item.id === activeId}
-              onDeleted={(id) => {
-                setAllPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
-                setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
-              }}
-            />
-          </View>
-        )}
-        viewabilityConfig={viewabilityConfig}
-        onViewableItemsChanged={onViewableItemsChanged}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ink} />}
-        onEndReached={searchQ ? undefined : loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          loadingMore ? <ActivityIndicator style={{ marginVertical: 20 }} color={colors.ink} /> : null
-        }
-        ListEmptyComponent={
-          <Text style={{ textAlign: "center", color: colors.muted, marginTop: 40 }}>
-            {searchQ ? `No posts match "${searchQuery}".` : "Nothing here yet."}
-          </Text>
-        }
-      />
+      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.line + "1A", flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <BrandMark size={24} />
+        <Text style={{ fontSize: 20, fontWeight: "700" }}>Astryks</Text>
+      </View>
+
+      {/* "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home
+          rather than its own top-level tab, replacing the old separate Prizes tab. Sits above
+          both views so it stays visible regardless of which one's showing. */}
+      <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
+        <TouchableOpacity
+          onPress={() => setView("feed")}
+          style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: view === "feed" ? colors.ink : "transparent", borderWidth: view === "feed" ? 0 : 1, borderColor: colors.line + "1A" }}
+        >
+          <Text style={{ fontSize: 16, color: view === "feed" ? "white" : colors.ink }}>Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setView("hallOfFame")}
+          style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: view === "hallOfFame" ? colors.ink : "transparent", borderWidth: view === "hallOfFame" ? 0 : 1, borderColor: colors.line + "1A" }}
+        >
+          <Text style={{ fontSize: 16, color: view === "hallOfFame" ? "white" : colors.ink }}>🏛️ Hall of Fame</Text>
+        </TouchableOpacity>
+      </View>
+
+      {view === "hallOfFame" ? (
+        <HallOfFameGrid />
+      ) : (
+        <FlatList
+          data={visiblePosts}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingBottom: 30 }}
+          ListHeaderComponent={listHeader}
+          renderItem={({ item }) => (
+            // Horizontal padding lives here (on each post) rather than on contentContainerStyle,
+            // since the header sections above already carry their own padding — putting it on the
+            // shared container too would double it up for the header content.
+            <View style={{ paddingHorizontal: 16 }}>
+              <PostCard
+                post={item}
+                currentUserId={user.uid}
+                isActive={item.id === activeId}
+                onDeleted={(id) => {
+                  setAllPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+                  setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+                }}
+              />
+            </View>
+          )}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ink} />}
+          onEndReached={searchQ ? undefined : loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? <ActivityIndicator style={{ marginVertical: 20 }} color={colors.ink} /> : null
+          }
+          ListEmptyComponent={
+            <Text style={{ textAlign: "center", color: colors.muted, marginTop: 40 }}>
+              {searchQ ? `No posts match "${searchQuery}".` : "Nothing here yet."}
+            </Text>
+          }
+        />
+      )}
     </View>
   );
 }

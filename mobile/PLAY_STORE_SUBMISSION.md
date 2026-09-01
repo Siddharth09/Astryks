@@ -1,7 +1,7 @@
 # Play Store submission — ready-to-paste draft
 
 Written to match the app as actually built today (Music + Art only, AU$5/week or AU$250/year
-subscription, 10-minute free preview per subject, AU$1,000 monthly Creative Prize). Paste
+subscription, 10-minute free preview per subject, a community Hall of Fame). Paste
 straight into Play Console once you're logged in — nothing here needs editing except where
 noted in brackets.
 
@@ -10,9 +10,8 @@ noted in brackets.
 - **App name:** Astryks
 - **Short description (80 chars max):**
   ```
-  Masterclasses in Music & Art, a creative feed, and a monthly $1,000 prize.
+  Masterclasses in Music & Art, a creative feed, and a community Hall of Fame.
   ```
-  (75 chars)
 - **Package name:** `com.astryks.app` (already set in `app.json` — cannot be changed after first upload)
 - **Category:** Education (primary)
 - **Contact email:** support@astryks.com
@@ -33,10 +32,10 @@ SHARE YOUR WORK
 Post photos and videos to a feed built for creators. Follow people whose work you admire, and
 build a following of your own. Posting is always free.
 
-WIN THE MONTHLY CREATIVE PRIZE
-Every month, whoever's single post has the most likes wins AU$1,000 — as long as it's reached
-at least 30 likes. Entering is free for every Astryks member, subscribed or not. No purchase
-necessary.
+HALL OF FAME
+The community's best work, featured right on the Home tab — our team spotlights posts they
+love, and each month's 5 most-liked posts are added automatically. Nothing to enter, no
+purchase necessary.
 
 SUBSCRIBE FOR FULL ACCESS
 AU$5/week or AU$250/year unlocks every masterclass. Cancel anytime, and get a full refund
@@ -77,8 +76,9 @@ Declare:
 
 - User-generated content: Yes (photos, videos, comments, messages) — this alone typically
   results in a rating equivalent to Apple's 13+/Teen.
-- Simulated gambling: No — the Creative Prize is a skill-based contest (highest-liked post
-  wins, no random draw, no purchase required to enter), not gambling.
+- Simulated gambling: No — the app has no prize, contest, or wagering mechanic at all (the
+  former Creative Prize was retired in favor of the Hall of Fame, a purely editorial/curated
+  gallery with no cash involved).
 - Violence, sexual content, profanity: No, not intentionally designed into the app; content
   moderation exists via post reporting and a self-hosted moderation review.
 - Shares user location: Yes, coarse/country-level only, for regional pricing — not precise

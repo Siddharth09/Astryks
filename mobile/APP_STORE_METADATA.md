@@ -7,12 +7,12 @@ to match the app as it's actually built today.
 ## App identity
 
 - **App name:** Astryks
-- **Subtitle (iOS, 30 chars max):** Masterclasses & a $1,000 prize *(30 chars exactly)*
+- **Subtitle (iOS, 30 chars max):** Masterclasses & a creative feed
 - **Promotional text (iOS, 170 chars max — the only App Store Connect text field you can edit any time without a new build):**
   ```
-  New this month: a $1,000 Creative Prize, free to enter every time you post. Music & Art masterclasses from AU$5/week, with a 10-minute free preview.
+  Music & Art masterclasses from AU$5/week, with a 10-minute free preview. Post your work and get featured in our Hall of Fame.
   ```
-- **Short description (Android, 80 chars max):** Masterclasses in Music & Art, a creative feed, and a monthly $1,000 prize. *(75 chars, matches the live Play Store draft in `PLAY_STORE_SUBMISSION.md`)*
+- **Short description (Android, 80 chars max):** Masterclasses in Music & Art, a creative feed, and a community Hall of Fame. *(matches the live Play Store draft in `PLAY_STORE_SUBMISSION.md`)*
 - **Bundle ID / package name:** `com.astryks.app` (already set in `app.json`)
 - **Category:** Education (primary), Lifestyle or Social Networking (secondary, if the store allows one)
 - **Support URL:** `https://astryks.com/support`
@@ -36,10 +36,10 @@ SHARE YOUR WORK
 Post photos and videos to a feed built for creators. Follow people whose work you admire, and
 build a following of your own. Posting is always free.
 
-WIN THE MONTHLY CREATIVE PRIZE
-Every month, whoever's single post has the most likes wins AU$1,000 — as long as it's reached
-at least 30 likes. Entering is free for every Astryks member, subscribed or not. No purchase
-necessary.
+HALL OF FAME
+The community's best work, featured right on the Home tab — our team spotlights posts they
+love, and each month's 5 most-liked posts are added automatically. Nothing to enter, no
+purchase necessary.
 
 SUBSCRIBE FOR FULL ACCESS
 AU$5/week or AU$250/year unlocks every masterclass. Cancel anytime, and get a full refund
@@ -53,14 +53,14 @@ Settings → [your name] → Subscriptions on your device.
 ## Keywords (App Store, 100 chars, comma-separated, no spaces after commas)
 
 ```
-music,art,masterclass,learning,online course,creative,social,feed,contest,prize,community
+music,art,masterclass,learning,online course,creative,social,feed,gallery,community
 ```
 
 ## What's New (first submission)
 
 ```
-Welcome to Astryks! Music & Art masterclasses, a creative feed, and our first monthly $1,000
-Creative Prize.
+Welcome to Astryks! Music & Art masterclasses, a creative feed, and a Hall of Fame for the
+community's best work.
 ```
 
 ## Screenshots
@@ -69,10 +69,12 @@ Two sets exist:
 1. **Real device screenshots** (7 shots from TestFlight testing, already resized to Apple's
    1242×2688 6.5" bucket and uploaded as part of the current submission) — these show the app
    as-is.
-2. **Marketing/promo screenshots** — 5 pastel-branded slides (free-to-post, the Creative Prize,
-   masterclasses, music, art), 1242×2688px, in `astryks-mobile/../store-assets` (sent to you
-   separately). Swap these in via App Store Connect → your version → Screenshots once the app
-   is approved — screenshots can be updated without a new build.
+2. **Marketing/promo screenshots** — 5 pastel-branded slides (free-to-post, masterclasses,
+   music, art), 1242×2688px, in `astryks-mobile/../store-assets` (sent to you separately). One
+   of these previously showed the Creative Prize — since retired in favor of the Hall of Fame
+   (see functions/index.js), that slide needs re-shooting before use. Swap these in via App
+   Store Connect → your version → Screenshots once the app is approved — screenshots can be
+   updated without a new build.
 
 Google Play still needs at least 2 real device screenshots (1080p+) — same constraint as
 before: needs a real Android phone or emulator to capture from.
@@ -88,10 +90,10 @@ direct messages, no gambling, no violence):
 - **User-generated content:** Yes (photos, videos, comments, messages) → this alone typically
   pushes the rating to 12+/Teen on both stores, since unmoderated UGC can't be guaranteed
   age-appropriate.
-- **Simulated gambling / real gambling:** No — the Creative Prize is a skill-based contest
-  (highest like count wins), not a game of chance or wagering, so this should be answered No.
-  [If your lawyer's review of `prize-rules/page.tsx` concludes otherwise for a specific
-  jurisdiction, revisit this.]
+- **Simulated gambling / real gambling:** No — the app has no prize, contest, or wagering
+  mechanic at all (the former Creative Prize was retired in favor of the Hall of Fame, a
+  purely editorial/curated gallery with no cash involved — see functions/index.js), so this
+  should be answered No.
 - **Violence, sexual content, profanity:** No, not intentionally designed into the app — but
   because it's UGC, both stores expect you to describe your moderation/reporting process (you
   have post reporting — confirm this in the questionnaire's content-moderation section).
@@ -139,7 +141,8 @@ since this determines whether you need to file a US export-compliance document.
 
 ## Status
 
-- `/terms`, `/privacy`, and `/prize-rules` are live at astryks.com — done.
+- `/terms` and `/privacy` are live at astryks.com — done. `/prize-rules` now just redirects
+  home (Creative Prize retired in favor of the Hall of Fame).
 - Qonversion/IAP (see `MOBILE_IAP_SETUP.md`) is wired with real subscription products — done.
 - iOS build submitted, Age Ratings questionnaire completed, currently "Waiting for Review."
 - Once approved: swap in the 5 marketing screenshots above, double-check the Promotional Text

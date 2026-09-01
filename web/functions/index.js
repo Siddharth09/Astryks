@@ -1281,9 +1281,231 @@ exports.resolveClientError = onCall(async (request) => {
   return { ok: true };
 });
 
+// ================================================================================================
+// Hall of Fame — replaces the cash Creative Prize (see the RETIRED banner just below) with pure
+// recognition instead: no cash, no legal-lottery exposure, no payout ops, nothing to enter or opt
+// out of. A post gets in one of two ways: (1) an admin manually features it anytime via
+// addToHallOfFame, or (2) computeMonthlyHallOfFame automatically adds that calendar month's 5
+// most-liked eligible posts on the 1st of the next month. Entries live directly on the post doc
+// (hallOfFame/hallOfFameSource/hallOfFameMonth/hallOfFameAddedAt) rather than a separate
+// collection, so displaying the gallery is just a filtered read of posts — see the posts update
+// rule in firestore.rules for why a post's own owner can't set these fields themselves.
+// ================================================================================================
+
+const HALL_OF_FAME_BOT_UID = "astryks-hall-of-fame";
+const HALL_OF_FAME_BOT_NAME = "Astryks Hall of Fame";
+
+async function sendHallOfFameBotMessage(ownerId, ownerName, text) {
+  const conversationId = [ownerId, HALL_OF_FAME_BOT_UID].sort().join("_");
+  const convoRef = db.doc(`conversations/${conversationId}`);
+  const convoSnap = await convoRef.get();
+  if (!convoSnap.exists) {
+    await convoRef.set({
+      participants: [ownerId, HALL_OF_FAME_BOT_UID].sort(),
+      participantNames: [ownerId, HALL_OF_FAME_BOT_UID]
+        .sort()
+        .map((id) => (id === HALL_OF_FAME_BOT_UID ? HALL_OF_FAME_BOT_NAME : ownerName || "Member")),
+      lastMessage: "",
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  await convoRef.collection("messages").add({
+    senderId: HALL_OF_FAME_BOT_UID,
+    senderName: HALL_OF_FAME_BOT_NAME,
+    text,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await convoRef.set(
+    { lastMessage: text, lastMessageAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+}
+
+// ---------- Callable: admin-only — manually feature a post in the Hall of Fame ----------
+exports.addToHallOfFame = onCall(async (request) => {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const { postId } = request.data ?? {};
+  if (!postId) {
+    throw new HttpsError("invalid-argument", "postId is required.");
+  }
+  const postRef = db.doc(`posts/${postId}`);
+  const postSnap = await postRef.get();
+  if (!postSnap.exists) {
+    throw new HttpsError("not-found", "This post no longer exists.");
+  }
+  const post = postSnap.data();
+  if (post.hallOfFame) {
+    return { ok: true, alreadyFeatured: true };
+  }
+
+  await postRef.set(
+    {
+      hallOfFame: true,
+      hallOfFameSource: "manual",
+      hallOfFameMonth: null,
+      hallOfFameAddedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  try {
+    await sendHallOfFameBotMessage(
+      post.ownerId,
+      post.ownerName,
+      `🏛️ Your post just got added to the Astryks Hall of Fame — our team picked it out to spotlight. Thanks for sharing your work with us!`
+    );
+  } catch (err) {
+    console.error("addToHallOfFame: failed to notify owner", postId, err);
+  }
+
+  return { ok: true };
+});
+
+// ---------- Callable: admin-only — un-feature a post (e.g. added by mistake) ----------
+exports.removeFromHallOfFame = onCall(async (request) => {
+  if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
+    throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
+  }
+  const { postId } = request.data ?? {};
+  if (!postId) {
+    throw new HttpsError("invalid-argument", "postId is required.");
+  }
+  await db.doc(`posts/${postId}`).set(
+    { hallOfFame: false, hallOfFameSource: null, hallOfFameMonth: null },
+    { merge: true }
+  );
+  return { ok: true };
+});
+
+// ---------- Callable: the public Hall of Fame gallery ----------
+// A client can't list-query `posts` directly for an arbitrary field like this (same reasoning as
+// the old getPrizeLeaderboard) — read with the Admin SDK and return only the public fields the
+// gallery needs, filtering out anything private/flagged after the fact as a defense-in-depth
+// check (posts here should already be public since only public posts can be featured, but this
+// costs nothing to double-check).
+exports.getHallOfFame = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const snap = await db
+    .collection("posts")
+    .where("hallOfFame", "==", true)
+    .orderBy("hallOfFameAddedAt", "desc")
+    .limit(200)
+    .get();
+
+  const entries = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((p) => p.visibility !== "private" && p.moderationStatus !== "flagged")
+    .map((p) => ({
+      id: p.id,
+      ownerId: p.ownerId,
+      ownerName: p.ownerName || "Member",
+      type: p.type,
+      mediaUrl: p.mediaUrl || null,
+      bunnyVideoId: p.bunnyVideoId || null,
+      bunnyLibraryId: p.bunnyLibraryId || null,
+      title: p.title || null,
+      likeCount: p.likeCount ?? 0,
+      hallOfFameSource: p.hallOfFameSource || "manual",
+      hallOfFameMonth: p.hallOfFameMonth || null,
+    }));
+
+  return { entries };
+});
+
+// ---------- Scheduled: automatically feature the month's 5 most-liked posts ----------
+// Runs the 1st of each month, same cadence the old prize report used to. Picks from the PREVIOUS
+// calendar month's public photo/video posts, skips anything already featured, and just adds —
+// there's no minimum like count and nothing to opt out of, since (unlike the cash prize) there's
+// no money and no consideration/lottery risk to manage here.
+exports.computeMonthlyHallOfFame = onSchedule(
+  { schedule: "0 9 1 * *", timeZone: "Australia/Sydney", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
+  async () => {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthLabel = prevMonthStart.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+    const monthId = monthKey(prevMonthStart);
+
+    const snap = await db
+      .collection("posts")
+      .where("createdAt", ">=", prevMonthStart)
+      .where("createdAt", "<", thisMonthStart)
+      .get();
+
+    const top5 = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter(
+        (p) =>
+          ["photo", "video"].includes(p.type) &&
+          p.visibility !== "private" &&
+          p.moderationStatus !== "flagged" &&
+          !p.hallOfFame
+      )
+      .sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0))
+      .slice(0, 5);
+
+    if (top5.length === 0) {
+      await sendSupportEmail(
+        `Astryks Hall of Fame — ${monthLabel}: nothing to add`,
+        `No eligible photo/video posts from ${monthLabel} to add automatically this month.`
+      );
+      return;
+    }
+
+    const batch = db.batch();
+    top5.forEach((p) => {
+      batch.set(
+        db.doc(`posts/${p.id}`),
+        {
+          hallOfFame: true,
+          hallOfFameSource: "monthly-top",
+          hallOfFameMonth: monthId,
+          hallOfFameAddedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+    await batch.commit();
+
+    for (const p of top5) {
+      try {
+        await sendHallOfFameBotMessage(
+          p.ownerId,
+          p.ownerName,
+          `🏛️ Your post was one of the ${top5.length} most-loved from ${monthLabel} — we've added it to the Astryks Hall of Fame. Thanks for sharing your work with the community!`
+        );
+      } catch (err) {
+        console.error("computeMonthlyHallOfFame: failed to notify owner", p.id, err);
+      }
+    }
+
+    const lines = top5
+      .map((p, i) => `${i + 1}. ${p.ownerName || "Member"} — ${p.likeCount ?? 0} likes — "${p.title || `(${p.type} post)`}"`)
+      .join("\n");
+    await sendSupportEmail(
+      `Astryks Hall of Fame — ${monthLabel}: ${top5.length} post(s) added`,
+      `Automatically added this month's top ${top5.length} most-liked posts to the Hall of Fame:\n\n${lines}`
+    );
+  }
+);
+
+// ================================================================================================
+// RETIRED (Sept 2026): the AU$1,000/month Creative Prize has been replaced by the Hall of Fame
+// (see addToHallOfFame/removeFromHallOfFame/getHallOfFame/computeMonthlyHallOfFame below) — pure
+// recognition, no cash, no legal-lottery exposure, no payout ops. Everything from here down to
+// runPrizeReportNow is the old cash-prize implementation, kept in place (not deleted) in case this
+// ever needs to be revisited, but deliberately un-exported (renamed exports.X -> const _legacy_X)
+// so none of it deploys as a live Cloud Function anymore. onPostCreated below no longer calls
+// nominateForPrize for the same reason — new posts are no longer auto-entered into anything.
+// ================================================================================================
+
 // ---------- Callable: let a post's owner opt themselves out of the creative prize ----------
 
-exports.optOutOfPrize = onCall(async (request) => {
+const _legacy_optOutOfPrize = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -1318,7 +1540,7 @@ exports.optOutOfPrize = onCall(async (request) => {
 // Reverses optOutOfPrize above — was previously a one-way door with no way back in short of
 // contacting support. Re-entry is free and immediate (matching how entry works for every other
 // post — see the big comment on nominateForPrize), so this just flips the same two fields back.
-exports.optInToPrize = onCall(async (request) => {
+const _legacy_optInToPrize = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -1354,7 +1576,7 @@ exports.optInToPrize = onCall(async (request) => {
 // entry itself has to stay free and automatic). Firestore rules already let a post's owner write any field
 // on their own post directly, so this callable exists for the rate limit, the confirmation message, and a
 // single validated place both apps can call rather than each hand-rolling their own writes.
-exports.submitPrizeProcessNote = onCall(async (request) => {
+const _legacy_submitPrizeProcessNote = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -1410,7 +1632,7 @@ exports.submitPrizeProcessNote = onCall(async (request) => {
 // (see the comment above `reports`), so this reads with the Admin SDK and returns just the
 // public fields a leaderboard needs.
 
-exports.getPrizeLeaderboard = onCall(async (request) => {
+const _legacy_getPrizeLeaderboard = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -1460,7 +1682,7 @@ exports.getPrizeLeaderboard = onCall(async (request) => {
 
 // ---------- Callable: last completed month's creative-prize winner, for the public banner ----------
 
-exports.getLatestPrizeWinner = onCall(async () => {
+const _legacy_getLatestPrizeWinner = onCall(async () => {
   // Skip any winner whose payout is on hold (see PRIZE_PAYOUTS_ENABLED) — don't publicly
   // announce a cash prize we haven't actually confirmed we can legally pay out yet. Also skip
   // anything not yet `announced` — that flag only flips once the admin explicitly approves it
@@ -1499,7 +1721,7 @@ exports.getLatestPrizeWinner = onCall(async () => {
 // Kept in its own locked-down collection (see the `prizePayouts` rule) rather than on the post
 // itself, since posts are publicly readable and bank/PayID details must not be.
 
-exports.submitPrizePayoutDetails = onCall(
+const _legacy_submitPrizePayoutDetails = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async (request) => {
     if (!request.auth) {
@@ -1569,7 +1791,7 @@ exports.submitPrizePayoutDetails = onCall(
 
 // ---------- Callable: admin-only — every month's creative-prize winner + payout/paid status ----------
 
-exports.getPrizeWinners = onCall(async (request) => {
+const _legacy_getPrizeWinners = onCall(async (request) => {
   if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
@@ -1612,7 +1834,7 @@ exports.getPrizeWinners = onCall(async (request) => {
 // same in-app form again (rendered wherever a `prizeWin`/`prizeNomination` message shows up,
 // see app/messages/[conversationId]/page.tsx) so there's a clear, low-friction way for them to
 // add their details even if they skipped it the first time.
-exports.sendPayoutReminder = onCall(async (request) => {
+const _legacy_sendPayoutReminder = onCall(async (request) => {
   if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
@@ -1638,7 +1860,7 @@ exports.sendPayoutReminder = onCall(async (request) => {
 
 // ---------- Callable: admin-only — mark a month's prize as paid (or undo that) ----------
 
-exports.markPrizeWinnerPaid = onCall(async (request) => {
+const _legacy_markPrizeWinnerPaid = onCall(async (request) => {
   if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
@@ -1663,7 +1885,7 @@ exports.markPrizeWinnerPaid = onCall(async (request) => {
 // an in-app message, and (b) flips `announced: true`, which is what both getLatestPrizeWinner
 // (public banner) and this page's "already notified" badge key off. One-way on purpose — once
 // someone's been congratulated, there's no un-sending that email.
-exports.approvePrizeWinnerAnnouncement = onCall(
+const _legacy_approvePrizeWinnerAnnouncement = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
     if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
@@ -1746,7 +1968,7 @@ exports.approvePrizeWinnerAnnouncement = onCall(
 // creative post from a meme or a repost that farmed engagement — that judgment call is exactly what this
 // exists for. Only works before approvePrizeWinnerAnnouncement has fired (once someone's been told they
 // won, that can't be walked back), and the replacement must be one of that month's own recorded nominees.
-exports.overridePrizeWinner = onCall(async (request) => {
+const _legacy_overridePrizeWinner = onCall(async (request) => {
   if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
@@ -3589,16 +3811,12 @@ exports.sendTestNewLifecycleEmails = onCall(
   }
 );
 
-// ---------- Trigger: enter every new creative post into that month's prize ----------
-// Fires immediately on post creation (not on reaching any like count — see nominateForPrize's
-// comment for why there's no minimum). Scoped to actual creative uploads (photo/video) — plain
-// text posts and shared links don't count, since the prize is specifically for creative work.
-exports.onPostCreated = onDocumentCreated("posts/{postId}", async (event) => {
-  const postId = event.params.postId;
-  const post = event.data?.data();
-  if (!post || !["photo", "video"].includes(post.type) || post.prizeOptOut) return;
-  await nominateForPrize(postId, post);
-});
+// The onPostCreated trigger that used to live here only ever did one thing — call
+// nominateForPrize to enter a new photo/video post into that month's cash prize. Now that the
+// prize is retired (see the "RETIRED" banner above optOutOfPrize), that trigger body would be
+// entirely empty, so the export itself is removed rather than deploying a Cloud Function that
+// fires on every single post and does nothing. nominateForPrize's own definition is untouched
+// above, in case this is ever revisited.
 
 // ---------- Trigger: automated moderation scan on every new photo/video post ----------
 // Runs Google Cloud Vision SafeSearch (photos) and Cloud Video Intelligence's explicit-content
@@ -4395,7 +4613,10 @@ exports.approveRefund = onCall(
   }
 );
 
-// ---------- Creative Prize payouts via Stripe Connect ----------
+// ---------- RETIRED — Creative Prize payouts via Stripe Connect ----------
+// Un-exported along with the rest of the cash prize (see the RETIRED banner above optOutOfPrize)
+// — payoutAccounts/createPayoutOnboardingLink/getPayoutAccountStatus/payWinnerViaStripe existed
+// purely to pay prize winners, nothing else in the app used them.
 // The manual "copy these details into your own bank" flow (see admin/prizes) still works and
 // stays as a fallback — this adds a real automated rail on top of it. Each winner (or anyone,
 // really — same as the existing manual bank/PayID form, available any time, not just after
@@ -4408,7 +4629,7 @@ exports.approveRefund = onCall(
 // possible from inside your own Stripe account, not something settable via the API.
 
 // ---------- Callable: get-or-create a Stripe Connect onboarding link for the caller ----------
-exports.createPayoutOnboardingLink = onCall({ secrets: [stripeSecret] }, async (request) => {
+const _legacy_createPayoutOnboardingLink = onCall({ secrets: [stripeSecret] }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
   const uid = request.auth.uid;
   const stripe = Stripe(stripeSecret.value());
@@ -4463,7 +4684,7 @@ exports.createPayoutOnboardingLink = onCall({ secrets: [stripeSecret] }, async (
 });
 
 // ---------- Callable: has the caller finished Stripe onboarding? ----------
-exports.getPayoutAccountStatus = onCall(async (request) => {
+const _legacy_getPayoutAccountStatus = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
   const snap = await db.doc(`payoutAccounts/${request.auth.uid}`).get();
   if (!snap.exists) return { hasAccount: false, payoutsEnabled: false };
@@ -4476,7 +4697,7 @@ exports.getPayoutAccountStatus = onCall(async (request) => {
 // completed Stripe onboarding (payoutsEnabled on their payoutAccounts doc) — the admin prizes
 // page only shows this button once that's true; the manual copy-fields panel is always there
 // as a fallback regardless.
-exports.payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request) => {
+const _legacy_payWinnerViaStripe = onCall({ secrets: [stripeSecret] }, async (request) => {
   if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
     throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
   }
@@ -5032,7 +5253,7 @@ exports.sendWinBackEmails = onSchedule(
 // "winning" every month forever — each month's draw is scoped to that month's own posts.
 // This only ever emails a ranked candidate list; picking the actual winner and sending the
 // AU$1,000 is still a manual step for the admin, same as the referral payouts above.
-exports.sendMonthlyPrizeReport = onSchedule(
+const _legacy_sendMonthlyPrizeReport = onSchedule(
   { schedule: "0 9 1 * *", timeZone: "Australia/Sydney", secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async () => {
     const now = new Date();
@@ -5193,7 +5414,7 @@ exports.sendMonthlyPrizeReport = onSchedule(
 // so far in the CURRENT calendar month, ranks them by likes the same way the automatic monthly
 // job does, and emails you the full list — it does NOT persist a prizeWinners record or touch
 // PRIZE_PAYOUTS_ENABLED, since the month isn't over yet and this is just a manual check-in.
-exports.runPrizeReportNow = onCall(
+const _legacy_runPrizeReportNow = onCall(
   { secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS, SUPPORT_EMAIL_TO] },
   async (request) => {
     if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {

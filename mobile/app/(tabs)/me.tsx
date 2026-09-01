@@ -649,10 +649,6 @@ export default function MeScreen() {
             Terms
           </Text>
           <Text style={{ fontSize: 15, color: colors.muted }}> · </Text>
-          <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/prize-rules")}>
-            Prize Rules
-          </Text>
-          <Text style={{ fontSize: 15, color: colors.muted }}> · </Text>
           <Text style={{ fontSize: 15, color: colors.muted, textDecorationLine: "underline" }} onPress={() => Linking.openURL("https://astryks.com/support")}>
             Support
           </Text>

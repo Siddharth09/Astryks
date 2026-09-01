@@ -10,7 +10,6 @@ import LikeButton from "@/components/LikeButton";
 import SaveButton from "@/components/SaveButton";
 import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
-import PrizeInfoModal from "@/components/PrizeInfoModal";
 import ShareMenu from "@/components/ShareMenu";
 import { useResizedImageUrl } from "@/lib/resizedImage";
 import { ADMIN_EMAILS } from "@/lib/admin";
@@ -18,6 +17,8 @@ import { ensureConversation } from "@/lib/conversations";
 
 const deletePostFn = httpsCallable(functions, "deletePost");
 const submitReportFn = httpsCallable(functions, "submitReport");
+const addToHallOfFameFn = httpsCallable(functions, "addToHallOfFame");
+const removeFromHallOfFameFn = httpsCallable(functions, "removeFromHallOfFame");
 
 export default function PostCard({
   post,
@@ -32,17 +33,38 @@ export default function PostCard({
   const { user } = useAuth();
   const [deleting, setDeleting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [prizeOpen, setPrizeOpen] = useState(false);
   const [messaging, setMessaging] = useState(false);
-  // Optimistic local override so opting back in updates the trophy/modal immediately — `post`
-  // is a prop from the parent's feed data, which won't itself refresh until the next reload.
-  const [optedInOverride, setOptedInOverride] = useState(false);
-  const prizeOptOut = post.prizeOptOut && !optedInOverride;
-  const canDelete = user && (user.uid === post.ownerId || ADMIN_EMAILS.includes(user.email ?? ""));
+  const [togglingHallOfFame, setTogglingHallOfFame] = useState(false);
+  // Optimistic local override so the badge/button updates immediately — `post` is a prop from
+  // the parent's feed data, which won't itself refresh until the next reload.
+  const [hallOfFameOverride, setHallOfFameOverride] = useState<boolean | null>(null);
+  const inHallOfFame = hallOfFameOverride ?? !!post.hallOfFame;
+  const isAdmin = user && ADMIN_EMAILS.includes(user.email ?? "");
+  const canDelete = user && (user.uid === post.ownerId || isAdmin);
   const displayMediaUrl = useResizedImageUrl(post.type === "photo" ? post.mediaPath : null, post.mediaUrl);
 
   async function handleReport(reason: string, details: string) {
     await submitReportFn({ targetType: "post", targetId: post.id, reason, details });
+  }
+
+  async function handleToggleHallOfFame(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (togglingHallOfFame) return;
+    setTogglingHallOfFame(true);
+    try {
+      if (inHallOfFame) {
+        await removeFromHallOfFameFn({ postId: post.id });
+        setHallOfFameOverride(false);
+      } else {
+        await addToHallOfFameFn({ postId: post.id });
+        setHallOfFameOverride(true);
+      }
+    } catch (err: any) {
+      alert(err.message ?? "Couldn't update the Hall of Fame.");
+    } finally {
+      setTogglingHallOfFame(false);
+    }
   }
 
   async function handleDelete(e: React.MouseEvent) {
@@ -177,6 +199,15 @@ export default function PostCard({
               Report
             </button>
           )}
+          {isAdmin && (post.type === "photo" || post.type === "video") && (
+            <button
+              onClick={handleToggleHallOfFame}
+              disabled={togglingHallOfFame}
+              className="text-xs hover:underline flex-shrink-0 disabled:opacity-50"
+            >
+              {togglingHallOfFame ? "…" : inHallOfFame ? "Remove from Hall of Fame" : "🏛️ Add to Hall of Fame"}
+            </button>
+          )}
           {canDelete && (
             <button
               onClick={handleDelete}
@@ -199,42 +230,16 @@ export default function PostCard({
           </Link>
           <SaveButton postId={post.id} currentUserId={currentUserId} />
           <div className="ml-auto flex items-center gap-3">
-            {/* `prizeEligible` is set true on nearly every photo/video post the moment it's
-                created (see nominateForPrize in functions/index.js) — it means "entered," not
-                "in the running to actually win." Only show the trophy once a post has crossed
-                the 30-like qualifying bar (PRIZE_LIKE_THRESHOLD server-side) and isn't opted out
-                — EXCEPT for the post's own owner, who can still tap in on an opted-out post to
-                opt back in (otherwise opting out became a one-way door with no way to undo it
-                from here). */}
-            {(post.type === "photo" || post.type === "video") &&
-              ((post.prizeEligible && !prizeOptOut && (post.likeCount ?? 0) >= 30) ||
-                (prizeOptOut && currentUserId === post.ownerId)) && (
-                <button
-                  onClick={() => setPrizeOpen(true)}
-                  className="hover:text-ink"
-                  title="Creative prize"
-                  aria-label="About the Creative Prize"
-                >
-                  🏆
-                </button>
-              )}
+            {inHallOfFame && (
+              <span className="text-xs text-ink/50" title="Featured in the Hall of Fame">
+                🏛️ Hall of Fame
+              </span>
+            )}
             <ShareMenu postId={post.id} title={post.title} />
           </div>
         </div>
       </div>
       <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} onSubmit={handleReport} />
-      <PrizeInfoModal
-        open={prizeOpen}
-        onClose={() => setPrizeOpen(false)}
-        postId={post.id}
-        likeCount={post.likeCount ?? 0}
-        eligible={post.prizeEligible}
-        optedOut={prizeOptOut}
-        isOwner={currentUserId === post.ownerId}
-        processNote={post.prizeProcessNote}
-        processVideoUrl={post.prizeProcessVideoUrl}
-        onOptedIn={() => setOptedInOverride(true)}
-      />
     </article>
   );
 }

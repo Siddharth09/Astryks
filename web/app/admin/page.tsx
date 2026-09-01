@@ -6,9 +6,9 @@ import { isAdmin } from "@/lib/admin";
 
 const SECTIONS = [
   {
-    href: "/admin/prizes",
-    title: "Prize winners",
-    description: "Review and approve each month's Creative Prize winner, and mark payouts as sent.",
+    href: "/admin/hall-of-fame",
+    title: "Hall of Fame",
+    description: "Feature a post manually, or see what's already featured (including this month's automatic top 5).",
   },
   {
     href: "/admin/refunds",

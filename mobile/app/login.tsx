@@ -37,11 +37,11 @@ const PRICING_FEATURES = [
   "Cancel anytime, no questions asked",
 ];
 
-const PRIZE_STEPS = [
+const HALL_OF_FAME_STEPS = [
   { n: "1", t: "Share your work", d: "Post whatever you're proud of — a song, a painting, a portfolio piece. Free account, no subscription needed." },
-  { n: "2", t: "Get likes from the community", d: "The more people who love it, the better your chances." },
-  { n: "3", t: "Reach 30 likes", d: "You're entered the moment you post — cross 30 likes and you're in the running to win." },
-  { n: "4", t: "Win AU$1,000", d: "One winner, chosen across every subject, at the end of each calendar month." },
+  { n: "2", t: "Get seen by the community", d: "Likes and follows help great work rise naturally." },
+  { n: "3", t: "Get featured", d: "Our team can spotlight any post anytime, and the month's 5 most-loved posts are added automatically." },
+  { n: "4", t: "Browse the Hall of Fame", d: "See the community's best work, right from the Home tab." },
 ];
 
 const FAQS = [
@@ -50,8 +50,8 @@ const FAQS = [
   { q: "Do I need any experience to start?", a: "Absolutely not — remember there are no born experts. Everybody started somewhere. Astryks is designed for that first step when you have zero experience but are open to trying something new. Learn the basic techniques, and then look at existing work out there and try and recreate a song or a painting from a famous artist, or make your own, or do both! It's magical creating layers of paintings, like layers of music, just have fun with it!" },
   { q: "Can I post what I make?", a: "That's entirely up to you. Post it if you'd like feedback and to be part of the community, or keep it to yourself — either way is completely fine, and posting is never required." },
   { q: "Can I cancel anytime?", a: "Yes — cancel any time from your account settings, no questions asked." },
-  { q: "How does the monthly AU$1,000 prize work?", a: "Each calendar month we pick just one winner across every subject — music, art, or any other creative project — whoever's single post has the most likes that month, as long as it's reached at least 30 likes. We ask for that because we want our community to lift each other up and cheer on the creative work being shared here — no subscription required, just a free like from anyone. If nothing reaches 30 likes in a given month, no winner is picked that month. The prize is AU$1,000 (Australian dollars), funded from Astryks subscription revenue, and we're running it every month through our first six months (through February 2027). International transfers from Australia may be subject to market foreign exchange rates and other overseas transfer considerations." },
-  { q: "Do I have to subscribe to post or enter the prize?", a: "No — creating an account, posting, liking, and entering the Creative Prize are all free. A subscription is only needed to unlock the pre-recorded lesson library." },
+  { q: "What is the Hall of Fame?", a: "A gallery of the community's best work — some posts are added by our team because we love them, and every month we automatically add that month's 5 most-liked posts. There's nothing to enter and nothing to opt into — it's just recognition, browsable right from the Home tab." },
+  { q: "Do I have to subscribe to post or be featured?", a: "No — creating an account, posting, liking, and being featured in the Hall of Fame are all free. A subscription is only needed to unlock the pre-recorded lesson library." },
   { q: "Will there be new videos and subjects?", a: "Yes — we're regularly adding new videos to Music and Art, all included in your subscription, with more subjects planned as the library grows." },
   { q: "What devices does Astryks work on?", a: "Any modern smartphone, tablet, laptop, or desktop — just a browser, or the app." },
 ];
@@ -75,7 +75,7 @@ export default function LoginScreen() {
   // the visitor's localized pricing, same as the rest of the screen.
   const STEPS = [
     { n: "01", title: "Sign up", blurb: "Create your free account in under a minute." },
-    { n: "02", title: "Dive in", blurb: `Post your work, browse what others are creating, and enter the monthly Creative Prize — it's all free. If you want to learn from our expert-led masterclasses, subscribe at ${pricing.display} — 90-day refunds, cancel anytime.` },
+    { n: "02", title: "Dive in", blurb: `Post your work and browse what others are creating — it's all free, and the community's best work gets featured in our Hall of Fame. If you want to learn from our expert-led masterclasses, subscribe at ${pricing.display} — 90-day refunds, cancel anytime.` },
     { n: "03", title: "Just create", blurb: "Whether it's with our experts or on your own, just start — record one song from scratch, paint one piece. Take your time, and make something that means something to you." },
   ];
 
@@ -256,7 +256,7 @@ export default function LoginScreen() {
       <View style={{ backgroundColor: colors.sectionLavender, borderRadius: 20, padding: 20, marginBottom: 24, marginTop: 8 }}>
         <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink, marginBottom: 6 }}>Unlock the full lesson library</Text>
         <Text style={{ fontSize: 17, color: colors.muted, marginBottom: 14, lineHeight: 18 }}>
-          Signing up, posting, and entering the Creative Prize are always free. Subscribe whenever you&apos;re
+          Signing up and posting are always free. Subscribe whenever you&apos;re
           ready to unlock every lesson.
         </Text>
         <View style={{ backgroundColor: "white", borderRadius: 16, padding: 18 }}>
@@ -283,34 +283,27 @@ export default function LoginScreen() {
         </View>
       </View>
 
-      {/* Creative prize */}
+      {/* Hall of Fame */}
       <View style={{ backgroundColor: colors.sectionMint, borderRadius: 20, padding: 20, marginBottom: 24 }}>
         <Text style={{ fontSize: 15, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
-          Creative prize
+          Hall of Fame
         </Text>
-        <Text style={{ fontSize: 35, fontWeight: "900", color: colors.ink, marginBottom: 4 }}>AU$1,000</Text>
-        <Text style={{ fontSize: 19, fontWeight: "800", color: colors.ink, marginBottom: 6, lineHeight: 22 }}>
-          Every month, for the community&apos;s most-loved post
-        </Text>
-        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.brand, backgroundColor: "white", alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10, overflow: "hidden" }}>
-          Running every month through our first 6 months
+        <Text style={{ fontSize: 26, fontWeight: "900", color: colors.ink, marginBottom: 6, lineHeight: 30 }}>
+          🏛️ Recognition, not a race
         </Text>
         <Text style={{ fontSize: 17, color: colors.ink, lineHeight: 19, marginBottom: 10 }}>
-          We want every creative student — subscriber or not — to be able to post, get discovered, and
-          compete for real cash, so entering is completely free for anyone with an Astryks account. At
-          the end of each calendar month, whoever&apos;s single creative post — across music, art, or any
-          other creative project — has the most likes wins, as long as it&apos;s reached at least 30 likes.
-          We ask for that because we want our community to lift each other up and cheer on the creative
-          work being shared here — no subscription required, just a free like from anyone. If nothing
-          reaches 30 likes in a given month, no winner is picked that month. We started Astryks because
-          real creative work deserves real recognition, and we genuinely can&apos;t wait to see what you make.
+          We want every creative student — subscriber or not — to be able to post and get
+          discovered for real work, not for who can farm the most likes fastest. So instead of a
+          cash prize, we run a Hall of Fame: a gallery of the community&apos;s best posts, right
+          from the Home tab. Our team hand-picks posts we love anytime, and every month we
+          automatically add that month&apos;s 5 most-liked posts, across every subject — music,
+          art, or anything else creative.
         </Text>
         <Text style={{ fontSize: 15, color: colors.muted, lineHeight: 15, marginBottom: 16 }}>
-          AU$1,000 (Australian dollars), funded from Astryks subscription revenue. International
-          transfers from Australia may be subject to market foreign exchange rates and other overseas
-          transfer considerations.
+          There&apos;s nothing to enter, nothing to opt into, and no minimum like count — just
+          post your work and the best of it gets seen.
         </Text>
-        {PRIZE_STEPS.map((step) => (
+        {HALL_OF_FAME_STEPS.map((step) => (
           <View key={step.n} style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
             <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ color: "white", fontSize: 15, fontWeight: "700" }}>{step.n}</Text>

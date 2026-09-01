@@ -7,7 +7,6 @@ import { collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/fires
 import { httpsCallable } from "firebase/functions";
 import { storage, db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import PrizeInfoModal from "@/components/PrizeInfoModal";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 
@@ -22,7 +21,6 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
   const [isPublic, setIsPublic] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [prizeInfoOpen, setPrizeInfoOpen] = useState(false);
 
   if (!user) return null;
 
@@ -152,16 +150,7 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
           <button onClick={() => setMode("link")} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-ink/5" aria-label="Share a link">
             🔗
           </button>
-          <button
-            onClick={() => setPrizeInfoOpen(true)}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-ink/5"
-            aria-label="About the creative prize"
-            title="About the creative prize"
-          >
-            🏆
-          </button>
         </div>
-        <PrizeInfoModal open={prizeInfoOpen} onClose={() => setPrizeInfoOpen(false)} generic />
       </>
     );
   }
@@ -191,7 +180,6 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
 
   return (
     <div className="card p-4 mb-4">
-      <PrizeInfoModal open={prizeInfoOpen} onClose={() => setPrizeInfoOpen(false)} generic />
       {mode === "text" ? (
         <div className="space-y-3">
           <textarea
@@ -219,13 +207,6 @@ export default function ShareComposer({ onPosted }: { onPosted?: () => void }) {
             className="block w-full text-sm"
           />
           <input className="input" placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <button
-            type="button"
-            onClick={() => setPrizeInfoOpen(true)}
-            className="text-xs underline text-ink/50 hover:text-ink"
-          >
-            🏆 This could win the AU$1,000 creative prize — learn how
-          </button>
           {visibilityToggle}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">

@@ -80,7 +80,11 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.type in ['photo', 'video', 'link', 'text']
         && (!('likeCount' in request.resource.data) || request.resource.data.likeCount == 0)
-        && (!('commentCount' in request.resource.data) || request.resource.data.commentCount == 0);
+        && (!('commentCount' in request.resource.data) || request.resource.data.commentCount == 0)
+        // Same reasoning as likeCount/commentCount above, applied to hallOfFame: without this, a
+        // brand-new post could just be created with hallOfFame: true already set, skipping the
+        // whole point of it being an admin-curated (or automatic top-5) honor.
+        && (!('hallOfFame' in request.resource.data) || request.resource.data.hallOfFame == false);
 
       // Was also carve-out-able by ANY signed-in user via hasOnly(['likeCount']) /
       // hasOnly(['commentCount']) — that let anyone set a post's likeCount/commentCount to
@@ -97,11 +101,18 @@ service cloud.firestore {
       // owner could simply clear their own auto-flagged content back to visible by editing the
       // post from the client, which would defeat the whole point of moderatePostMedia. Only that
       // trigger (Admin SDK) sets or clears these fields.
+      // hallOfFame/hallOfFameSource/hallOfFameMonth/hallOfFameAddedAt are excluded for the same
+      // reason likeCount/commentCount are: without this, any post owner could just set
+      // hallOfFame: true on their own post directly from the client and skip the whole point of
+      // it being an admin-curated (or automatic top-5) honor — see addToHallOfFame/
+      // removeFromHallOfFame/computeMonthlyHallOfFame in functions/index.js, the only things
+      // (besides direct Admin SDK access) allowed to set these.
       allow update: if request.auth != null
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == resource.data.ownerId
         && !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['likeCount', 'commentCount', 'moderationStatus', 'moderationFlags']);
+          .hasAny(['likeCount', 'commentCount', 'moderationStatus', 'moderationFlags',
+            'hallOfFame', 'hallOfFameSource', 'hallOfFameMonth', 'hallOfFameAddedAt']);
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 

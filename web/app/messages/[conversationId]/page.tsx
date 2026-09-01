@@ -19,21 +19,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import PageBackground from "@/components/PageBackground";
 import { BOT_UIDS } from "@/lib/botUsers";
 
-const optOutOfPrizeFn = httpsCallable(functions, "optOutOfPrize");
-const submitPrizePayoutDetailsFn = httpsCallable(functions, "submitPrizePayoutDetails");
-const createPayoutOnboardingLinkFn = httpsCallable(functions, "createPayoutOnboardingLink");
 
 export default function ChatThreadPage() {
   const params = useParams<{ conversationId: string }>();
   const { user } = useAuth();
   const [messages, setMessages] = useState<any[]>([]);
   const [body, setBody] = useState("");
-  const [optOutState, setOptOutState] = useState<Record<string, "loading" | "done">>({});
-  const [payoutOpen, setPayoutOpen] = useState<Record<string, boolean>>({});
-  const [payoutMethod, setPayoutMethod] = useState<Record<string, "bank" | "payid">>({});
-  const [payoutDetails, setPayoutDetails] = useState<Record<string, string>>({});
-  const [payoutState, setPayoutState] = useState<Record<string, "loading" | "done">>({});
-  const [stripeSetupLoading, setStripeSetupLoading] = useState<Record<string, boolean>>({});
   const [otherName, setOtherName] = useState<string | null>(null);
   const [otherIsBot, setOtherIsBot] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -54,66 +45,6 @@ export default function ChatThreadPage() {
         setOtherName(null);
       });
   }, [params.conversationId, user]);
-
-  // Redirects to Stripe's own hosted onboarding form — their bank details go straight to
-  // Stripe, never through Astryks at all. Same "share payout details" moment as the manual
-  // form below, just the faster/more secure option. Not tied to any specific post, so it works
-  // the same whether this is a fresh nomination or an actual win.
-  useEffect(() => {
-    // `handleStripeSetup` redirects away via `location.href` to Stripe's hosted onboarding form.
-    // Hitting Back afterward restores this page from the browser's back-forward cache exactly as
-    // it was frozen — that message's Stripe-setup button stuck disabled — rather than reloading
-    // fresh. `pageshow` with `event.persisted` fires specifically on that bfcache restore.
-    function onPageShow(event: PageTransitionEvent) {
-      if (event.persisted) setStripeSetupLoading({});
-    }
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
-
-  async function handleStripeSetup(messageId: string) {
-    setStripeSetupLoading((prev) => ({ ...prev, [messageId]: true }));
-    try {
-      const result = await createPayoutOnboardingLinkFn();
-      window.location.href = (result.data as any).url;
-    } catch (err: any) {
-      alert(err.message ?? "Couldn't start Stripe setup — try again, or use the manual option below.");
-      setStripeSetupLoading((prev) => ({ ...prev, [messageId]: false }));
-    }
-  }
-
-  async function handleOptOut(messageId: string, postId: string) {
-    setOptOutState((prev) => ({ ...prev, [messageId]: "loading" }));
-    try {
-      await optOutOfPrizeFn({ postId });
-      setOptOutState((prev) => ({ ...prev, [messageId]: "done" }));
-    } catch (err: any) {
-      setOptOutState((prev) => {
-        const next = { ...prev };
-        delete next[messageId];
-        return next;
-      });
-      alert(err.message ?? "Couldn't opt out — try again.");
-    }
-  }
-
-  async function handleSubmitPayout(messageId: string, postId: string) {
-    const details = (payoutDetails[messageId] ?? "").trim();
-    if (!details) return;
-    const method = payoutMethod[messageId] ?? "bank";
-    setPayoutState((prev) => ({ ...prev, [messageId]: "loading" }));
-    try {
-      await submitPrizePayoutDetailsFn({ postId, method, details });
-      setPayoutState((prev) => ({ ...prev, [messageId]: "done" }));
-    } catch (err: any) {
-      setPayoutState((prev) => {
-        const next = { ...prev };
-        delete next[messageId];
-        return next;
-      });
-      alert(err.message ?? "Couldn't save your payout details — try again.");
-    }
-  }
 
   useEffect(() => {
     const q = query(
@@ -190,81 +121,11 @@ export default function ChatThreadPage() {
             }`}
           >
             {m.text}
-            {(m.type === "prizeNomination" || m.type === "prizeWin") && m.senderId !== user?.uid && m.postId && (
-              <div className="mt-2 pt-2 border-t border-line/15 space-y-2">
-                {m.type === "prizeNomination" && (optOutState[m.id] === "done" || m.prizeOptOutHandled) ? (
-                  <p className="text-xs text-ink/50">You've opted this post out.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-3">
-                    {m.type === "prizeNomination" && (
-                      <button
-                        onClick={() => handleOptOut(m.id, m.postId)}
-                        disabled={optOutState[m.id] === "loading"}
-                        className="text-xs underline text-ink/70 hover:text-ink disabled:opacity-50"
-                      >
-                        {optOutState[m.id] === "loading" ? "Opting out…" : "Opt out of this nomination"}
-                      </button>
-                    )}
-                    {payoutState[m.id] !== "done" && (
-                      <button
-                        onClick={() => setPayoutOpen((prev) => ({ ...prev, [m.id]: !prev[m.id] }))}
-                        className="text-xs underline text-ink/70 hover:text-ink"
-                      >
-                        {payoutOpen[m.id]
-                          ? "Cancel"
-                          : m.type === "prizeWin"
-                          ? "Add payout details"
-                          : "Share payout details"}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {payoutState[m.id] === "done" && (
-                  <p className="text-xs text-ink/50">Payout details saved — thanks!</p>
-                )}
-
-                {payoutOpen[m.id] && payoutState[m.id] !== "done" && (
-                  <div className="bg-paper/60 rounded-lg p-2.5 space-y-2">
-                    <button
-                      onClick={() => handleStripeSetup(m.id)}
-                      disabled={stripeSetupLoading[m.id]}
-                      className="w-full text-xs rounded-md bg-brand text-white font-medium px-2.5 py-1.5 disabled:opacity-50"
-                    >
-                      {stripeSetupLoading[m.id] ? "Starting…" : "Set up direct deposit (fastest, most secure)"}
-                    </button>
-                    <p className="text-[11px] text-ink/40 text-center">— or enter it manually —</p>
-                    <select
-                      value={payoutMethod[m.id] ?? "bank"}
-                      onChange={(e) =>
-                        setPayoutMethod((prev) => ({ ...prev, [m.id]: e.target.value as "bank" | "payid" }))
-                      }
-                      className="w-full text-xs rounded-md border border-line/20 bg-white px-2 py-1.5"
-                    >
-                      <option value="bank">Bank transfer</option>
-                      <option value="payid">PayID</option>
-                    </select>
-                    <input
-                      value={payoutDetails[m.id] ?? ""}
-                      onChange={(e) => setPayoutDetails((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                      placeholder={
-                        (payoutMethod[m.id] ?? "bank") === "bank"
-                          ? "BSB, account number, account name"
-                          : "PayID (phone, email, or ABN)"
-                      }
-                      className="w-full text-xs rounded-md border border-line/20 bg-white px-2 py-1.5"
-                    />
-                    <button
-                      onClick={() => handleSubmitPayout(m.id, m.postId)}
-                      disabled={payoutState[m.id] === "loading" || !(payoutDetails[m.id] ?? "").trim()}
-                      className="text-xs rounded-md bg-ink text-white font-medium px-2.5 py-1.5 disabled:opacity-50"
-                    >
-                      {payoutState[m.id] === "loading" ? "Saving…" : "Save payout details"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Old prizeNomination/prizeWin messages (Creative Prize, retired) used to render
+                interactive opt-out/payout forms right here. The prize is gone and the backend
+                callables behind those forms are no longer deployed (see the RETIRED banner in
+                functions/index.js), so any such message left in someone's history now just
+                renders as a plain, non-interactive past message like any other. */}
           </div>
         ))}
         <div ref={bottomRef} />

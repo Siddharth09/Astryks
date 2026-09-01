@@ -26,6 +26,14 @@
       ]
     },
     {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "hallOfFame", "order": "ASCENDING" },
+        { "fieldPath": "hallOfFameAddedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "refundRequests",
       "queryScope": "COLLECTION",
       "fields": [

@@ -16,8 +16,8 @@ const FAQS = [
     a: "We show you an estimated price in your local currency based on your device's region settings before you subscribe. The price and currency you're actually billed is set at checkout by your billing country. See our Privacy Policy for details.",
   },
   {
-    q: "How does the Creative Prize work?",
-    a: "Every month, the eligible post with the most likes from the community wins a cash prize. You don't need to be a paying subscriber to enter — posting is free. See our Prize Rules for the full details.",
+    q: "What is the Hall of Fame?",
+    a: "A gallery of the community's best work, browsable from the Home tab. Our team can feature any post anytime, and each month the 5 most-liked posts are added automatically — there's nothing to enter and no subscription needed.",
   },
   {
     q: "I found a bug, or content that shouldn't be on Astryks.",
@@ -54,9 +54,8 @@ export default function SupportPage() {
       </div>
 
       <p className="mt-10 text-xs text-ink/40">
-        See also our <Link href="/terms" className="link-accent">Terms of Service</Link>,{" "}
-        <Link href="/privacy" className="link-accent">Privacy Policy</Link>, and{" "}
-        <Link href="/prize-rules" className="link-accent">Prize Rules</Link>.
+        See also our <Link href="/terms" className="link-accent">Terms of Service</Link> and{" "}
+        <Link href="/privacy" className="link-accent">Privacy Policy</Link>.
       </p>
     </div>
   );
