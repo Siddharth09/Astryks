@@ -17,11 +17,12 @@ export const colors = {
   brand: "#E85D5D",
   brandDark: "#C94A4A",
   brandLight: "#FFF6F1",
-  // astryks.com subject accents
-  music: "#E85D5D",
-  musicLight: "#FBE3DF",
-  art: "#8B7FE8",
-  artLight: "#EDEAFB",
+  // Subject accents — pastel green for Music, pastel purple for Art (previously brand
+  // red/vivid purple, matched to web's Tailwind theme; mobile now diverges deliberately here).
+  music: "#6FA184",
+  musicLight: "#E1F0E6",
+  art: "#9B87C4",
+  artLight: "#EEEAF7",
   teal: "#3FC1B0",
   tealLight: "#DFF5F1",
   highlight: "#EFC13B",
