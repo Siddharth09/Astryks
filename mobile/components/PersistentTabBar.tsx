@@ -1,6 +1,5 @@
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, Platform } from "react-native";
 import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/lib/styles";
 
 const TABS = [
@@ -17,7 +16,6 @@ const TABS = [
 // screen too. router.replace (not push) so tapping a tab from here doesn't pile detail screens
 // up underneath the tab you just switched to.
 export default function PersistentTabBar() {
-  const insets = useSafeAreaInsets();
   return (
     <View
       style={{
@@ -25,7 +23,11 @@ export default function PersistentTabBar() {
         borderTopWidth: 0.5,
         borderTopColor: "#eee",
         backgroundColor: colors.paper,
-        paddingBottom: insets.bottom,
+        // No SafeAreaProvider is set up anywhere in this app (react-native-safe-area-context's
+        // useSafeAreaInsets would throw/warn without one) — matches the rest of the codebase's
+        // approach of hardcoding a reasonable value (e.g. the paddingTop: 56 used everywhere
+        // for the status bar) rather than reading real insets.
+        paddingBottom: Platform.OS === "ios" ? 24 : 10,
       }}
     >
       {TABS.map(({ href, label, icon }) => (
