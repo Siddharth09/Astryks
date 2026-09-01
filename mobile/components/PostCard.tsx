@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { WebView } from "react-native-webview";
 import { router } from "expo-router";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -91,17 +91,31 @@ export default function PostCard({
     : typeof post.createdAt === "number"
     ? new Date(post.createdAt)
     : new Date();
-  const videoRef = useRef<Video>(null);
   const [muted, setMuted] = useState(true);
+  // expo-av's <Video> (the previous implementation here) doesn't reliably autoplay under the
+  // New Architecture (enabled in app.json) — shouldPlay updates often silently no-op, leaving
+  // the video stuck on its first frame like a static image. expo-video's player-object API
+  // (useVideoPlayer + VideoView) is the actively maintained replacement and doesn't have that
+  // problem. Source is null for non-video posts — VideoSource accepts that directly, so the
+  // hook is safe to call unconditionally regardless of post.type.
+  const isNativeVideo = post.type === "video" && !post.bunnyVideoId;
+  const player = useVideoPlayer(isNativeVideo ? post.mediaUrl : null, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    player.muted = muted;
+  }, [muted, player]);
+
+  useEffect(() => {
+    if (!isNativeVideo) return;
     if (isActive) {
-      videoRef.current.playAsync().catch(() => {});
+      player.play();
     } else {
-      videoRef.current.pauseAsync().catch(() => {});
+      player.pause();
     }
-  }, [isActive]);
+  }, [isActive, isNativeVideo, player]);
 
   async function openConversation() {
     if (!currentUserId || currentUserId === post.ownerId) return;
@@ -136,15 +150,7 @@ export default function PostCard({
         )}
         {post.type === "video" && !post.bunnyVideoId && (
           <View>
-            <Video
-              ref={videoRef}
-              source={{ uri: post.mediaUrl }}
-              style={s.media}
-              resizeMode={ResizeMode.COVER}
-              isLooping
-              isMuted={muted}
-              shouldPlay={isActive}
-            />
+            <VideoView player={player} style={s.media} contentFit="cover" nativeControls={false} />
             <TouchableOpacity
               onPress={() => setMuted((m) => !m)}
               style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(0,0,0,0.5)", width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" }}

@@ -261,25 +261,32 @@ export default function MeScreen() {
     }
   }
 
-  // The 🔒 badge on a private post's thumbnail used to be a pure indicator with nothing to tap
-  // — visibility could only ever be set once, at upload time, with no way back to public short
-  // of deleting and reposting. firestore.rules already lets the owner edit any field on their
-  // own post (visibility isn't in the excluded set), so this is just a client-side write.
-  function handleMakePublic(postId: string) {
-    Alert.alert("Make this post public?", "Anyone will be able to see it.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Make public",
-        onPress: async () => {
-          try {
-            await updateDoc(doc(db, "posts", postId), { visibility: "public" });
-            setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, visibility: "public" } : p)));
-          } catch (err: any) {
-            Alert.alert("Couldn't update", err.message ?? "Please try again.");
-          }
+  // The 🔒/🌍 badge on a post's thumbnail used to be a pure indicator with nothing to tap —
+  // visibility could only ever be set once, at upload time, with no way to flip it back either
+  // direction short of deleting and reposting. firestore.rules already lets the owner edit any
+  // field on their own post (visibility isn't in the excluded set), so this is just a
+  // client-side write either way.
+  function handleToggleVisibility(postId: string, currentVisibility: string) {
+    const makingPublic = currentVisibility === "private";
+    Alert.alert(
+      makingPublic ? "Make this post public?" : "Make this post private?",
+      makingPublic ? "Anyone will be able to see it." : "Only you will be able to see it.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: makingPublic ? "Make public" : "Make private",
+          onPress: async () => {
+            const nextVisibility = makingPublic ? "public" : "private";
+            try {
+              await updateDoc(doc(db, "posts", postId), { visibility: nextVisibility });
+              setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, visibility: nextVisibility } : p)));
+            } catch (err: any) {
+              Alert.alert("Couldn't update", err.message ?? "Please try again.");
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   async function handleAddLink() {
@@ -524,16 +531,14 @@ export default function MeScreen() {
                     <Text style={{ color: "white" }}>▶</Text>
                   </View>
                 )}
-                {p.visibility === "private" && (
-                  <TouchableOpacity
-                    onPress={() => handleMakePublic(p.id)}
-                    accessibilityLabel="Make public"
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}
-                  >
-                    <Text style={{ fontSize: 13 }}>🔒</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  onPress={() => handleToggleVisibility(p.id, p.visibility)}
+                  accessibilityLabel={p.visibility === "private" ? "Make public" : "Make private"}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}
+                >
+                  <Text style={{ fontSize: 13 }}>{p.visibility === "private" ? "🔒" : "🌍"}</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
             {posts.length === 0 && !showAddMedia && <Text style={{ color: colors.muted }}>No posts yet.</Text>}

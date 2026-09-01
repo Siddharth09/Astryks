@@ -7,6 +7,7 @@ import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
+import PersistentTabBar from "@/components/PersistentTabBar";
 import { colors } from "@/lib/styles";
 
 const getUserPosts = httpsCallable(functions, "getUserPosts");
@@ -162,28 +163,35 @@ export default function UserProfileScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56, paddingHorizontal: 16 }}>
-        {BackBar}
-        <View style={{ flex: 1, justifyContent: "center" }}>
-          <ActivityIndicator color={colors.ink} />
+      <View style={{ flex: 1, backgroundColor: colors.paper }}>
+        <View style={{ flex: 1, paddingTop: 56, paddingHorizontal: 16 }}>
+          {BackBar}
+          <View style={{ flex: 1, justifyContent: "center" }}>
+            <ActivityIndicator color={colors.ink} />
+          </View>
         </View>
+        <PersistentTabBar />
       </View>
     );
   }
 
   if (missing) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56, paddingHorizontal: 16 }}>
-        {BackBar}
-        <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>
-          This person's profile couldn't be found.
-        </Text>
+      <View style={{ flex: 1, backgroundColor: colors.paper }}>
+        <View style={{ flex: 1, paddingTop: 56, paddingHorizontal: 16 }}>
+          {BackBar}
+          <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>
+            This person's profile couldn't be found.
+          </Text>
+        </View>
+        <PersistentTabBar />
       </View>
     );
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.paper }} contentContainerStyle={{ padding: 16, paddingTop: 56 }}>
+    <View style={{ flex: 1, backgroundColor: colors.paper }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 56 }}>
       {BackBar}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 16 }}>
         {profile.photoURL ? (
@@ -284,5 +292,7 @@ export default function UserProfileScreen() {
       </View>
       <ReportModal visible={reportOpen} onClose={() => setReportOpen(false)} onSubmit={handleReportUser} />
     </ScrollView>
+    <PersistentTabBar />
+    </View>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, ActivityIndicator, Image, Linking, TouchableOpacity, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { Video, ResizeMode } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { WebView } from "react-native-webview";
 import { doc, getDoc, collection, getDocs, orderBy, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import LikeButton from "@/components/LikeButton";
 import Comments from "@/components/Comments";
 import ShareMenu from "@/components/ShareMenu";
+import PersistentTabBar from "@/components/PersistentTabBar";
 import { colors } from "@/lib/styles";
 import { ADMIN_EMAILS } from "@/lib/admin";
 
@@ -40,6 +41,12 @@ export default function PostDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [blocked, setBlocked] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // expo-av's <Video> doesn't reliably render/play under the New Architecture (app.json has
+  // newArchEnabled: true) — see the same migration note in components/PostCard.tsx. Called
+  // unconditionally (before the early returns below) since hooks can't be conditional; source
+  // is just null until `post` has loaded.
+  const isNativeVideo = post?.type === "video" && !post?.bunnyVideoId;
+  const player = useVideoPlayer(isNativeVideo ? post.mediaUrl : null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,22 +81,26 @@ export default function PostDetailScreen() {
 
   if (blocked) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
-          style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
-        >
-          <Text style={{ fontSize: 22 }}>←</Text>
-          <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>This post is private.</Text>
+      <View style={{ flex: 1, backgroundColor: colors.paper }}>
+        <View style={{ flex: 1, paddingTop: 56, paddingHorizontal: 16 }}>
+          <TouchableOpacity
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
+            style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
+          >
+            <Text style={{ fontSize: 22 }}>←</Text>
+            <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
+          </TouchableOpacity>
+          <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>This post is private.</Text>
+        </View>
+        <PersistentTabBar />
       </View>
     );
   }
 
   if (loading || !post) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: 56, paddingHorizontal: 16 }}>
+      <View style={{ flex: 1, backgroundColor: colors.paper }}>
+        <View style={{ flex: 1, paddingTop: 56, paddingHorizontal: 16 }}>
         <TouchableOpacity
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
           style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
@@ -100,6 +111,8 @@ export default function PostDetailScreen() {
         <View style={{ flex: 1, justifyContent: "center" }}>
           <ActivityIndicator color={colors.ink} />
         </View>
+        </View>
+        <PersistentTabBar />
       </View>
     );
   }
@@ -128,7 +141,8 @@ export default function PostDetailScreen() {
   }
 
   return (
-    <ScrollView style={{ backgroundColor: colors.paper }} contentContainerStyle={{ padding: 16, paddingTop: 56 }}>
+    <View style={{ flex: 1, backgroundColor: colors.paper }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 56 }}>
       <TouchableOpacity
         onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
         style={{ flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 6 }}
@@ -141,7 +155,7 @@ export default function PostDetailScreen() {
         <WebView source={{ uri: `https://iframe.mediadelivery.net/embed/${post.bunnyLibraryId}/${post.bunnyVideoId}` }} style={{ width: "100%", height: 240, borderRadius: 16 }} />
       )}
       {post.type === "video" && !post.bunnyVideoId && (
-        <Video source={{ uri: post.mediaUrl }} style={{ width: "100%", height: 240, borderRadius: 16 }} useNativeControls resizeMode={ResizeMode.CONTAIN} />
+        <VideoView player={player} style={{ width: "100%", height: 240, borderRadius: 16 }} nativeControls contentFit="contain" />
       )}
       {post.type === "photo" && <Image source={{ uri: post.mediaUrl }} style={{ width: "100%", height: 260, borderRadius: 16 }} />}
       {post.type === "text" && (
@@ -181,5 +195,7 @@ export default function PostDetailScreen() {
 
       <Comments postId={post.id} initialComments={comments} />
     </ScrollView>
+    <PersistentTabBar />
+    </View>
   );
 }

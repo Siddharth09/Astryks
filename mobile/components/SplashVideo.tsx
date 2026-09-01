@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { View, Dimensions } from "react-native";
-import { Video, ResizeMode, AVPlaybackStatus } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 const screenWidth = Dimensions.get("window").width;
 const splashWidth = Math.min(420, screenWidth * 0.85);
@@ -19,6 +19,15 @@ export default function SplashVideo({ onDone }: { onDone: () => void }) {
     onDone();
   }
 
+  // expo-av's <Video> doesn't reliably autoplay under the New Architecture (app.json has
+  // newArchEnabled: true) — a frozen first frame here would mean every launch shows a blank
+  // black screen for the full 4-second timeout below instead of the intended animation.
+  // expo-video's player is the actively maintained replacement.
+  const player = useVideoPlayer(require("../assets/logo-spin.mp4"), (p) => {
+    p.muted = true;
+    p.play();
+  });
+
   useEffect(() => {
     // Safety net: if the video can't load/play for any reason, never let it block the app —
     // force the splash away after a few seconds no matter what (mirrors the web splash).
@@ -27,20 +36,24 @@ export default function SplashVideo({ onDone }: { onDone: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleStatusUpdate(status: AVPlaybackStatus) {
-    if (status.isLoaded && status.didJustFinish) finish();
-  }
+  useEffect(() => {
+    const endSub = player.addListener("playToEnd", finish);
+    const statusSub = player.addListener("statusChange", ({ status }) => {
+      if (status === "error") finish();
+    });
+    return () => {
+      endSub.remove();
+      statusSub.remove();
+    };
+  }, [player]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
-      <Video
-        source={require("../assets/logo-spin.mp4")}
+      <VideoView
+        player={player}
         style={{ width: splashWidth, height: splashHeight }}
-        resizeMode={ResizeMode.CONTAIN}
-        shouldPlay
-        isMuted
-        onPlaybackStatusUpdate={handleStatusUpdate}
-        onError={finish}
+        contentFit="contain"
+        nativeControls={false}
       />
     </View>
   );
