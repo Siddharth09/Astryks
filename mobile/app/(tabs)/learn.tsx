@@ -583,9 +583,10 @@ export default function LearnScreen() {
                 </View>
               );
             }
+            const subjectColor = card.id === "music" ? colors.music : card.id === "art" ? colors.art : colors.brand;
             return (
               <TouchableOpacity key={card.id} onPress={() => openSubject(subject)} style={{ alignItems: "center", gap: 10 }}>
-                <View style={{ width: card.size, height: card.size, borderRadius: card.size / 2, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 3, backgroundColor: colors.accent }}>
+                <View style={{ width: card.size, height: card.size, borderRadius: card.size / 2, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 3, backgroundColor: colors.accent, borderWidth: 3, borderColor: subjectColor }}>
                   {THUMBNAILS[card.id] ? (
                     <Image source={THUMBNAILS[card.id]} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                   ) : (
@@ -606,7 +607,7 @@ export default function LearnScreen() {
                   )}
                 </View>
                 <View style={{ alignItems: "center" }}>
-                  <Text style={{ fontWeight: "700", fontSize: 19 }}>{card.name}</Text>
+                  <Text style={{ fontWeight: "700", fontSize: 19, color: subjectColor }}>{card.name}</Text>
                   <Text style={{ fontSize: 15, color: colors.muted }}>{card.tagline}</Text>
                 </View>
               </TouchableOpacity>

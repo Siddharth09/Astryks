@@ -34,14 +34,14 @@ export const colors = {
   // Secondary/placeholder text — the mobile equivalent of the web app's `text-ink/50` opacity
   // classes, since RN style objects need a concrete color rather than an opacity modifier.
   muted: "#8A8A8D",
-  // Learn screen's lesson-timeline palette — a dusty blue/warm-sand pair instead of the brand
-  // red/teal combo, so completed vs. up-next vs. not-yet-reached reads as one soft, neutral
-  // gradient rather than three unrelated brand colors competing for attention.
-  learnWatched: "#5D7A99",
-  learnCurrent: "#C9974F",
-  learnCurrentText: "#8A6023",
-  learnLocked: "#F3ECDD",
-  learnLockedBorder: "#E4D3AC",
+  // Learn screen's lesson-timeline palette — pastel purple for watched/done, pastel green for
+  // current/up-next, deliberately matching the Art (purple) / Music (green) subject accents
+  // above so the whole screen reads as one consistent palette rather than unrelated colors.
+  learnWatched: "#9B87C4",
+  learnCurrent: "#6FA184",
+  learnCurrentText: "#3F7355",
+  learnLocked: "#E7F1EA",
+  learnLockedBorder: "#CFE4D6",
 };
 
 export const styles = StyleSheet.create({
