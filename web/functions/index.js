@@ -1130,7 +1130,15 @@ exports.getReports = onCall(async (request) => {
 
   const reports = await Promise.all(
     snap.docs.map(async (d) => {
-      const report = { id: d.id, ...d.data() };
+      const data = d.data();
+      const report = {
+        id: d.id,
+        ...data,
+        // Millis, not a Firestore Timestamp object — httpsCallable can't serialize Timestamps,
+        // and the admin UI needs a plain number to show "reported Xh ago" / flag it overdue
+        // against the 24-hour response commitment in terms/page.tsx §10.
+        createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : null,
+      };
       let preview = null;
       try {
         if (report.targetType === "post") {
@@ -1163,13 +1171,17 @@ exports.getReports = onCall(async (request) => {
 });
 
 exports.resolveReport = onCall(
-  { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID] },
+  { secrets: [BUNNY_API_KEY, BUNNY_LIBRARY_ID, stripeSecret, SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] },
   async (request) => {
     if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
     const { reportId, action } = request.data ?? {};
-    if (!reportId || !["delete", "dismiss"].includes(action)) {
+    // "eject" does everything "delete" does, plus permanently deletes the responsible member's
+    // account — the one-click "remove content and eject the user" action App Store Guideline 1.2
+    // requires (a plain "delete" only ever touched the content, never the account that posted
+    // it). For a user-type report there's no separate content to delete first, just the account.
+    if (!reportId || !["delete", "eject", "dismiss"].includes(action)) {
       throw new HttpsError("invalid-argument", "reportId and a valid action are required.");
     }
 
@@ -1179,24 +1191,38 @@ exports.resolveReport = onCall(
       throw new HttpsError("not-found", "This report no longer exists.");
     }
     const report = reportSnap.data();
+    let ejectedUid = null;
 
-    if (action === "delete") {
+    if (action === "delete" || action === "eject") {
       if (report.targetType === "post") {
         const postRef = db.doc(`posts/${report.targetId}`);
         const postSnap = await postRef.get();
         if (postSnap.exists) {
+          if (action === "eject") ejectedUid = postSnap.data().ownerId ?? null;
           await deletePostInternal(postRef, postSnap.data(), BUNNY_API_KEY.value());
         }
       } else if (report.targetType === "comment") {
         const commentRef = db.doc(`posts/${report.postId}/comments/${report.targetId}`);
         const commentSnap = await commentRef.get();
         if (commentSnap.exists) {
+          if (action === "eject") ejectedUid = commentSnap.data().userId ?? null;
           // Just delete it — the onCommentDeleted trigger below keeps the post's commentCount
           // in sync, so there's no need (and it would double-count) to decrement it here too.
           await commentRef.delete();
         }
+      } else if (report.targetType === "user" && action === "eject") {
+        ejectedUid = report.targetId;
       }
-      // Reported users aren't auto-deleted — an admin reviews their profile/posts directly.
+
+      if (action === "eject" && ejectedUid) {
+        const targetUser = await admin.auth().getUser(ejectedUid).catch(() => null);
+        if (targetUser && ADMIN_EMAILS.includes(targetUser.email ?? "")) {
+          throw new HttpsError("failed-precondition", "Refusing to eject an admin account.");
+        }
+        if (targetUser) {
+          await deleteAccountInternal(ejectedUid, BUNNY_API_KEY.value(), stripeSecret.value());
+        }
+      }
     }
 
     await reportRef.update({
@@ -1204,8 +1230,9 @@ exports.resolveReport = onCall(
       resolvedAction: action,
       resolvedBy: request.auth.token.email,
       resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(ejectedUid ? { ejectedUid } : {}),
     });
-    return { ok: true };
+    return { ok: true, ejectedUid };
   }
 );
 
@@ -2405,6 +2432,14 @@ exports.blockUser = onCall(async (request) => {
     { merge: true }
   );
   await batch.commit();
+  // Required by App Store Guideline 1.2: blocking an abusive user must also notify the
+  // developer of the inappropriate content, not just hide it from the blocker. This is
+  // independent of (and doesn't require) the blocker also filing a Report — every block reaches
+  // the admin either way, same channel as submitReport/flagPostForModeration below.
+  notifyAdmin(
+    "Astryks: a member was blocked",
+    `${request.auth.uid} blocked ${targetUid}. Review their recent posts/comments at astryks.com/admin/reports if this looks like abuse.`
+  ).catch(() => {});
   return { success: true };
 });
 

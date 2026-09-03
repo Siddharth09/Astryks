@@ -53,9 +53,18 @@ export default function HomeScreen() {
   // Re-tapping the already-active Home tab previously did nothing if you were sitting on the
   // Hall of Fame sub-tab — there was no way back to the feed except manually tapping the "Home"
   // pill. Mirrors the same tabPress pattern learn.tsx already uses to reset itself.
+  //
+  // Also refetches the feed itself. blockUser (functions/index.js) filters a blocked member's
+  // posts server-side in every future getFeed call, but this screen's own already-loaded
+  // `allPosts` state doesn't know that — without this, blocking someone from their profile and
+  // tapping back to an already-mounted Home tab still showed their posts until the next manual
+  // pull-to-refresh. App Store Guideline 1.2 expects blocking to remove content from the feed
+  // right away, so re-tapping Home (the natural thing to do right after blocking someone from
+  // their profile) is what makes that "instant" in practice.
   useEffect(() => {
     const unsubscribe = (navigation as any).addListener("tabPress", () => {
       setView("feed");
+      load();
     });
     return unsubscribe;
   }, [navigation]);

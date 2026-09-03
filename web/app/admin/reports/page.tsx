@@ -16,6 +16,18 @@ const sendTestNewLifecycleEmailsFn = httpsCallable(functions, "sendTestNewLifecy
 
 const TARGET_LABELS: Record<string, string> = { post: "Post", comment: "Comment", user: "User" };
 
+// Matches the 24-hour response commitment in terms/page.tsx §10 — flags a report as overdue
+// once it's been pending longer than that, so it's visible at a glance rather than something an
+// admin has to work out by eye from a raw timestamp.
+function reportAge(ms: number | null): { label: string; overdue: boolean } {
+  if (!ms) return { label: "", overdue: false };
+  const diff = Date.now() - ms;
+  const hours = diff / 3600000;
+  const mins = Math.floor(diff / 60000);
+  const label = hours < 1 ? `${Math.max(mins, 1)}m ago` : hours < 24 ? `${Math.floor(hours)}h ago` : `${Math.floor(hours / 24)}d ago`;
+  return { label, overdue: hours >= 24 };
+}
+
 export default function AdminReportsPage() {
   const { user, loading: authLoading } = useRequireAuth();
   const [reports, setReports] = useState<any[] | null>(null);
@@ -114,8 +126,9 @@ export default function AdminReportsPage() {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 
-  async function handleResolve(reportId: string, action: "delete" | "dismiss") {
+  async function handleResolve(reportId: string, action: "delete" | "eject" | "dismiss") {
     if (action === "delete" && !confirm("Delete the reported content? This can't be undone.")) return;
+    if (action === "eject" && !confirm("Delete the reported content AND permanently delete the responsible member's account? This can't be undone.")) return;
     setResolvingId(reportId);
     setError(null);
     try {
@@ -208,14 +221,24 @@ export default function AdminReportsPage() {
         <p className="text-ink/50 text-sm">No pending reports. Nice and quiet.</p>
       ) : (
         <div className="space-y-4">
-          {reports.map((r) => (
+          {reports.map((r) => {
+            const age = reportAge(r.createdAt);
+            return (
             <div key={r.id} className="card p-4">
-              <div className="flex items-center gap-2 text-xs text-ink/50 mb-2">
+              <div className="flex items-center gap-2 text-xs text-ink/50 mb-2 flex-wrap">
                 <span className="font-medium text-ink/70">{TARGET_LABELS[r.targetType] ?? r.targetType}</span>
                 <span>·</span>
                 <span>{r.reason}</span>
                 <span>·</span>
                 <span>reported by {r.reporterName}</span>
+                {age.label && (
+                  <>
+                    <span>·</span>
+                    <span className={age.overdue ? "text-red-600 font-medium" : ""}>
+                      {age.overdue ? `overdue — ${age.label}` : age.label}
+                    </span>
+                  </>
+                )}
               </div>
 
               {r.details && <p className="text-sm text-ink/70 mb-2">"{r.details}"</p>}
@@ -234,11 +257,18 @@ export default function AdminReportsPage() {
                     <>
                       <p className="text-ink/50 text-xs mb-1">by {r.preview.ownerName ?? "Member"}</p>
                       <p className="truncate">{r.preview.title || r.preview.body || "(media post)"}</p>
-                      {r.targetType === "post" && (
-                        <Link href={`/post/${r.targetId}`} className="text-xs underline">
-                          View post
-                        </Link>
-                      )}
+                      <div className="flex gap-3 mt-1">
+                        {r.targetType === "post" && (
+                          <Link href={`/post/${r.targetId}`} className="text-xs underline">
+                            View post
+                          </Link>
+                        )}
+                        {r.preview.ownerId && (
+                          <Link href={`/user/${r.preview.ownerId}`} className="text-xs underline">
+                            View author's profile
+                          </Link>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -246,7 +276,7 @@ export default function AdminReportsPage() {
                 <p className="text-xs text-ink/40 mb-3">Content no longer exists.</p>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {r.targetType !== "user" && (
                   <button
                     onClick={() => handleResolve(r.id, "delete")}
@@ -254,6 +284,16 @@ export default function AdminReportsPage() {
                     className="text-xs rounded-lg bg-red-600 text-white font-medium px-3 py-1.5 disabled:opacity-50"
                   >
                     Delete content
+                  </button>
+                )}
+                {r.preview?.ownerId && (
+                  <button
+                    onClick={() => handleResolve(r.id, "eject")}
+                    disabled={resolvingId === r.id}
+                    className="text-xs rounded-lg bg-red-800 text-white font-medium px-3 py-1.5 disabled:opacity-50"
+                    title="Deletes the content (if any) and permanently deletes this member's account"
+                  >
+                    {r.targetType === "user" ? "Eject member" : "Delete & eject author"}
                   </button>
                 )}
                 <button
@@ -265,7 +305,8 @@ export default function AdminReportsPage() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

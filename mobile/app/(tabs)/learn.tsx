@@ -69,9 +69,15 @@ export default function LearnScreen() {
   // Music running out doesn't affect Art. Values come straight from the server's own count
   // (getLessonPlayback/reportPreviewProgress responses), never computed purely client-side.
   const [previewRemainingBySubject, setPreviewRemainingBySubject] = useState<Record<string, number>>({});
-  const [previewExhaustedSubject, setPreviewExhaustedSubject] = useState<{ id: string; name: string } | null>(null);
+  const [previewExhaustedSubject, setPreviewExhaustedSubject] = useState<{ id: string; name: string; lessonId: string } | null>(null);
   const [subscribeLoadingPlan, setSubscribeLoadingPlan] = useState<PlanId | null>(null);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
+  // True while we're waiting for the Qonversion webhook to land in Firestore right after a
+  // successful purchase (see handleSubscribeFromPreview) — the store confirms the charge
+  // instantly, but our server-side entitlement (which getLessonPlayback actually gates on) can
+  // lag a few seconds behind, so we block on it here rather than declaring the paywall "unlocked"
+  // before the server would actually let the lesson play.
+  const [confirmingPurchase, setConfirmingPurchase] = useState(false);
   const [pricing, setPricing] = useState<DisplayPricing>(() => fallbackDisplayPricing(getLocalizedPricing(null)));
 
   useEffect(() => {
@@ -193,7 +199,7 @@ export default function LearnScreen() {
         setPlayback((prev) => ({ ...prev, [lessonId]: null }));
         if (err?.code === "functions/permission-denied" && active) {
           setPreviewRemainingBySubject((prev) => ({ ...prev, [active.id]: 0 }));
-          setPreviewExhaustedSubject({ id: active.id, name: active.name });
+          setPreviewExhaustedSubject({ id: active.id, name: active.name, lessonId });
         } else {
           setPlaybackError((prev) => ({ ...prev, [lessonId]: "Couldn't load this video — please try again." }));
         }
@@ -229,7 +235,7 @@ export default function LearnScreen() {
         if (remaining <= 0) {
           setPlayingId(null);
           const subject = (subjects ?? []).find((s) => s.id === subjectId);
-          setPreviewExhaustedSubject({ id: subjectId, name: subject?.name || "this subject" });
+          setPreviewExhaustedSubject({ id: subjectId, name: subject?.name || "this subject", lessonId: playingId });
         }
       } catch {
         // Not fatal — worst case the cap is enforced a little late next time getLessonPlayback
@@ -245,13 +251,35 @@ export default function LearnScreen() {
     setSubscribeError(null);
     const result = await purchaseSubscription(planId);
     if (result.success) {
+      const pendingLessonId = previewExhaustedSubject?.lessonId ?? null;
+      setSubscribeLoadingPlan(null);
+      setConfirmingPurchase(true);
+      // The store has already charged the user and Qonversion's own SDK confirms the purchase
+      // here, but getLessonPlayback gates on users/{uid}.subscriptionStatus in Firestore, which
+      // only the qonversionWebhook (server-side) is allowed to write — the client can't set it
+      // directly (see firestore.rules). That webhook can land a few seconds after the purchase
+      // sheet closes, so immediately re-opening the lesson right after "success" could still get
+      // denied. Poll briefly for the real server-side entitlement instead of declaring the
+      // paywall unlocked before the server would actually allow playback.
+      const uid = user.uid;
+      let active = false;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.data()?.subscriptionStatus === "active") {
+          active = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      setConfirmingPurchase(false);
+      // Show the unlocked state either way once we stop polling — if the webhook is just running
+      // unusually late, the app's own onSnapshot-backed screens will pick it up moments later, and
+      // we don't want to strand someone who really did just pay on a stuck "Confirming…" state.
       setSubscribed(true);
       setPreviewExhaustedSubject(null);
-      // Optimistic write, same as SubscriptionBanner's own subscribe handler — the real
-      // update lands later via the Qonversion webhook, but without this, re-opening a subject
-      // (which remounts SubscriptionBanner) re-reads the stale pre-webhook value and shows the
-      // "Subscribe" banner again right after someone just subscribed.
-      updateDoc(doc(db, "users", user.uid), { subscriptionStatus: "active" }).catch(() => {});
+      if (active && pendingLessonId) {
+        playLesson(pendingLessonId);
+      }
     }
     if (result.error) {
       setSubscribeError(result.error);
@@ -448,37 +476,45 @@ export default function LearnScreen() {
               That&apos;s your free preview of {previewExhaustedSubject?.name}
             </Text>
             <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center", marginBottom: 18, lineHeight: 19 }}>
-              You&apos;ve used your 10 free minutes for {previewExhaustedSubject?.name}. Subscribe to keep
-              watching — every subject, every lesson, cancel any time.
+              You&apos;ve used your 10 free minutes for {previewExhaustedSubject?.name}. Subscribe for full
+              access to every subject and every lesson in the Astryks library — cancel any time.
             </Text>
             {subscribeError && (
               <Text style={{ fontSize: 14, color: "#B3261E", marginBottom: 10, textAlign: "center" }}>{subscribeError}</Text>
             )}
+            {confirmingPurchase && (
+              <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 10, textAlign: "center" }}>
+                Confirming your subscription…
+              </Text>
+            )}
             <TouchableOpacity
               onPress={() => handleSubscribeFromPreview("weekly")}
-              disabled={subscribeLoadingPlan !== null}
-              style={{ width: "100%", marginBottom: 8, backgroundColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoadingPlan !== null ? 0.6 : 1 }}
+              disabled={subscribeLoadingPlan !== null || confirmingPurchase}
+              style={{ width: "100%", marginBottom: 8, backgroundColor: colors.ink, borderRadius: 16, paddingVertical: 12, alignItems: "center", opacity: subscribeLoadingPlan !== null || confirmingPurchase ? 0.6 : 1 }}
             >
               <Text style={{ color: "white", fontSize: 17, fontWeight: "700", textAlign: "center" }}>
-                {subscribeLoadingPlan === "weekly" ? "Loading…" : `Subscribe Weekly · ${pricing.weeklyDisplay}`}
+                {subscribeLoadingPlan === "weekly" ? "Loading…" : "Subscribe Weekly"}
               </Text>
+              {subscribeLoadingPlan !== "weekly" && (
+                <Text style={{ color: "white", fontSize: 13, opacity: 0.85, marginTop: 2 }}>{pricing.weeklyDisplay}</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => handleSubscribeFromPreview("annual")}
-              disabled={subscribeLoadingPlan !== null}
-              style={{ width: "100%", marginBottom: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.ink, borderRadius: 999, paddingVertical: 12, opacity: subscribeLoadingPlan !== null ? 0.6 : 1 }}
+              disabled={subscribeLoadingPlan !== null || confirmingPurchase}
+              style={{ width: "100%", marginBottom: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.ink, borderRadius: 16, paddingVertical: 12, alignItems: "center", opacity: subscribeLoadingPlan !== null || confirmingPurchase ? 0.6 : 1 }}
             >
               <Text style={{ color: colors.ink, fontSize: 17, fontWeight: "700", textAlign: "center" }}>
-                {subscribeLoadingPlan === "annual" ? (
-                  "Loading…"
-                ) : (
-                  <>
-                    Subscribe Annual ·{" "}
-                    <Text style={{ textDecorationLine: "line-through", opacity: 0.5 }}>{pricing.weeklyDisplay}</Text>{" "}
-                    {pricing.annualPerWeekDisplay}
-                  </>
-                )}
+                {subscribeLoadingPlan === "annual" ? "Loading…" : "Subscribe Annual"}
               </Text>
+              {subscribeLoadingPlan !== "annual" && (
+                <>
+                  {/* Billed amount must be the most prominent price per Apple Guideline 3.1.2(c) —
+                      the weekly-equivalent is subordinate, smaller, muted text below it. */}
+                  <Text style={{ color: colors.ink, fontSize: 13, marginTop: 2 }}>{pricing.annualDisplay} billed yearly</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11, marginTop: 1 }}>({pricing.annualPerWeekDisplay})</Text>
+                </>
+              )}
             </TouchableOpacity>
             {!pricing.isExact && (
               <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", marginBottom: 10 }}>{PRICE_CURRENCY_NOTE}</Text>

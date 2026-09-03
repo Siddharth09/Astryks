@@ -67,24 +67,3 @@ export function IconMe({ className }: { className?: string }) {
     </svg>
   );
 }
-
-export function IconPrize({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path
-        d="M7 4h10v5a5 5 0 0 1-10 0V4Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7 5.5H4.5a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3H7M17 5.5h2.5a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3H17"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M12 14v3.5M9 20.5h6M9.5 20.5c0-1.8.6-3 2.5-3s2.5 1.2 2.5 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}

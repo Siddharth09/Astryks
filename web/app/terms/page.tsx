@@ -116,11 +116,15 @@ export default function TermsPage() {
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">10. Things you agree not to do</h2>
       <p className="mb-4">
-        Don't: post anything illegal, harassing, hateful, sexually exploitative (especially involving
+        Astryks has zero tolerance for objectionable content or abusive behavior of any kind. Don't:
+        post anything illegal, harassing, hateful, sexually exploitative (especially involving
         minors — we have zero tolerance for this and will report it to the relevant authorities), or
         infringing someone else's rights; use bots, purchased likes/followers, multiple accounts, or any
         other artificial means to inflate likes; scrape or resell course content; impersonate anyone;
-        or interfere with the Service's normal operation.
+        or interfere with the Service's normal operation. Every post can be reported with the in-app
+        Report button, and you can block any abusive member from their profile at any time — see
+        Section 3. We review reports and act on them, including removing content and suspending or
+        ejecting the responsible account, within 24 hours.
       </p>
 
       <h2 className="font-display text-lg font-semibold mt-8 mb-2">11. Termination</h2>

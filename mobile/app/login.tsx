@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform, Image } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform, Image, Linking } from "react-native";
 import { Link, router } from "expo-router";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -194,6 +194,16 @@ export default function LoginScreen() {
         <Text style={styles.buttonPrimaryText}>{loading ? "Logging in…" : "Log in"}</Text>
       </TouchableOpacity>
 
+      <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center", marginTop: -8, marginBottom: 8 }}>
+        By continuing you agree to our{" "}
+        <Text
+          style={{ textDecorationLine: "underline" }}
+          onPress={() => Linking.openURL("https://astryks.com/terms")}
+        >
+          Terms of Service
+        </Text>
+      </Text>
+
       <Link href="/signup" style={styles.link}>
         Don&apos;t have an account? Sign up
       </Link>
@@ -293,9 +303,9 @@ export default function LoginScreen() {
         </Text>
         <Text style={{ fontSize: 17, color: colors.ink, lineHeight: 19, marginBottom: 10 }}>
           We want every creative student — subscriber or not — to be able to post and get
-          discovered for real work, not for who can farm the most likes fastest. So instead of a
-          cash prize, we run a Hall of Fame: a gallery of the community&apos;s best posts, right
-          from the Home tab. Our team hand-picks posts we love anytime, and every month we
+          discovered for real work, not for who can farm the most likes fastest. So rather than
+          picking one winner, we run a Hall of Fame: a gallery of the community&apos;s best posts,
+          right from the Home tab. Our team hand-picks posts we love anytime, and every month we
           automatically add that month&apos;s 5 most-liked posts, across every subject — music,
           art, or anything else creative.
         </Text>
