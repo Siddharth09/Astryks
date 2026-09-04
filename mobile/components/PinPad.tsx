@@ -2,18 +2,19 @@ import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { colors } from "@/lib/styles";
 
-const PIN_LENGTH = 4;
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 
-// Shared numeric keypad + dot indicator for entering a 4-digit PIN — used by both the Privacy
-// Lock screen (unlocking) and the settings setup/disable flows (creating or confirming a PIN).
+// Shared numeric keypad + dot indicator for entering a fixed-length code — used for the 4-digit
+// Privacy Lock PIN (unlocking, setup, disable) and the 6-digit "forgot PIN" email reset code.
 // `error` resets the dots and clears input on the next render; `resetKey` lets a caller force a
 // fresh entry (e.g. moving from "enter PIN" to "confirm PIN") without remounting the component.
 export default function PinPad({
+  length = 4,
   error,
   resetKey,
   onComplete,
 }: {
+  length?: number;
   error?: boolean;
   resetKey?: number;
   onComplete: (pin: string) => void;
@@ -29,10 +30,10 @@ export default function PinPad({
       setPin((prev) => prev.slice(0, -1));
       return;
     }
-    if (!key || pin.length >= PIN_LENGTH) return;
+    if (!key || pin.length >= length) return;
     const next = pin + key;
     setPin(next);
-    if (next.length === PIN_LENGTH) {
+    if (next.length === length) {
       onComplete(next);
       setPin("");
     }
@@ -40,8 +41,8 @@ export default function PinPad({
 
   return (
     <View style={{ alignItems: "center" }}>
-      <View style={{ flexDirection: "row", gap: 14, marginBottom: 18 }}>
-        {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 14, marginBottom: 18, maxWidth: 220 }}>
+        {Array.from({ length }).map((_, i) => (
           <View
             key={i}
             style={{

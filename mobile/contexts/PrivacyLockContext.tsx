@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { AppState, AppStateStatus } from "react-native";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
 import { isPrivacyLockEnabled, verifyPrivacyLockPin, setPrivacyLockPin, clearPrivacyLockPin } from "@/lib/privacyLock";
+
+const requestPrivacyLockResetFn = httpsCallable(functions, "requestPrivacyLockReset");
+const verifyPrivacyLockResetFn = httpsCallable(functions, "verifyPrivacyLockReset");
 
 type PrivacyLockContextValue = {
   // Whether a PIN has been set up at all (i.e. the feature is turned on).
@@ -13,6 +18,12 @@ type PrivacyLockContextValue = {
   unlock: (pin: string) => Promise<boolean>;
   setup: (pin: string) => Promise<void>;
   disable: (pin: string) => Promise<boolean>;
+  // "Forgot PIN" flow — the PIN itself is device-local (see lib/privacyLock.ts), so resetting it
+  // doesn't touch the old PIN at all: requestReset emails a one-time code to the account's own
+  // registered address, verifyReset checks it server-side, and on success the caller collects a
+  // new PIN and calls `setup` as normal to replace whatever was set before.
+  requestReset: () => Promise<{ ok: boolean; email?: string; error?: string }>;
+  verifyReset: (code: string) => Promise<boolean>;
 };
 
 const PrivacyLockContext = createContext<PrivacyLockContextValue | null>(null);
@@ -66,8 +77,27 @@ export function PrivacyLockProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
+  async function requestReset(): Promise<{ ok: boolean; email?: string; error?: string }> {
+    try {
+      const result = await requestPrivacyLockResetFn();
+      const data = result.data as { ok: boolean; email?: string };
+      return data;
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? "Couldn't send the reset code — please try again." };
+    }
+  }
+
+  async function verifyReset(code: string): Promise<boolean> {
+    try {
+      const result = await verifyPrivacyLockResetFn({ code });
+      return !!(result.data as { valid: boolean }).valid;
+    } catch {
+      return false;
+    }
+  }
+
   return (
-    <PrivacyLockContext.Provider value={{ enabled, locked, loading, unlock, setup, disable }}>
+    <PrivacyLockContext.Provider value={{ enabled, locked, loading, unlock, setup, disable, requestReset, verifyReset }}>
       {children}
     </PrivacyLockContext.Provider>
   );

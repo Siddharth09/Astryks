@@ -2972,6 +2972,77 @@ exports.notifySignOut = onCall({ secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PAS
   return { ok: true };
 });
 
+// ---------- Callables: mobile Privacy Lock "forgot PIN" reset ----------
+//
+// The PIN itself lives only on-device (SecureStore — see astryks-mobile/lib/privacyLock.ts), so
+// there's nothing server-side to reset directly. What these two callables do instead is prove
+// the caller can read the account's own registered email (the same trust boundary the account
+// login itself relies on) before letting the client clear its local PIN and set a new one — the
+// reset code is single-use, hashed at rest, and expires quickly, the same shape as a password
+// reset even though no password is actually involved. Only the hash lives in Firestore, gated
+// off from client writes by firestore.rules the same way subscriptionStatus etc. already are.
+exports.requestPrivacyLockReset = onCall({ secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const email = request.auth.token.email;
+  if (!email) {
+    throw new HttpsError("failed-precondition", "Your account doesn't have an email on file.");
+  }
+  await enforceRateLimit(request.auth.uid, "requestPrivacyLockReset", { max: 5, windowMs: 15 * 60 * 1000 });
+
+  const code = crypto.randomInt(0, 1000000).toString().padStart(6, "0");
+  const codeHash = crypto.createHash("sha256").update(code).digest("hex");
+  await db.doc(`users/${request.auth.uid}`).set(
+    {
+      privacyLockResetCodeHash: codeHash,
+      privacyLockResetCodeExpiresAt: Date.now() + 10 * 60 * 1000,
+    },
+    { merge: true }
+  );
+
+  try {
+    await sendBrandedEmail(email, buildPrivacyLockResetEmail(request.auth.token.name, code));
+  } catch (err) {
+    console.error(`requestPrivacyLockReset: failed to send to ${email}`, err);
+    throw new HttpsError("internal", "Couldn't send the reset code — please try again.");
+  }
+  return { ok: true, email };
+});
+
+exports.verifyPrivacyLockReset = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const code = (request.data?.code || "").trim();
+  if (!code) {
+    throw new HttpsError("invalid-argument", "A code is required.");
+  }
+  // Capped low and separate from the request-side limit above — this is the actual guard
+  // against brute-forcing a 6-digit code (1 in a million per guess), on top of the code itself
+  // expiring in 10 minutes and being invalidated after one use either way.
+  await enforceRateLimit(request.auth.uid, "verifyPrivacyLockReset", { max: 8, windowMs: 15 * 60 * 1000 });
+
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+  const data = userSnap.data() || {};
+  const validCode =
+    data.privacyLockResetCodeHash &&
+    data.privacyLockResetCodeExpiresAt &&
+    data.privacyLockResetCodeExpiresAt > Date.now() &&
+    data.privacyLockResetCodeHash === crypto.createHash("sha256").update(code).digest("hex");
+
+  if (!validCode) {
+    return { valid: false };
+  }
+  // Single-use: clear it immediately so the same code can't be replayed.
+  await userRef.update({
+    privacyLockResetCodeHash: admin.firestore.FieldValue.delete(),
+    privacyLockResetCodeExpiresAt: admin.firestore.FieldValue.delete(),
+  });
+  return { valid: true };
+});
+
 // ---------- Subscription lifecycle emails: subscribed / canceled / refunded ----------
 // Same visual template as the welcome email above (kept inline rather than factored into a
 // shared helper, matching how buildWinnerCongratsEmail was done, so each stays easy to tweak
@@ -3339,6 +3410,69 @@ The Astryks team`;
                     Sign back in
                   </a>
                 </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 32px;text-align:center;">
+                <p style="margin:0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:13px;color:#17130F;opacity:0.55;">
+                  Warmly,<br />The Astryks team
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="max-width:480px;margin:16px auto 0;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#17130F;opacity:0.4;">
+            Astryks · astryks.com
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+// ---------- Mobile Privacy Lock: forgot-PIN reset code ----------
+function buildPrivacyLockResetEmail(displayName, code) {
+  const name = displayName || "there";
+  const safeName = escapeHtml(name);
+  const subject = `${code} is your Astryks Privacy Lock code`;
+
+  const text = `Hi ${name},
+
+Here's your Privacy Lock reset code: ${code}
+
+Enter this in the app to reset the PIN that locks your Home and Messages tabs. This code expires in 10 minutes.
+
+If you didn't request this, you can ignore this email — your PIN hasn't changed.
+
+Warmly,
+The Astryks team`;
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F1E5;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F1E5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;background-color:#FFFFFF;border-radius:20px;overflow:hidden;border-top:4px solid #EFC13B;">
+            <tr>
+              <td style="background-color:#DCE6F2;padding:36px 32px 28px;text-align:center;">
+                <img src="https://astryks.com/logo-mark.png" width="56" height="56" alt="Astryks" style="display:block;margin:0 auto 14px;border-radius:14px;" />
+                <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#17130F;font-weight:600;">Privacy Lock reset code</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 20px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#17130F;">
+                  Hi ${safeName}, enter this code in the app to reset the PIN that locks your Home and Messages tabs:
+                </p>
+                <div style="text-align:center;margin:0 0 20px;">
+                  <span style="display:inline-block;background-color:#F7F1E5;border-radius:14px;padding:16px 28px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:32px;font-weight:700;letter-spacing:8px;color:#17130F;">${code}</span>
+                </div>
+                <p style="margin:0 0 4px;font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#17130F;opacity:0.75;">
+                  This code expires in 10 minutes. If you didn't request this, you can ignore this email — your PIN hasn't changed.
+                </p>
               </td>
             </tr>
             <tr>

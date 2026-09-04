@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Modal } from "react-native";
 import { colors } from "@/lib/styles";
 import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
 import PinPad from "@/components/PinPad";
+import PrivacyLockResetFlow from "@/components/PrivacyLockResetFlow";
 
 type SetupStep = "create" | "confirm";
 
@@ -10,7 +11,8 @@ type SetupStep = "create" | "confirm";
 // person seeing the Home feed or Messages — a generic device-local screen lock, not a "parental
 // control" (see lib/privacyLock.ts for why that framing matters). Setup requires entering the
 // PIN twice (typo protection); turning it off requires the current PIN, so someone locked out
-// can't just come here and switch it off themselves.
+// can't just come here and switch it off themselves. "Forgot PIN?" hands off to
+// PrivacyLockResetFlow, the shared email-code recovery path also used by the lock screen itself.
 export default function PrivacyLockSettings() {
   const { enabled, setup, disable, loading } = usePrivacyLock();
   const [modal, setModal] = useState<"setup" | "disable" | null>(null);
@@ -18,6 +20,7 @@ export default function PrivacyLockSettings() {
   const [firstPin, setFirstPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  const [resetFlowOpen, setResetFlowOpen] = useState(false);
 
   function openSetup() {
     setStep("create");
@@ -113,12 +116,25 @@ export default function PrivacyLockSettings() {
               resetKey={resetKey}
               onComplete={modal === "setup" ? handleSetupPin : handleDisablePin}
             />
+            {modal === "disable" && (
+              <TouchableOpacity
+                onPress={() => {
+                  close();
+                  setResetFlowOpen(true);
+                }}
+                style={{ marginTop: 12 }}
+              >
+                <Text style={{ fontSize: 14, color: colors.ink, textDecorationLine: "underline" }}>Forgot PIN?</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={close} style={{ marginTop: 10 }}>
               <Text style={{ fontSize: 14, color: colors.muted, textDecorationLine: "underline" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      <PrivacyLockResetFlow visible={resetFlowOpen} onClose={() => setResetFlowOpen(false)} />
     </View>
   );
 }
