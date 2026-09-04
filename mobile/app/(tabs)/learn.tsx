@@ -9,7 +9,7 @@ import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
-import { purchaseSubscription, PlanId } from "@/lib/purchases";
+import { purchaseSubscription, waitForActiveSubscription, PlanId } from "@/lib/purchases";
 import { detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 import { fallbackDisplayPricing, resolveDisplayPricing, DisplayPricing } from "@/lib/pricing";
 
@@ -259,18 +259,10 @@ export default function LearnScreen() {
       // only the qonversionWebhook (server-side) is allowed to write — the client can't set it
       // directly (see firestore.rules). That webhook can land a few seconds after the purchase
       // sheet closes, so immediately re-opening the lesson right after "success" could still get
-      // denied. Poll briefly for the real server-side entitlement instead of declaring the
-      // paywall unlocked before the server would actually allow playback.
-      const uid = user.uid;
-      let active = false;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const snap = await getDoc(doc(db, "users", uid));
-        if (snap.data()?.subscriptionStatus === "active") {
-          active = true;
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
+      // denied. Poll briefly (lib/purchases.ts's waitForActiveSubscription) for the real
+      // server-side entitlement instead of declaring the paywall unlocked before the server would
+      // actually allow playback.
+      const active = await waitForActiveSubscription(user.uid);
       setConfirmingPurchase(false);
       // Show the unlocked state either way once we stop polling — if the webhook is just running
       // unusually late, the app's own onSnapshot-backed screens will pick it up moments later, and
@@ -280,8 +272,9 @@ export default function LearnScreen() {
       if (active && pendingLessonId) {
         playLesson(pendingLessonId);
       }
-    }
-    if (result.error) {
+      // Purchase genuinely succeeded even if `result.error` is also set (e.g. "you're already
+      // subscribed") — that's informational, not a failure, so it shouldn't also show an error.
+    } else if (result.error) {
       setSubscribeError(result.error);
     }
     setSubscribeLoadingPlan(null);
