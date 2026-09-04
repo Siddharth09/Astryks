@@ -8,6 +8,8 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { db, storage, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import PostCard from "@/components/PostCard";
 import SubscriptionBanner from "@/components/SubscriptionBanner";
 import TrailersSection from "@/components/TrailersSection";
@@ -45,6 +47,7 @@ function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsP
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
+  const { locked: privacyLocked } = usePrivacyLock();
   const navigation = useNavigation();
   // "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home rather
   // than its own top-level tab, replacing the old separate Prizes tab.
@@ -301,6 +304,10 @@ export default function HomeScreen() {
     } finally {
       setComposeLoading(false);
     }
+  }
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="Home" />;
   }
 
   if (authLoading || !user) {

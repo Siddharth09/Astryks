@@ -5,6 +5,8 @@ import { doc, getDoc, collection, query, orderBy, onSnapshot, addDoc, setDoc, se
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import { colors } from "@/lib/styles";
 import { BOT_UIDS } from "@/lib/botUsers";
 import BrandMark from "@/components/BrandMark";
@@ -14,6 +16,7 @@ const getPublicProfile = httpsCallable(functions, "getPublicProfile");
 export default function ChatThreadScreen() {
   const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
   const { user } = useAuth();
+  const { locked: privacyLocked } = usePrivacyLock();
   const [messages, setMessages] = useState<any[]>([]);
   const [body, setBody] = useState("");
   // Blocking only ever stopped a NEW conversation from being started (see user/[userId].tsx and
@@ -77,6 +80,10 @@ export default function ChatThreadScreen() {
       { merge: true }
     );
     setBody("");
+  }
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="Messages" />;
   }
 
   return (

@@ -7,6 +7,8 @@ import { doc, getDoc, collection, getDocs, orderBy, query } from "firebase/fires
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import LikeButton from "@/components/LikeButton";
 import Comments from "@/components/Comments";
 import ShareMenu from "@/components/ShareMenu";
@@ -36,6 +38,7 @@ function openIfSafeUrl(url?: string) {
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { locked: privacyLocked } = usePrivacyLock();
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +81,10 @@ export default function PostDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="This" />;
+  }
 
   if (blocked) {
     return (

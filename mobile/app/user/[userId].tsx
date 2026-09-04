@@ -5,6 +5,8 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import FollowButton from "@/components/FollowButton";
 import ReportModal from "@/components/ReportModal";
 import PersistentTabBar from "@/components/PersistentTabBar";
@@ -19,6 +21,7 @@ const unblockUserFn = httpsCallable(functions, "unblockUser");
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const { user: currentUser } = useAuth();
+  const { locked: privacyLocked } = usePrivacyLock();
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
@@ -160,6 +163,10 @@ export default function UserProfileScreen() {
       <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
     </TouchableOpacity>
   );
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="Profiles" />;
+  }
 
   if (loading) {
     return (

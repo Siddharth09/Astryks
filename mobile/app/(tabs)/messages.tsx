@@ -5,6 +5,8 @@ import { collection, query, where, orderBy, onSnapshot, doc, getDoc, setDoc } fr
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import { colors } from "@/lib/styles";
 import { BOT_UIDS } from "@/lib/botUsers";
 import BrandMark from "@/components/BrandMark";
@@ -16,6 +18,7 @@ const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 export default function MessagesScreen() {
   const { user } = useAuth();
+  const { locked: privacyLocked } = usePrivacyLock();
   const [conversations, setConversations] = useState<any[] | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,6 +83,7 @@ export default function MessagesScreen() {
     }
   }
 
+  if (privacyLocked) return <PrivacyLockScreen label="Messages" />;
   if (!user) return null;
 
   const q = searchQuery.trim().toLowerCase();

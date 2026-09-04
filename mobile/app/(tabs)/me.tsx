@@ -28,6 +28,7 @@ function PostThumb({ post }: { post: any }) {
   return <Image source={{ uri: displayUrl }} style={{ width: "100%", height: "100%" }} />;
 }
 import ReferralAndBilling from "@/components/ReferralAndBilling";
+import PrivacyLockSettings from "@/components/PrivacyLockSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 import { guessMediaUploadInfo } from "@/lib/mediaUpload";
@@ -437,6 +438,8 @@ export default function MeScreen() {
       )}
 
       <ReferralAndBilling />
+
+      <PrivacyLockSettings />
 
       <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
         <TouchableOpacity
