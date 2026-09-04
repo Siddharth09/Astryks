@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import TrailersSection from "@/components/TrailersSection";
 import { colors } from "@/lib/styles";
 import { detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
-import { purchaseSubscription, PlanId } from "@/lib/purchases";
+import { purchaseSubscription, waitForActiveSubscription, PlanId } from "@/lib/purchases";
 import { fallbackDisplayPricing, resolveDisplayPricing, DisplayPricing } from "@/lib/pricing";
 
 export default function SubscriptionBanner() {
@@ -49,14 +49,12 @@ export default function SubscriptionBanner() {
     if (result.success) {
       setLoadingPlan(null);
       setConfirming(true);
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.data()?.subscriptionStatus === "active") break;
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
+      await waitForActiveSubscription(user.uid);
       setConfirming(false);
-    }
-    if (result.error) {
+      // Purchase genuinely succeeded — even if `purchaseSubscription` also returned an
+      // informational `error` (e.g. "you're already subscribed"), it isn't a failure, so it
+      // shouldn't leave a permanent red error banner under an otherwise-successful confirmation.
+    } else if (result.error) {
       setError(result.error);
     }
     setLoadingPlan(null);
@@ -90,7 +88,7 @@ export default function SubscriptionBanner() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => handleSubscribe("annual")}
-          disabled={loadingPlan !== null}
+          disabled={loadingPlan !== null || confirming}
           style={{ flexGrow: 1, flexBasis: "45%", backgroundColor: "white", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: colors.ink, alignItems: "center" }}
         >
           <Text style={{ color: colors.ink, fontSize: 15, fontWeight: "700" }}>

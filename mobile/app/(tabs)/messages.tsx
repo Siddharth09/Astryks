@@ -18,7 +18,7 @@ const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 export default function MessagesScreen() {
   const { user } = useAuth();
-  const { locked: privacyLocked } = usePrivacyLock();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   const [conversations, setConversations] = useState<any[] | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,6 +83,7 @@ export default function MessagesScreen() {
     }
   }
 
+  if (privacyLockLoading) return null;
   if (privacyLocked) return <PrivacyLockScreen label="Messages" />;
   if (!user) return null;
 

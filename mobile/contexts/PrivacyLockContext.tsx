@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { AppState, AppStateStatus } from "react-native";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import { isPrivacyLockEnabled, verifyPrivacyLockPin, setPrivacyLockPin, clearPrivacyLockPin } from "@/lib/privacyLock";
 
 const requestPrivacyLockResetFn = httpsCallable(functions, "requestPrivacyLockReset");
@@ -14,6 +15,9 @@ type PrivacyLockContextValue = {
   // false. Starts `true` the moment `enabled` becomes true (fresh app open, or right after setup)
   // and only flips to `false` for the current foreground session once the right PIN is entered.
   locked: boolean;
+  // True until the on-device check has resolved for the CURRENT signed-in user. Consumers must
+  // treat `loading` as "don't render protected content yet" — `locked` alone starts `false` and
+  // isn't a safe signal until this flips, since the SecureStore read is async.
   loading: boolean;
   unlock: (pin: string) => Promise<boolean>;
   setup: (pin: string) => Promise<void>;
@@ -29,18 +33,30 @@ type PrivacyLockContextValue = {
 const PrivacyLockContext = createContext<PrivacyLockContextValue | null>(null);
 
 export function PrivacyLockProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
   const [enabled, setEnabled] = useState(false);
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const appState = useRef(AppState.currentState);
 
+  // Re-runs whenever the signed-in account changes (including sign-out → sign-in as someone
+  // else on the same device) — the PIN is stored per-uid (see lib/privacyLock.ts), so switching
+  // accounts must re-check THAT account's own lock state, not carry over the previous one.
   useEffect(() => {
-    isPrivacyLockEnabled().then((isEnabled) => {
+    if (!uid) {
+      setEnabled(false);
+      setLocked(false);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    isPrivacyLockEnabled(uid).then((isEnabled) => {
       setEnabled(isEnabled);
       setLocked(isEnabled);
       setLoading(false);
     });
-  }, []);
+  }, [uid]);
 
   // Re-lock every time the app comes back from the background — an unlock only ever covers the
   // current foreground session. Without this, unlocking once would leave Home/Messages open
@@ -57,21 +73,24 @@ export function PrivacyLockProvider({ children }: { children: ReactNode }) {
   }, [enabled]);
 
   async function unlock(pin: string): Promise<boolean> {
-    const correct = await verifyPrivacyLockPin(pin);
+    if (!uid) return false;
+    const correct = await verifyPrivacyLockPin(uid, pin);
     if (correct) setLocked(false);
     return correct;
   }
 
   async function setup(pin: string): Promise<void> {
-    await setPrivacyLockPin(pin);
+    if (!uid) return;
+    await setPrivacyLockPin(uid, pin);
     setEnabled(true);
     setLocked(false);
   }
 
   async function disable(pin: string): Promise<boolean> {
-    const correct = await verifyPrivacyLockPin(pin);
+    if (!uid) return false;
+    const correct = await verifyPrivacyLockPin(uid, pin);
     if (!correct) return false;
-    await clearPrivacyLockPin();
+    await clearPrivacyLockPin(uid);
     setEnabled(false);
     setLocked(false);
     return true;

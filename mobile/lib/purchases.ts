@@ -4,6 +4,8 @@ import Qonversion, {
   Environment,
   Product,
 } from "@qonversion/react-native-sdk";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 // --- Qonversion setup ----------------------------------------------------
 //
@@ -165,4 +167,25 @@ export async function restorePurchases(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// The store confirms a purchase instantly, but getLessonPlayback and every other
+// subscriber-gated action actually check users/{uid}.subscriptionStatus in Firestore, which only
+// the qonversionWebhook (server-side) is allowed to write — the client can't set it directly (see
+// firestore.rules). That webhook can land a few seconds after the purchase sheet closes, so
+// declaring a purchase "done" the moment the store confirms it can let a caller try a
+// subscriber-only action before the server would actually allow it. Poll briefly for the real
+// server-side entitlement instead — shared here so every purchase-confirmation UI (the paywall
+// modal, the subscription banner, the billing screen) waits the same way rather than each
+// hand-rolling its own copy of this loop.
+export async function waitForActiveSubscription(
+  uid: string,
+  { attempts = 10, delayMs = 1500 }: { attempts?: number; delayMs?: number } = {}
+): Promise<boolean> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.data()?.subscriptionStatus === "active") return true;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return false;
 }

@@ -21,7 +21,7 @@ const unblockUserFn = httpsCallable(functions, "unblockUser");
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const { user: currentUser } = useAuth();
-  const { locked: privacyLocked } = usePrivacyLock();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
@@ -163,6 +163,10 @@ export default function UserProfileScreen() {
       <Text style={{ fontSize: 19, color: colors.ink }}>Back</Text>
     </TouchableOpacity>
   );
+
+  if (privacyLockLoading) {
+    return <View style={{ flex: 1, backgroundColor: colors.paper }} />;
+  }
 
   if (privacyLocked) {
     return <PrivacyLockScreen label="Profiles" />;

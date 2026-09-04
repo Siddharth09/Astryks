@@ -47,11 +47,15 @@ function VisibilityToggle({ isPublic, setIsPublic }: { isPublic: boolean; setIsP
 
 export default function HomeScreen() {
   const { user, loading: authLoading } = useAuth();
-  const { locked: privacyLocked } = usePrivacyLock();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   const navigation = useNavigation();
   // "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home rather
   // than its own top-level tab, replacing the old separate Prizes tab.
   const [view, setView] = useState<"feed" | "hallOfFame">("feed");
+
+  const [allPosts, setAllPosts] = useState<any[] | null>(null);
+  const [posts, setPosts] = useState<any[] | null>(null);
+  const [scope, setScope] = useState<"everyone" | "following">("everyone");
 
   // Re-tapping the already-active Home tab previously did nothing if you were sitting on the
   // Hall of Fame sub-tab — there was no way back to the feed except manually tapping the "Home"
@@ -64,16 +68,19 @@ export default function HomeScreen() {
   // pull-to-refresh. App Store Guideline 1.2 expects blocking to remove content from the feed
   // right away, so re-tapping Home (the natural thing to do right after blocking someone from
   // their profile) is what makes that "instant" in practice.
+  //
+  // `scope` is in the dependency array (not just `navigation`) so this re-registers whenever the
+  // Everyone/Following toggle changes — otherwise the listener closure would keep calling the
+  // `load()` from whichever render it was created on, permanently reading that render's `scope`
+  // value instead of the current one (a stale closure), fetching the wrong page size for
+  // whichever scope the user has actually selected.
   useEffect(() => {
     const unsubscribe = (navigation as any).addListener("tabPress", () => {
       setView("feed");
       load();
     });
     return unsubscribe;
-  }, [navigation]);
-  const [allPosts, setAllPosts] = useState<any[] | null>(null);
-  const [posts, setPosts] = useState<any[] | null>(null);
-  const [scope, setScope] = useState<"everyone" | "following">("everyone");
+  }, [navigation, scope]);
   const [linkInput, setLinkInput] = useState<string | null>(null);
   const [textInput, setTextInput] = useState<string | null>(null);
   // A picked-but-not-yet-posted photo/video, waiting on the public/private choice below before
@@ -304,6 +311,17 @@ export default function HomeScreen() {
     } finally {
       setComposeLoading(false);
     }
+  }
+
+  // privacyLockLoading first: `locked` starts false until the on-device PIN check resolves, so
+  // checking only `privacyLocked` would let real content flash on cold start before that async
+  // check settles — showing a spinner here instead closes that window.
+  if (privacyLockLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", backgroundColor: colors.paper }}>
+        <ActivityIndicator color={colors.ink} />
+      </View>
+    );
   }
 
   if (privacyLocked) {

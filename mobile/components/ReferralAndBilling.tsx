@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/styles";
 import { detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
-import { purchaseSubscription, restorePurchases, PlanId } from "@/lib/purchases";
+import { purchaseSubscription, restorePurchases, waitForActiveSubscription, PlanId } from "@/lib/purchases";
 import { fallbackDisplayPricing, resolveDisplayPricing, DisplayPricing } from "@/lib/pricing";
 
 // Mobile subscriptions are Apple/Google in-app purchases (via Qonversion) rather than Stripe —
@@ -69,17 +69,15 @@ export default function ReferralAndBilling() {
     if (result.success) {
       setLoadingPlan(null);
       setConfirming(true);
-      // See SubscriptionBanner.tsx for why this polls rather than optimistically flipping local
-      // state — subscriptionStatus is server-only, and getLessonPlayback gates on the real
-      // Firestore value, not on anything this screen can set directly.
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.data()?.subscriptionStatus === "active") break;
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
+      // See lib/purchases.ts's waitForActiveSubscription for why this polls rather than
+      // optimistically flipping local state — subscriptionStatus is server-only, and
+      // getLessonPlayback gates on the real Firestore value, not on anything this screen can set
+      // directly.
+      await waitForActiveSubscription(user.uid);
       setConfirming(false);
-    }
-    if (result.error) {
+      // Purchase genuinely succeeded even if `result.error` is also set (e.g. "you're already
+      // subscribed") — that's informational, not a failure, so it shouldn't also show an error.
+    } else if (result.error) {
       setError(result.error);
     }
     setLoadingPlan(null);

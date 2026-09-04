@@ -1176,7 +1176,11 @@ exports.resolveReport = onCall(
     if (!request.auth || !(ADMIN_EMAILS.includes(request.auth.token.email ?? "") && request.auth.token.email_verified === true)) {
       throw new HttpsError("permission-denied", "This action is for the Astryks team only.");
     }
-    const { reportId, action } = request.data ?? {};
+    // clientTargetUid is the ownerId/userId the admin's own screen already had loaded (from
+    // getReports' preview) — used as a fallback below when the reported content was deleted out
+    // from under this call (self-deleted, or resolved by another admin) between page load and
+    // the eject click, since at that point there's no live post/comment doc left to read it from.
+    const { reportId, action, targetUid: clientTargetUid } = request.data ?? {};
     // "eject" does everything "delete" does, plus permanently deletes the responsible member's
     // account — the one-click "remove content and eject the user" action App Store Guideline 1.2
     // requires (a plain "delete" only ever touched the content, never the account that posted
@@ -1200,6 +1204,10 @@ exports.resolveReport = onCall(
         if (postSnap.exists) {
           if (action === "eject") ejectedUid = postSnap.data().ownerId ?? null;
           await deletePostInternal(postRef, postSnap.data(), BUNNY_API_KEY.value());
+        } else if (action === "eject") {
+          // Content's already gone (self-deleted, or a prior resolve) — fall back to whatever
+          // owner uid the admin's own screen still has, rather than silently skipping the eject.
+          ejectedUid = clientTargetUid ?? null;
         }
       } else if (report.targetType === "comment") {
         const commentRef = db.doc(`posts/${report.postId}/comments/${report.targetId}`);
@@ -1209,18 +1217,30 @@ exports.resolveReport = onCall(
           // Just delete it — the onCommentDeleted trigger below keeps the post's commentCount
           // in sync, so there's no need (and it would double-count) to decrement it here too.
           await commentRef.delete();
+        } else if (action === "eject") {
+          ejectedUid = clientTargetUid ?? null;
         }
       } else if (report.targetType === "user" && action === "eject") {
         ejectedUid = report.targetId;
       }
 
-      if (action === "eject" && ejectedUid) {
+      if (action === "eject") {
+        if (!ejectedUid) {
+          throw new HttpsError(
+            "not-found",
+            "Couldn't tell which member to eject — the content is already gone. Refresh and try again."
+          );
+        }
         const targetUser = await admin.auth().getUser(ejectedUid).catch(() => null);
         if (targetUser && ADMIN_EMAILS.includes(targetUser.email ?? "")) {
           throw new HttpsError("failed-precondition", "Refusing to eject an admin account.");
         }
         if (targetUser) {
           await deleteAccountInternal(ejectedUid, BUNNY_API_KEY.value(), stripeSecret.value());
+        } else {
+          // Account no longer exists either (already deleted) — nothing left to eject, but this
+          // is a real outcome the admin should see, not a silent success.
+          throw new HttpsError("not-found", "That member's account no longer exists.");
         }
       }
     }
@@ -2400,7 +2420,7 @@ exports.listPublicProfiles = onCall(async (request) => {
 // messages between you (see firestore.rules' isBlockedPair, used by the likes/comments/
 // conversations/messages rules) — it does NOT retroactively remove likes/comments/messages that
 // already existed before the block.
-exports.blockUser = onCall(async (request) => {
+exports.blockUser = onCall({ secrets: [SUPPORT_EMAIL_USER, SUPPORT_EMAIL_PASS] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }

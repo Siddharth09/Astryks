@@ -126,13 +126,15 @@ export default function AdminReportsPage() {
     return <p className="text-center py-16 text-ink/60">This page is for the Astryks team only.</p>;
   }
 
-  async function handleResolve(reportId: string, action: "delete" | "eject" | "dismiss") {
+  async function handleResolve(reportId: string, action: "delete" | "eject" | "dismiss", targetUid?: string) {
     if (action === "delete" && !confirm("Delete the reported content? This can't be undone.")) return;
     if (action === "eject" && !confirm("Delete the reported content AND permanently delete the responsible member's account? This can't be undone.")) return;
     setResolvingId(reportId);
     setError(null);
     try {
-      await resolveReportFn({ reportId, action });
+      // targetUid is a fallback for "eject" — the owner uid this screen already has loaded, in
+      // case the reported post/comment gets deleted out from under this call before it runs.
+      await resolveReportFn({ reportId, action, targetUid });
       setReports((prev) => (prev ? prev.filter((r) => r.id !== reportId) : prev));
     } catch (err: any) {
       setError(err.message ?? "Couldn't resolve that report.");
@@ -288,7 +290,7 @@ export default function AdminReportsPage() {
                 )}
                 {r.preview?.ownerId && (
                   <button
-                    onClick={() => handleResolve(r.id, "eject")}
+                    onClick={() => handleResolve(r.id, "eject", r.preview.ownerId)}
                     disabled={resolvingId === r.id}
                     className="text-xs rounded-lg bg-red-800 text-white font-medium px-3 py-1.5 disabled:opacity-50"
                     title="Deletes the content (if any) and permanently deletes this member's account"

@@ -38,7 +38,7 @@ function openIfSafeUrl(url?: string) {
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { locked: privacyLocked } = usePrivacyLock();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +81,12 @@ export default function PostDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  if (privacyLockLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.paper }} />
+    );
+  }
 
   if (privacyLocked) {
     return <PrivacyLockScreen label="This" />;
