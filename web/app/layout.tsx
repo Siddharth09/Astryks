@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PrivacyLockProvider } from "@/contexts/PrivacyLockContext";
 import BottomNav from "@/components/BottomNav";
 import ErrorReporter from "@/components/ErrorReporter";
 import ReferralCapture from "@/components/ReferralCapture";
@@ -68,12 +69,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ErrorReporter />
         <ReferralCapture />
         <AuthProvider>
-          <SplashIntro>
-            <TopHeader />
-            <SideNav />
-            <AppShell>{children}</AppShell>
-            <BottomNav />
-          </SplashIntro>
+          <PrivacyLockProvider>
+            <SplashIntro>
+              <TopHeader />
+              <SideNav />
+              <AppShell>{children}</AppShell>
+              <BottomNav />
+            </SplashIntro>
+          </PrivacyLockProvider>
         </AuthProvider>
       </body>
     </html>

@@ -5,6 +5,8 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import PostCard from "@/components/PostCard";
 import ShareComposer from "@/components/ShareComposer";
 import PageBackground from "@/components/PageBackground";
@@ -18,6 +20,7 @@ const getFeed = httpsCallable(functions, "getFeed");
 
 export default function HomePage() {
   const { user, loading: authLoading } = useRequireAuth();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   // "Home" (the feed) vs "Hall of Fame" (the featured gallery) — a sub-tab within Home rather
   // than its own top-level tab, replacing the old separate Prizes tab.
   const [view, setView] = useState<"feed" | "hallOfFame">("feed");
@@ -96,6 +99,16 @@ export default function HomePage() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [posts, hasMore, loadingMore, cursor, scope, user]);
+
+  // privacyLockLoading first: `locked` starts false until the localStorage check resolves, so
+  // checking only `privacyLocked` would let real content flash before that check settles.
+  if (privacyLockLoading) {
+    return <p className="text-ink/50 text-center py-16">Loading…</p>;
+  }
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="Home" />;
+  }
 
   if (authLoading || !user) {
     return <p className="text-ink/50 text-center py-16">Loading…</p>;

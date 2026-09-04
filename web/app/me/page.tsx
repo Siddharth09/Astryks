@@ -32,6 +32,7 @@ import { signOut, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import PageBackground from "@/components/PageBackground";
 import ReferralAndBilling from "@/components/ReferralAndBilling";
+import PrivacyLockSettings from "@/components/PrivacyLockSettings";
 
 const fetchLinkPreview = httpsCallable(functions, "fetchLinkPreview");
 const deleteMyAccount = httpsCallable(functions, "deleteMyAccount");
@@ -455,6 +456,8 @@ export default function MePage() {
 
       <div className="mb-4" />
       <ReferralAndBilling />
+
+      <PrivacyLockSettings />
 
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab("posts")} className={tab === "posts" ? "btn-primary flex-1 text-xs" : "btn-secondary flex-1 text-xs"}>

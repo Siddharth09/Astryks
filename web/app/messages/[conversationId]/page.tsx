@@ -16,6 +16,8 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import PageBackground from "@/components/PageBackground";
 import { BOT_UIDS } from "@/lib/botUsers";
 
@@ -23,6 +25,7 @@ import { BOT_UIDS } from "@/lib/botUsers";
 export default function ChatThreadPage() {
   const params = useParams<{ conversationId: string }>();
   const { user } = useAuth();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   const [messages, setMessages] = useState<any[]>([]);
   const [body, setBody] = useState("");
   const [otherName, setOtherName] = useState<string | null>(null);
@@ -91,6 +94,14 @@ export default function ChatThreadPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     sendMessage();
+  }
+
+  if (privacyLockLoading) {
+    return <p className="text-ink/50 text-center py-16">Loading…</p>;
+  }
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="Messages" />;
   }
 
   return (

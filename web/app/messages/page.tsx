@@ -7,6 +7,8 @@ import { collection, query, where, orderBy, onSnapshot } from "firebase/firestor
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { usePrivacyLock } from "@/contexts/PrivacyLockContext";
+import PrivacyLockScreen from "@/components/PrivacyLockScreen";
 import PageBackground from "@/components/PageBackground";
 import { BOT_UIDS } from "@/lib/botUsers";
 import { ensureConversation } from "@/lib/conversations";
@@ -18,6 +20,7 @@ const SUBJECT_ICONS: Record<string, string> = { music: "🎵", art: "🎨" };
 
 export default function MessagesPage() {
   const { user, loading: authLoading } = useRequireAuth();
+  const { locked: privacyLocked, loading: privacyLockLoading } = usePrivacyLock();
   const router = useRouter();
   const [conversations, setConversations] = useState<any[] | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -75,6 +78,14 @@ export default function MessagesPage() {
     } finally {
       setStarting(null);
     }
+  }
+
+  if (privacyLockLoading) {
+    return <p className="text-ink/50 text-center py-16">Loading…</p>;
+  }
+
+  if (privacyLocked) {
+    return <PrivacyLockScreen label="Messages" />;
   }
 
   if (authLoading || !user) {
