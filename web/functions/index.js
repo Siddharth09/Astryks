@@ -5256,6 +5256,36 @@ exports.qonversionWebhook = onRequest({ secrets: [qonversionWebhookAuth] }, asyn
 
 // ---------- Scheduled: mark $50 referral payouts owed after 3 months of active subscription ----------
 
+// ---------- Scheduled: keep the web pricing display's exchange rates current ----------
+//
+// AUD is the real anchor Stripe charges against (see createCheckoutSession/lib/geo.ts — the
+// Stripe account only settles in AUD, so that's the currency Adaptive Pricing converts FROM).
+// This function has nothing to do with what a customer is actually charged at checkout — Stripe
+// computes that live, for real, using its own rates. This only keeps the pre-checkout marketing
+// price (the "€4.99/week"-style number shown on the homepage before anyone reaches Stripe)
+// roughly current, so it doesn't drift into visibly-wrong territory the way the old hand-typed
+// table did. Runs once a day, unattended — no deploy or manual edit ever needed to keep it
+// fresh, unlike the static table it replaces.
+exports.refreshExchangeRates = onSchedule("every day 03:00", async () => {
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/AUD");
+    const data = await res.json();
+    if (data.result !== "success" || !data.rates) {
+      throw new Error(`Unexpected response: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+    await db.doc("config/exchangeRates").set({
+      base: "AUD",
+      rates: data.rates,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    // Fails open: on error, the last successfully-fetched rates stay in place (this function
+    // only ever overwrites the doc on a successful fetch), so a transient outage in the rate
+    // API just means the displayed price is a day or two stale, never broken or blank.
+    console.error("refreshExchangeRates: failed to fetch/store rates", err);
+  }
+});
+
 exports.checkReferralPayouts = onSchedule("every day 09:00", async () => {
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const referralsSnap = await db.collection("referrals").where("paid", "==", false).get();
@@ -5295,10 +5325,11 @@ exports.dailyStreakReminder = onSchedule("every day 18:00", async () => {
   );
 });
 
-// Cosmetic-only display price for the onboarding nudge emails below — fixed USD everywhere,
-// same as web/lib/geo.ts. NOT the source of truth for what anyone is actually charged.
+// Cosmetic-only display price for the onboarding nudge emails below — fixed AUD everywhere
+// (the real Stripe anchor — see createCheckoutSession/lib/geo.ts). NOT the source of truth for
+// what anyone is actually charged; Stripe's own Adaptive Pricing localizes the real charge.
 function nudgePriceDisplay() {
-  return "$4.99/week";
+  return "A$4.99/week";
 }
 
 // ---------- Scheduled: onboarding drip — the two nudges for signups who've gone quiet ----------

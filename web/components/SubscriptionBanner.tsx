@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import TrailersSection from "@/components/TrailersSection";
-import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, resolveLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 
 const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
 
@@ -28,7 +28,9 @@ export default function SubscriptionBanner() {
       setStatus(snap.data()?.subscriptionStatus ?? "none");
       // Prefer the account's saved country (most reliable once someone's subscribed before,
       // or filled in by the best-effort guess in AuthContext) over a fresh guess.
-      setPricing(getLocalizedPricing(snap.data()?.countryCode ?? detectCountryCode()));
+      const country = snap.data()?.countryCode ?? detectCountryCode();
+      setPricing(getLocalizedPricing(country));
+      resolveLocalizedPricing(country).then(setPricing);
     });
   }, [user]);
 
@@ -132,7 +134,7 @@ export default function SubscriptionBanner() {
           )}
         </button>
       </div>
-      <p className="text-[11px] text-ink/30 mt-2">{PRICE_CURRENCY_NOTE}</p>
+      {!pricing.isExact && <p className="text-[11px] text-ink/30 mt-2">{PRICE_CURRENCY_NOTE}</p>}
       {billingError && <p className="text-xs text-red-600 mt-2">{billingError}</p>}
 
       <TrailersSection compact />

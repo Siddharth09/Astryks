@@ -80,10 +80,15 @@ Qonversion; what's missing is the account setup:
 - [ ] In the Stripe Dashboard, confirm the webhook endpoint has **`account.updated`** ticked as
       an event type — the code has a comment noting this exact requirement for prize-winner
       payout notifications, and it's easy to miss when setting up the webhook.
-- [ ] Cross-check the actual Stripe Price objects (weekly + annual, all 6 currencies) against the
-      numbers in `lib/geo.ts` — these live in two separate systems (Stripe's dashboard and this
-      file) with no automated check between them, so they can silently drift if either is ever
-      edited alone.
+- [x] ~~Cross-check the actual Stripe Price objects against `lib/geo.ts`~~ — resolved by removing
+      the manual per-currency setup entirely. The Stripe Prices are now a single AUD amount each
+      (A$4.99/week, A$199/year — the account's only settlement currency), with Stripe's own
+      Adaptive Pricing handling every other currency's real charge automatically (no
+      `currency_options` left to drift). `lib/geo.ts`'s pre-checkout display now pulls live rates
+      from `config/exchangeRates`, refreshed daily by `refreshExchangeRates` — also no longer a
+      hand-maintained table. **Still needed: enable Adaptive Pricing in the Stripe Dashboard**
+      (dashboard.stripe.com/settings/adaptive-pricing) — that one toggle has no API equivalent, so
+      it can't be done from code.
 
 ## 6. Data migration & security follow-ups
 

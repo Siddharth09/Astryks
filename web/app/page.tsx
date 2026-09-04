@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
+import { annualWeeklyEquivalentDisplay, detectCountryCode, getLocalizedPricing, resolveLocalizedPricing, PRICE_CURRENCY_NOTE } from "@/lib/geo";
 
 const SUBJECT_DETAILS = [
   {
@@ -55,8 +55,10 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  // Illustrative only — see lib/geo.ts. Starts at the USD default and updates once we can
-  // read the browser's locale/timezone client-side, so there's no server/client mismatch.
+  // Starts at the AUD default (exact — see lib/geo.ts) and updates once we can read the
+  // browser's locale/timezone client-side, so there's no server/client mismatch. A second
+  // update follows once today's live exchange rate loads, upgrading the fallback estimate to
+  // an exact figure (see lib/geo.ts's resolveLocalizedPricing).
   const [pricing, setPricing] = useState(() => getLocalizedPricing(null));
 
   useEffect(() => {
@@ -66,7 +68,9 @@ export default function Home() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    setPricing(getLocalizedPricing(detectCountryCode()));
+    const country = detectCountryCode();
+    setPricing(getLocalizedPricing(country));
+    resolveLocalizedPricing(country).then(setPricing);
   }, []);
 
   // Defined here (not at module scope) since the middle step's price mention needs to reflect
@@ -285,7 +289,7 @@ export default function Home() {
               or save with annual — <span className="line-through opacity-50">{pricing.display}</span>{" "}
               {annualWeeklyEquivalentDisplay(pricing)} ({pricing.annualDisplay}). Pick whichever plan when you subscribe from your account.
             </p>
-            <p className="text-[11px] text-ink/30 mb-5">{PRICE_CURRENCY_NOTE}</p>
+            {!pricing.isExact && <p className="text-[11px] text-ink/30 mb-5">{PRICE_CURRENCY_NOTE}</p>}
             <ul className="space-y-2.5 mb-6">
               {PRICING_FEATURES.map((f) => (
                 <li key={f} className="text-sm text-ink/70 flex items-start gap-2">

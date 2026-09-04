@@ -181,6 +181,14 @@ service cloud.firestore {
     }
 
     // Trailer/preview videos shown on the home feed and subscribe prompt — admin-managed
+    // Daily-refreshed currency conversion rates (see refreshExchangeRates in functions/index.js)
+    // used only for the pre-checkout marketing price display — not sensitive, safe to read
+    // publicly (including signed-out visitors on the homepage), never client-writable.
+    match /config/exchangeRates {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /trailers/{trailerId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null
