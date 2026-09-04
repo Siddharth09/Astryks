@@ -879,16 +879,6 @@ exports.getLessonPlayback = onCall(async (request) => {
     const userSnap = await db.doc(`users/${request.auth.uid}`).get();
     const isActive = userSnap.data()?.subscriptionStatus === "active";
     if (!isActive) {
-      // Privacy Lock (web + mobile) closes the free-preview loophole entirely: with it on, a
-      // non-subscriber gets no lesson video at all, not even the usual 10 free minutes per
-      // subject — set via setPrivacyLockStatus below, never by the client writing this field
-      // directly (see firestore.rules' users/{userId} allowlist).
-      if (userSnap.data()?.privacyLockEnabled === true) {
-        throw new HttpsError(
-          "permission-denied",
-          "Privacy Lock is on for this account — subscribe to watch lessons."
-        );
-      }
       const usedBySubject = userSnap.data()?.freePreviewSecondsUsed || {};
       const secondsUsed = (subjectId && usedBySubject[subjectId]) || 0;
       freePreviewSecondsRemaining = FREE_PREVIEW_SECONDS_ALLOWED - secondsUsed;
@@ -3071,21 +3061,6 @@ exports.verifyPrivacyLockReset = onCall(async (request) => {
     privacyLockResetCodeExpiresAt: admin.firestore.FieldValue.delete(),
   });
   return { valid: true };
-});
-
-// Callable: flips a plain boolean on/off, called whenever a client sets up or disables Privacy
-// Lock. The PIN itself never touches Firestore (device-local on mobile, browser-local on web —
-// see lib/privacyLock.ts in each app), but getLessonPlayback above needs SOME server-visible
-// signal to close the free-preview loophole for a non-subscriber while Privacy Lock is on, and
-// firestore.rules' users/{userId} allowlist deliberately doesn't let a client write this (or any
-// other) field directly — this callable is the one sanctioned way in.
-exports.setPrivacyLockStatus = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "You must be logged in.");
-  }
-  const enabled = !!request.data?.enabled;
-  await db.doc(`users/${request.auth.uid}`).set({ privacyLockEnabled: enabled }, { merge: true });
-  return { ok: true };
 });
 
 // ---------- Subscription lifecycle emails: subscribed / canceled / refunded ----------

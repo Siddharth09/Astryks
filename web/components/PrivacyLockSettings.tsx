@@ -79,7 +79,7 @@ export default function PrivacyLockSettings() {
           <p className="text-sm font-semibold">Privacy Lock</p>
           <p className="text-xs text-ink/60 mt-0.5">
             {enabled
-              ? "On — Home and Messages need your PIN, and lessons need a subscription"
+              ? "On — Home and Messages need your PIN"
               : "Hide Home and Messages behind a PIN on a shared or public computer"}
           </p>
         </div>
@@ -99,7 +99,7 @@ export default function PrivacyLockSettings() {
                 ? step === "create"
                   ? "Choose a 4-digit PIN for Privacy Lock"
                   : "Enter the same PIN again"
-                : "This turns off Privacy Lock for Home, Messages, and the lesson restriction"}
+                : "This turns off Privacy Lock for Home and Messages"}
             </p>
             {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
             <PinPad error={!!error} resetKey={resetKey} onComplete={modal === "setup" ? handleSetupPin : handleDisablePin} />

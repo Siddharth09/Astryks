@@ -8,7 +8,6 @@ import { isPrivacyLockEnabled, verifyPrivacyLockPin, setPrivacyLockPin, clearPri
 
 const requestPrivacyLockResetFn = httpsCallable(functions, "requestPrivacyLockReset");
 const verifyPrivacyLockResetFn = httpsCallable(functions, "verifyPrivacyLockReset");
-const setPrivacyLockStatusFn = httpsCallable(functions, "setPrivacyLockStatus");
 
 type PrivacyLockContextValue = {
   // Whether a PIN has been set up at all (i.e. the feature is turned on).
@@ -84,11 +83,6 @@ export function PrivacyLockProvider({ children }: { children: ReactNode }) {
     await setPrivacyLockPin(uid, pin);
     setEnabled(true);
     setLocked(false);
-    // Best-effort: this flag is what lets getLessonPlayback close the free-preview loophole for
-    // a non-subscriber while Privacy Lock is on (see functions/index.js) — the PIN itself still
-    // never leaves the browser either way, so a failed call here just means that extra Learn
-    // restriction doesn't kick in yet, not that the lock itself is broken.
-    setPrivacyLockStatusFn({ enabled: true }).catch(() => {});
   }
 
   async function disable(pin: string): Promise<boolean> {
@@ -98,7 +92,6 @@ export function PrivacyLockProvider({ children }: { children: ReactNode }) {
     clearPrivacyLockPin(uid);
     setEnabled(false);
     setLocked(false);
-    setPrivacyLockStatusFn({ enabled: false }).catch(() => {});
     return true;
   }
 
